@@ -1,6 +1,6 @@
 <template>
   <!-- 路由出口！所有页面组件在这里渲染 -->
-  <router-view />
+ <router-view></router-view>
 </template>
 
 <script setup>
