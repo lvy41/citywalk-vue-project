@@ -1,10 +1,8 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
-
 // ✅ 注意：不要 import router，避免和 router/index.js 形成循环依赖
 // 使用 window.location.href 跳转即可
-
 // 创建 axios 实例
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -13,14 +11,18 @@ const request = axios.create({
     'Content-Type': 'application/json'
   }
 })
-
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
     const token = userStore.token
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // 👉 修复：用endsWith后缀匹配，不管前面baseURL是什么
+    const skipUrls = ['/user/login', '/user/register']
+    const isSkipApi = skipUrls.some(path => config.url.endsWith(path))
+    if (!isSkipApi) {
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
     return config
   },
@@ -29,13 +31,11 @@ request.interceptors.request.use(
     return Promise.reject(error)
   }
 )
-
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
     // 统一处理响应数据
     const { code, data, message } = response.data
-
     // ⚠️ 这里要跟后端统一：如果是 200 就保持，如果是 0 就改成 code === 0
     if (code === 200) {
       return { data }
@@ -48,7 +48,6 @@ request.interceptors.response.use(
     // 处理 HTTP 错误
     if (error.response) {
       const { status, data } = error.response
-
       switch (status) {
         case 401: {
           // ✅ 使用块级作用域，避免 no-case-declarations 报错
@@ -78,5 +77,4 @@ request.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
 export default request

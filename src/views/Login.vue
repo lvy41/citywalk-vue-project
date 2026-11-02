@@ -154,6 +154,45 @@
         <p>© 2026 CityWalk · 用脚步阅读城市</p>
       </div>
     </div>
+
+    <!-- 隐私协议弹窗 -->
+    <div v-if="showPrivacy" class="modal-mask" @click.self="showPrivacy = false">
+      <div class="privacy-modal">
+        <div class="privacy-header">
+          <h3>隐私协议</h3>
+          <span class="privacy-close" @click="showPrivacy = false">✕</span>
+        </div>
+        <div class="privacy-body">
+          <p class="privacy-date">更新日期：2026年10月19日</p>
+
+          <h4>一、引言</h4>
+          <p>欢迎使用 CityWalk 城市漫步打卡系统。我们深知个人信息对您的重要性，并会尽全力保护您的个人信息安全可靠。请您在使用本应用前，仔细阅读并充分理解本协议全部内容。您勾选同意即表示接受本协议全部条款。</p>
+
+          <h4>二、我们收集的信息</h4>
+          <p><strong>您主动提供的：</strong>用户名、密码、手机号、昵称——用于注册登录和身份识别。</p>
+          <p><strong>自动收集的：</strong>地理位置信息——用于打卡校验（到达打卡点50米内）和附近路线推荐；设备信息——用于页面适配和安全保障。</p>
+          <p><strong>您发布的内容：</strong>创建的路线信息、上传的图片、发表的评论、打卡记录和收藏记录。</p>
+
+          <h4>三、信息的使用</h4>
+          <p>我们收集的信息仅用于：提供登录注册、路线浏览、打卡、收藏、评论等核心功能；基于您的位置实现打卡校验和附近路线推荐；将您发布的内容展示给其他用户浏览。</p>
+
+          <h4>四、信息的共享</h4>
+          <p>我们不会向任何第三方出售您的个人信息。使用地图功能时，您的位置信息会发送给地图服务商以完成地图渲染和定位。</p>
+
+          <h4>五、信息的保护</h4>
+          <p>您的密码经过加密处理存储，我们采取技术措施防止数据泄露。本应用为校园毕业设计项目，不用于商业用途。</p>
+
+          <h4>六、您的权利</h4>
+          <p>您可以在个人中心修改昵称、删除自己发布的内容、退出登录。如需注销账号，请联系管理员处理。</p>
+
+          <h4>七、权限说明</h4>
+          <p>地理位置权限仅用于打卡和附近路线推荐，关闭后不影响浏览路线，但无法打卡。</p>
+        </div>
+        <div class="privacy-footer">
+          <button class="privacy-btn" @click="showPrivacy = false">我已阅读</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -172,6 +211,7 @@ const loading = ref(false)
 const agree = ref(false)
 const showPwd = ref(false)
 const showRegPwd = ref(false)
+const showPrivacy = ref(false)
 
 // ========== 随机Slogan ==========
 const slogans = [
@@ -223,7 +263,7 @@ const switchTab = (tab) => {
 }
 
 const showAgreement = () => {
-  ElMessage.info('正在打开隐私协议页面...')
+  showPrivacy.value = true
 }
 
 // ========== 登录 ==========
@@ -659,6 +699,83 @@ const handleRegister = async () => {
   color: rgba(255, 255, 255, 0.7);
   letter-spacing: 1px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ========== 隐私协议弹窗 ========== */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.privacy-modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.privacy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.privacy-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.privacy-close {
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.privacy-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #555;
+}
+.privacy-body h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 16px 0 8px;
+}
+.privacy-body p {
+  margin: 0 0 10px;
+}
+.privacy-date {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 12px;
+}
+.privacy-footer {
+  padding: 12px 20px 18px;
+  border-top: 1px solid #f0f0f0;
+}
+.privacy-btn {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* ========== 手机适配 ========== */

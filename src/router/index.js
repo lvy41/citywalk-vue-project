@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
+
 const routes = [
   {
     path: '/',
-    redirect: '/home'
+    redirect: '/login'
   },
-  // ========== 移动端H5路由 ==========
   {
     path: '/login',
     name: 'Login',
@@ -22,7 +22,7 @@ const routes = [
     path: '/map',
     name: 'Map',
     component: () => import('@/views/Map.vue'),
-    meta: { requiresAuth: true }
+    meta: { title: "探索地图", requiresAuth: true }
   },
   {
     path: '/publish',
@@ -48,7 +48,6 @@ const routes = [
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: true }
   },
-  // ========== 管理员后台路由【全部启用】 ==========
   {
     path: '/adminlogin',
     name: 'AdminLogin',
@@ -85,46 +84,42 @@ const routes = [
     component: () => import('@/views-admin/TagManage.vue'),
     meta: { adminAuth: true }
   },
-  // 404兜底路由
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   },
   {
-  path: '/privacy',
-  name: 'Privacy',
-  component: () => import('@/views/PrivacyAgreement.vue'),
-  meta:{public:true}
-}
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/PrivacyAgreement.vue'),
+    meta:{public:true}
+  }
 ]
+
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
 
-// 全局路由守卫
-router.beforeEach((to, from, next) => {
+// 同步守卫，Router4 标准return写法，无next、无async
+router.beforeEach((to) => {
   const userStore = useUserStore()
+  // 每次路由切换先读取本地存储
   userStore.init()
 
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
-      next({ path: '/adminlogin' })
-    } else {
-      next()
+      return '/adminlogin'
     }
   } else if (to.meta.requiresAuth) {
     if (!userStore.isLoggedIn) {
-      next({
+      return {
         path: '/login',
         query: { redirect: to.fullPath }
-      })
-    } else {
-      next()
+      }
     }
-  } else {
-    next()
   }
+  return true
 })
 
 export default router
