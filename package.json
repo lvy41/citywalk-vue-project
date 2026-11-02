@@ -13,7 +13,9 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
     "axios": "^1.20.0",
+    "echarts": "^6.1.0",
     "element-plus": "^2.14.7",
     "pinia": "^4.1.0",
     "vue": "^3.5.42",
