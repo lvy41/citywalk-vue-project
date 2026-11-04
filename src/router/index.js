@@ -42,6 +42,32 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
+  // ==========新增4条路由开始==========
+  {
+    path: '/my-publish',
+    name: 'MyPublish',
+    component: () => import('@/views/MyPublish.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/my-like',
+    name: 'MyLike',
+    component: () => import('@/views/MyLike.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/message',
+    name: 'Message',
+    component: () => import('@/views/Message.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/setting',
+    name: 'Setting',
+    component: () => import('@/views/Setting.vue'),
+    meta: { requiresAuth: true }
+  },
+  // ==========新增4条路由结束==========
   {
     path: '/detail/:id',
     name: 'Detail',
@@ -101,17 +127,23 @@ const router = createRouter({
   routes
 })
 
-// 同步守卫，Router4 标准return写法，无next、无async
+// 路由守卫：合并后的版本（保留组长admin后台判断 + 你的public公开页面判断）
 router.beforeEach((to) => {
   const userStore = useUserStore()
-  // 每次路由切换先读取本地存储
   userStore.init()
 
+  // 公开页面直接放行
+  if (to.meta.public) {
+    return true
+  }
+  // 管理员页面校验
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
       return '/adminlogin'
     }
-  } else if (to.meta.requiresAuth) {
+  }
+  // 普通用户登录校验
+  if (to.meta.requiresAuth) {
     if (!userStore.isLoggedIn) {
       return {
         path: '/login',
