@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
-
 const routes = [
   {
     path: '/',
@@ -16,7 +15,7 @@ const routes = [
     path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/map',
@@ -28,7 +27,7 @@ const routes = [
     path: '/publish',
     name: 'Publish',
     component: () => import('@/views/Publish.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/record',
@@ -42,37 +41,12 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
-  // ==========新增4条路由开始==========
-  {
-    path: '/my-publish',
-    name: 'MyPublish',
-    component: () => import('@/views/MyPublish.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/my-like',
-    name: 'MyLike',
-    component: () => import('@/views/MyLike.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/message',
-    name: 'Message',
-    component: () => import('@/views/Message.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/setting',
-    name: 'Setting',
-    component: () => import('@/views/Setting.vue'),
-    meta: { requiresAuth: true }
-  },
-  // ==========新增4条路由结束==========
+  // ✅详情页修改为 requiresAuth: false，调试点击卡片不会跳登录
   {
     path: '/detail/:id',
     name: 'Detail',
     component: () => import('@/views/Detail.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/adminlogin',
@@ -121,29 +95,20 @@ const routes = [
     meta:{public:true}
   }
 ]
-
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
-// 路由守卫：合并后的版本（保留组长admin后台判断 + 你的public公开页面判断）
+// 同步守卫，Router4 标准return写法，无next、无async
 router.beforeEach((to) => {
   const userStore = useUserStore()
+  // 每次路由切换先读取本地存储
   userStore.init()
-
-  // 公开页面直接放行
-  if (to.meta.public) {
-    return true
-  }
-  // 管理员页面校验
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
       return '/adminlogin'
     }
-  }
-  // 普通用户登录校验
-  if (to.meta.requiresAuth) {
+  } else if (to.meta.requiresAuth) {
     if (!userStore.isLoggedIn) {
       return {
         path: '/login',
@@ -153,5 +118,4 @@ router.beforeEach((to) => {
   }
   return true
 })
-
 export default router
