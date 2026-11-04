@@ -43,6 +43,32 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
+  // ==========新增4条路由开始==========
+  {
+    path: '/my-publish',
+    name: 'MyPublish',
+    component: () => import('@/views/MyPublish.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/my-like',
+    name: 'MyLike',
+    component: () => import('@/views/MyLike.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/message',
+    name: 'Message',
+    component: () => import('@/views/Message.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/setting',
+    name: 'Setting',
+    component: () => import('@/views/Setting.vue'),
+    meta: { requiresAuth: true }
+  },
+  // ==========新增4条路由结束==========
   {
     path: '/detail/:id',
     name: 'Detail',
@@ -68,8 +94,10 @@ router.beforeEach((to, from, next) => {
   // 从localStorage读取token，刷新页面恢复登录状态，调用pinia里面的init方法
   userStore.init()
 
-  // 判断页面是否需要登录
-  if (to.meta.requiresAuth) {
+  // 优先判断：标记public的页面直接放行
+  if (to.meta.public) {
+    next()
+  } else if (to.meta.requiresAuth) {
     // 需要登录的页面，判断是否已经登录
     if (!userStore.isLoggedIn) {
       // 未登录，跳转到登录，记录要跳转的页面，登录成功后跳回去
@@ -81,7 +109,6 @@ router.beforeEach((to, from, next) => {
       next()
     }
   } else {
-    // public公开页面，直接放行（login页面）
     next()
   }
 })

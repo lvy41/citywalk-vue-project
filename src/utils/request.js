@@ -5,7 +5,7 @@ import router from '@/router'
 
 // 创建 axios 实例
 const request = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: 'http://127.0.0.1:8080/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
