@@ -1,393 +1,254 @@
 <template>
-  <div class="page-detail">
-    <!-- 返回按钮 -->
-    <div class="back-bar">
-      <el-button text @click="$router.back()">← 返回</el-button>
+  <div class="detail-container">
+    <!-- 顶部返回栏 -->
+    <div class="detail-header">
+      <el-button icon="ArrowLeft" circle @click="$router.back()"></el-button>
+      <span class="title">路线详情</span>
     </div>
 
-    <!-- 路线封面大图 -->
-    <div class="cover">
-      <img v-if="routeInfo.cover" :src="routeInfo.cover" alt="封面" />
-      <div v-else class="no‑cover">暂无封面图</div>
-    </div>
-
-    <!-- 顶部操作：点赞、收藏、分享 -->
-    <div class="action-bar">
-      <el-button
-        :type="isLike ? 'primary' : 'default'"
-        plain
-        @click="handleLike"
-      >
-        ❤ {{ likeCount }}
-      </el-button>
-      <el-button
-        :type="isCollect ? 'primary' : 'default'"
-        plain
-        @click="handleCollect"
-      >
-        ⭐ {{ collectCount }}
-      </el-button>
-      <el-button plain @click="handleShare">分享</el-button>
-    </div>
-
-    <!-- 路线基础信息 -->
-    <div class="info-card">
-      <h2 class="title">{{ routeInfo.title }}</h2>
-      <div class="meta-row">
-        <span>城市：{{ routeInfo.city }}</span>
-        <span>预计：{{ routeInfo.duration }}</span>
-        <span>里程：{{ routeInfo.distance }}km</span>
+    <div v-if="routeInfo" class="content-wrap">
+      <!-- 大图 -->
+      <div class="banner-img">
+        <img :src="routeInfo.cover" alt="" />
       </div>
-      <div class="tag-wrap">
-        <el‑tag v‑for="tag in routeInfo.tagList" :key="tag" size="small">
-          {{ tag }}
-        </el‑tag>
-      </div>
-      <div class="author">创作者：{{ routeInfo.authorName }}</div>
-      <div class="desc">
-        <div class="label">游玩简介：</div>
-        <div>{{ routeInfo.description }}</div>
-      </div>
-    </div>
+      <div class="info-card">
+        <h2>{{ routeInfo.name }}</h2>
+        <div class="meta-row">
+          <span>{{ routeInfo.city }}</span>
+          <span>⏱ 预计 {{ routeInfo.duration }}</span>
+        </div>
+        <div class="tag-group">
+          <el-tag v-for="t in routeInfo.tags" key="t" size="small">{{ t }}</el-tag>
+        </div>
 
-    <!-- 打卡点列表【核心模块】 -->
-    <div class="check‑point‑wrap">
-      <h3>打卡点位</h3>
-      <div v‑for="(point, index) in pointList" :key="point.id" class="point‑item">
-        <div class="point‑num">{{ index + 1 }}</div>
-        <div class="point‑content">
-          <div class="point‑name">{{ point.pointName }}</div>
-          <div class="point‑intro">{{ point.intro }}</div>
-          <div class="point‑btn">
-            <el‑button size="small" @click="goMap(point.lng, point.lat)">
-              前往打卡
-            </el‑button>
-            <el‑button
-              size="small"
-              type="success"
-              :disabled="point.isChecked"
-              @click="handleCheckIn(point)"
-            >
-              {{ point.isChecked ? "已打卡" : "打卡" }}
-            </el‑button>
-          </div>
+        <div class="desc-title">路线介绍</div>
+        <div class="desc-text">{{ routeInfo.desc }}</div>
+
+        <div class="action-row">
+          <el-button type="danger" plain @click="likeAction">
+            ❤ {{ routeInfo.likeNum }}
+          </el-button>
+          <el-button type="warning" plain @click="collectAction">
+            ⭐ {{ routeInfo.collectNum }}
+          </el-button>
         </div>
       </div>
     </div>
+    <div v-else class="empty">加载路线信息...</div>
 
-    <!-- 评论区 -->
-    <div class="comment‑wrap">
-      <h3>评论区</h3>
-      <el‑input
-        v‑model="commentText"
-        placeholder="写下你的游玩感受..."
-        type="textarea"
-        :rows="2"
-      ></el‑input>
-      <el‑button type="primary" class="send‑btn" @click="submitComment">
-        发布评论
-      </el‑button>
-
-      <div class="comment‑list">
-        <div v‑if="commentList.length === 0" class="empty‑tip">暂无评论</div>
-        <div v‑for="c in commentList" :key="c.id" class="comment‑item">
-          <div class="c‑user">{{ c.username }}</div>
-          <div class="c‑text">{{ c.content }}</div>
-          <div class="c‑time">{{ c.time }}</div>
-        </div>
-      </div>
+    <!-- 底部Tab -->
+    <div class="tab-bar">
+      <div class="tab-item" @click="$router.push('/home')">首页</div>
+      <div class="tab-item" @click="$router.push('/map')">探索地图</div>
+      <div class="tab-item" @click="$router.push('/publish')">发布路线</div>
+      <div class="tab-item" @click="$router.push('/record')">打卡记录</div>
+      <div class="tab-item" @click="$router.push('/my')">我的</div>
     </div>
-
-    <!-- 底部TabBar -->
-    <div class="tab‑bottom">
-      <TabBar />
-    </div>
+    <div class="blank-bottom"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { useRoute, useRouter } from "vue‑router";
-import TabBar from "@/components/TabBar.vue";
-// 接口预留，后端完成后打开注释
-// import { getRouteDetailAPI } from "@/api/route";
-// import { likeRouteAPI, collectRouteAPI, checkInPointAPI, addCommentAPI } from "@/api/route";
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
+const route = useRoute()
+const router = useRouter()
 
-const route = useRoute();
-const router = useRouter();
+// 和Home里面完全一致的数据源（详情页读取）
+const allRouteData = ref([
+  {
+    id: 1,
+    name: '老城街巷漫步路线',
+    city: '广州',
+    duration: '2小时',
+    cover: '/pictures/1.png',
+    tags: ['老街', '人文'],
+    likeNum: 128,
+    collectNum: 66,
+    hotScore: 194,
+    desc: '这条路线穿梭在广州西关老城街巷，漫步青砖骑楼之间，感受老广州原汁原味市井烟火。沿途可以欣赏岭南古建筑，探访老街小店，感受老城独有的安静与怀旧氛围，适合慢慢散步拍照。'
+  },
+  {
+    id: 2,
+    name: '珠江夜景散步',
+    city: '广州',
+    duration: '1.5小时',
+    cover: '/pictures/2.png',
+    tags: ['夜景'],
+    likeNum: 256,
+    collectNum: 120,
+    hotScore: 376,
+    desc: '沿着珠江江岸散步，欣赏广州塔与两岸楼宇灯光夜景。傍晚时分江风舒适，视野开阔，可以欣赏落日与城市灯光交相辉映，是广州经典夜景散步路线。'
+  },
+  {
+    id: 3,
+    name: '东山口文艺打卡线',
+    city: '广州',
+    duration: '3小时',
+    cover: '/pictures/3.png',
+    tags: ['美食', '文艺'],
+    likeNum: 310,
+    collectNum: 189,
+    hotScore: 499,
+    desc: '东山口保留大量红砖洋楼，文艺小店、咖啡馆、特色商铺密布。这条路线适合文艺打卡、探店拍照，沿途还有不少特色小吃，适合喜欢慢逛、喜欢拍照的朋友。'
+  },
+  {
+    id: 4,
+    name: '越秀公园休闲徒步',
+    city: '广州',
+    duration: '2.5小时',
+    cover: '/pictures/4.png',
+    tags: ['公园','短途徒步'],
+    likeNum: 196,
+    collectNum: 92,
+    hotScore: 288,
+    desc: '越秀公园是广州老牌城市公园，五羊石像就在这里。绿化茂密、环境清幽，路线平缓轻松，适合休闲徒步、放松散心，欣赏园林湖景。'
+  },
+  {
+    id: 5,
+    name: '广州博物馆人文游览线',
+    city: '广州',
+    duration: '3小时',
+    cover: '/pictures/5.png',
+    tags: ['博物馆','人文'],
+    likeNum: 220,
+    collectNum: 135,
+    hotScore: 355,
+    desc: '广州博物馆藏品丰富，了解广州千年城市历史。适合喜欢历史人文的同学，慢慢参观展厅，读懂这座城市从古至今的发展故事。'
+  }
+])
 
-// 路线id，从路由参数获取 /detail/:id
-const routeId = ref(route.params.id);
+const routeInfo = computed(() => {
+  const id = Number(route.params.id)
+  return allRouteData.value.find(item => item.id === id)
+})
 
-// 路线基础信息
-const routeInfo = ref({
-  cover: "",
-  title: "",
-  city: "",
-  duration: "",
-  distance: 0,
-  tagList: [],
-  authorName: "",
-  description: ""
-});
-
-// 点赞收藏状态
-const isLike = ref(false);
-const likeCount = ref(0);
-const isCollect = ref(false);
-const collectCount = ref(0);
-
-// 打卡点列表
-const pointList = ref([]);
-
-// 评论
-const commentText = ref("");
-const commentList = ref([]);
-
-// 加载路线详情
-const loadDetail = async () => {
-  // 正式对接后端：
-  // const res = await getRouteDetailAPI(routeId.value)
-  // routeInfo.value = res.data
-  // pointList.value = res.data.pointList
-  // isLike.value = res.data.isLike
-  // likeCount.value = res.data.likeCount
-  // isCollect.value = res.data.isCollect
-  // collectCount.value = res.data.collectCount
-  // commentList.value = res.data.commentList
-
-  // =====模拟假数据，开发预览用=====
-  routeInfo.value = {
-    cover: "",
-    title: "老城区人文漫步路线",
-    city: "广州市",
-    duration: "2h30min",
-    distance: 3.2,
-    tagList: ["老街", "人文", "美食"],
-    authorName: "测试用户",
-    description: "逛老城街巷，感受城市烟火，推荐下午出发，顺路品尝本地小吃。"
-  };
-  likeCount.value = 28;
-  collectCount.value = 42;
-  pointList.value = [
-    {
-      id: 1001,
-      pointName: "老街牌坊",
-      intro: "历史老牌坊，老城标志性建筑",
-      lng: 113.24,
-      lat: 23.12,
-      isChecked: false
-    },
-    {
-      id: 1002,
-      pointName: "百年糖水铺",
-      intro: "本地老牌糖水店，必吃双皮奶",
-      lng: 113.25,
-      lat: 23.13,
-      isChecked: false
-    }
-  ];
-  commentList.value = [
-    { id: 1, username: "游客A", content: "路线很不错，值得一走", time: "2026‑10‑01" }
-  ];
-};
 
 // 点赞
-const handleLike = async () => {
-  console.log("点击点赞");
-  // await likeRouteAPI(routeId.value)
-  isLike.value = !isLike.value;
-  likeCount.value += isLike.value ? 1 : -1;
-};
-
+const likeAction = () => {
+  if(routeInfo.value){
+    routeInfo.value.likeNum += 1
+    ElMessage.success("点赞成功！")
+  }
+}
 // 收藏
-const handleCollect = async () => {
-  console.log("点击收藏");
-  // await collectRouteAPI(routeId.value)
-  isCollect.value = !isCollect.value;
-  collectCount.value += isCollect.value ? 1 : -1;
-};
-
-// 分享
-const handleShare = () => {
-  alert("分享功能");
-};
-
-// 前往打卡，跳转到地图页并传点位经纬度
-const goMap = (lng, lat) => {
-  router.push({ path: "/map", query: { lng, lat } });
-};
-
-// 打卡提交（核心业务：真实项目这里要传当前定位给后端做距离校验）
-const handleCheckIn = async (point) => {
-  console.log("打卡点位", point.id);
-  // await checkInPointAPI({ routeId: routeId.value, pointId: point.id })
-  point.isChecked = true;
-  alert("打卡成功！");
-};
-
-// 提交评论
-const submitComment = async () => {
-  if (!commentText.value.trim()) return alert("请输入评论内容");
-  // await addCommentAPI({ routeId: routeId.value, content: commentText.value })
-  commentList.value.unshift({
-    id: Date.now(),
-    username: "我",
-    content: commentText.value,
-    time: new Date().toLocaleDateString()
-  });
-  commentText.value = "";
-};
-
-onMounted(() => {
-  loadDetail();
-});
+const collectAction = () => {
+  if(routeInfo.value){
+    routeInfo.value.collectNum += 1
+    ElMessage.success("收藏成功！")
+  }
+}
 </script>
 
 <style scoped>
-.page‑detail {
-  min‑height: 100vh;
-  background‑color: #f8f8f8;
-  padding‑bottom: 70px;
+.detail-container{
+  background: url('/pictures/city-bg.png') no-repeat center center;
+  background-size: cover;
+  background-attachment: fixed;
+  min-height: 100vh;
+  padding-bottom:70px;
+  position: relative;
 }
-.back‑bar {
-  position: sticky;
-  top: 0;
-  z‑index: 9;
-  background: #ffffffcc;
-  padding: 8px 12px;
-}
-.cover {
-  width: 100%;
-  height: 200px;
-  background: #ddd;
-}
-.cover img {
-  width: 100%;
-  height: 100%;
-  object‑fit: cover;
-}
-.no‑cover {
-  height: 200px;
-  display: flex;
-  align‑items: center;
-  justify‑content: center;
-  color: #888;
-}
-.action‑bar {
-  display: flex;
-  gap: 10px;
-  padding: 12px 16px;
-  background: #fff;
-}
-.info‑card {
-  margin: 12px 16px;
-  background: #fff;
-  border‑radius: 12px;
-  padding: 16px;
-}
-.title {
-  font‑size: 20px;
-  margin: 0 0 10px;
-}
-.meta‑row {
-  display: flex;
-  gap: 14px;
-  font‑size: 14px;
-  color: #555;
-  margin‑bottom: 10px;
-}
-.tag‑wrap {
-  display: flex;
-  gap: 8px;
-  margin‑bottom: 10px;
-}
-.author {
-  font‑size: 14px;
-  color: #666;
-  margin‑bottom: 12px;
-}
-.desc .label {
-  font‑weight: bold;
-  margin‑bottom:4px;
-}
-.check‑point‑wrap {
-  margin:16px;
-  background:#fff;
-  border‑radius:12px;
-  padding:16px;
-}
-.point‑item {
-  display:flex;
-  gap:12px;
-  padding:12px 0;
-  border‑bottom:1px solid #eee;
-}
-.point‑item:last‑child {
-  border‑bottom:none;
-}
-.point‑num {
-  width:26px;
-  height:26px;
-  flex‑shrink:0;
-  background:#ff7a2f;
-  color:#fff;
-  border‑radius:50%;
-  text‑align:center;
-  line‑height:26px;
-  font‑size:13px;
-}
-.point‑content {
-  flex:1;
-}
-.point‑name {
-  font‑weight:bold;
-  font‑size:15px;
-  margin‑bottom:4px;
-}
-.point‑intro {
-  font‑size:13px;
-  color:#666;
-  margin‑bottom:8px;
-}
-.point‑btn {
-  display:flex;
-  gap:8px;
-}
-.comment‑wrap {
-  margin:16px;
-  background:#fff;
-  border‑radius:12px;
-  padding:16px;
-}
-.send‑btn {
-  margin‑top:10px;
-}
-.empty‑tip {
-  text‑align:center;
-  color:#999;
-  padding:20px 0;
-}
-.comment‑item {
-  padding:10px 0;
-  border‑bottom:1px solid #eee;
-}
-.c‑user {
-  font‑weight:bold;
-  font‑size:14px;
-}
-.c‑text {
-  font‑size:14px;
-  margin:4px 0;
-}
-.c‑time {
-  font‑size:12px;
-  color:#999;
-}
-.tab‑bottom {
-  position:fixed;
+.detail-container::before {
+  content: '';
+  position: absolute;
+  top:0;
   left:0;
-  bottom:0;
   width:100%;
+  height:100%;
+  background-color: rgba(255,255,255,0.72);
+  z-index: 0;
+}
+.detail-header, .content-wrap, .tab-bar{
+  position: relative;
+  z-index: 1;
+}
+.detail-header{
+  background:#fff;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px;
+}
+.title{
+  font-weight:bold;
+  font-size:16px;
+}
+.content-wrap{
+  padding:14px;
+}
+.banner-img{
+  border-radius:12px;
+  overflow:hidden;
+}
+.banner-img img{
+  width:100%;
+  height:240px;
+  object-fit:cover;
+}
+.info-card{
+  background:#fff;
+  border-radius:12px;
+  padding:16px;
+  margin-top:14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.info-card h2{
+  margin:0;
+  font-size:20px;
+}
+.meta-row{
+  margin:8px 0;
+  color:#666;
+  display:flex;
+  gap:16px;
+  font-size:14px;
+}
+.tag-group{
+  margin:8px 0 16px;
+}
+.desc-title{
+  font-weight:bold;
+  margin:16px 0 6px;
+}
+.desc-text{
+  color:#555;
+  line-height:1.7;
+}
+.action-row{
+  margin-top:20px;
+  display:flex;
+  gap:16px;
+}
+.empty{
+  text-align:center;
+  padding:40px;
+}
+/*底部tab 和首页统一*/
+.tab-bar{
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:60px;
+  background:#fff;
+  display:flex;
+  border-top:1px solid #eee;
+  z-index:99;
+}
+.tab-item{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:14px;
+  color:#666;
+}
+.tab-item.active{
+  color:#409eff;
+}
+.blank-bottom{
+  height:70px;
 }
 </style>
