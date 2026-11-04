@@ -1,7 +1,10 @@
 import request from '@/utils/request'
+
 /**
  * 用户登录接口
- * @param {Object} data - { username, password }
+ * @param {Object} data
+ * @param {string} data.username
+ * @param {string} data.password
  * @returns {Promise}
  */
 export function loginAPI(data) {
@@ -11,9 +14,13 @@ export function loginAPI(data) {
     data
   })
 }
+
 /**
  * 用户注册接口
- * @param {Object} data - { username, password, phone }
+ * @param {Object} data
+ * @param {string} data.username
+ * @param {string} data.password
+ * @param {string} data.phone
  * @returns {Promise}
  */
 export function registerAPI(data) {
@@ -23,8 +30,9 @@ export function registerAPI(data) {
     data
   })
 }
+
 /**
- * 获取用户信息
+ * 获取当前登录用户信息（请求头携带token）
  * @returns {Promise}
  */
 export function getUserInfoAPI() {
@@ -33,9 +41,12 @@ export function getUserInfoAPI() {
     method: 'get'
   })
 }
+
 /**
  * 更新用户信息
- * @param {Object} data - { nickname, avatar }
+ * @param {Object} data
+ * @param {string} [data.nickname]
+ * @param {string} [data.avatar]
  * @returns {Promise}
  */
 export function updateUserInfoAPI(data) {
@@ -45,9 +56,12 @@ export function updateUserInfoAPI(data) {
     data
   })
 }
+
 /**
  * 修改密码
- * @param {Object} data - { oldPassword, newPassword }
+ * @param {Object} data
+ * @param {string} data.oldPassword
+ * @param {string} data.newPassword
  * @returns {Promise}
  */
 export function changePasswordAPI(data) {

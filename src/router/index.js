@@ -1,29 +1,28 @@
 import { createRouter, createWebHistory } from 'vue-router'
-// 注意：useUserStore只做导入，不要在这里调用！！
 import { useUserStore } from '@/store/user'
 
 const routes = [
   {
     path: '/',
-    redirect: '/home' // 恢复原来的根路径重定向
+    redirect: '/login'
   },
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
-    meta: { public: true } // 标记公开页面，不需要登录
+    meta: { public: true }
   },
   {
     path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: true } // 需要登录
+    meta: { requiresAuth: true }
   },
   {
     path: '/map',
     name: 'Map',
     component: () => import('@/views/Map.vue'),
-    meta: { requiresAuth: true }
+    meta: { title: "探索地图", requiresAuth: true }
   },
   {
     path: '/publish',
@@ -75,10 +74,51 @@ const routes = [
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: true }
   },
-  // 404兜底路由
+  {
+    path: '/adminlogin',
+    name: 'AdminLogin',
+    component: () => import('@/views-admin/AdminLogin.vue'),
+    meta: { public: true }
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views-admin/Dashboard.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/routeManage',
+    name: 'RouteManage',
+    component: () => import('@/views-admin/RouteManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/userManage',
+    name: 'UserManage',
+    component: () => import('@/views-admin/UserManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/commentManage',
+    name: 'CommentManage',
+    component: () => import('@/views-admin/CommentManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/tagManage',
+    name: 'TagManage',
+    component: () => import('@/views-admin/TagManage.vue'),
+    meta: { adminAuth: true }
+  },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/PrivacyAgreement.vue'),
+    meta:{public:true}
   }
 ]
 
@@ -87,30 +127,31 @@ const router = createRouter({
   routes
 })
 
-// ==========全局路由守卫==========
-router.beforeEach((to, from, next) => {
-  // ✅重点！！useUserStore必须写在守卫回调函数内部！！
+// 路由守卫：合并后的版本（保留组长admin后台判断 + 你的public公开页面判断）
+router.beforeEach((to) => {
   const userStore = useUserStore()
-  // 从localStorage读取token，刷新页面恢复登录状态，调用pinia里面的init方法
   userStore.init()
 
-  // 优先判断：标记public的页面直接放行
+  // 公开页面直接放行
   if (to.meta.public) {
-    next()
-  } else if (to.meta.requiresAuth) {
-    // 需要登录的页面，判断是否已经登录
+    return true
+  }
+  // 管理员页面校验
+  if (to.meta.adminAuth) {
+    if (!userStore.adminToken) {
+      return '/adminlogin'
+    }
+  }
+  // 普通用户登录校验
+  if (to.meta.requiresAuth) {
     if (!userStore.isLoggedIn) {
-      // 未登录，跳转到登录，记录要跳转的页面，登录成功后跳回去
-      next({
+      return {
         path: '/login',
         query: { redirect: to.fullPath }
-      })
-    } else {
-      next()
+      }
     }
-  } else {
-    next()
   }
+  return true
 })
 
 export default router
