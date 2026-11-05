@@ -46,23 +46,37 @@
         </div>
       </div>
     </div>
-    <!-- 底部Tab导航【和Map.vue完全统一】 -->
+    <!-- ========== 新版底部Tab导航 ========== -->
     <div class="tab-bar">
-      <div class="tab-item active">首页</div>
-      <div class="tab-item" @click="$router.push('/map')">探索地图</div>
-      <div class="tab-item" @click="$router.push('/publish')">发布路线</div>
-      <div class="tab-item" @click="$router.push('/record')">打卡记录</div>
-      <div class="tab-item" @click="$router.push('/my')">我的</div>
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
+      </div>
     </div>
     <div class="blank-bottom"></div>
   </div>
 </template>
-
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 const router = useRouter()
-
+const route = useRoute()
 // 搜索关键词
 const searchKey = ref('')
 // 当前选中标签
@@ -112,18 +126,15 @@ const routeList = ref([
     collectNum: 92
   }
 ])
-
 // 标签点击筛选
 const handleTagClick = (tag) => {
   activeTag.value = tag
   console.log('选中标签：', tag)
 }
-
 // 搜索
 const handleSearch = () => {
   console.log('搜索内容：', searchKey.value)
 }
-
 // 获取定位
 const getLocation = () => {
   if (navigator.geolocation) {
@@ -132,20 +143,17 @@ const getLocation = () => {
     })
   }
 }
-
 // 跳转到详情页
 const goDetail = (id) => {
   router.push({ path: '/detail', query: { id } })
 }
 </script>
-
 <style scoped>
 .home-container {
   background-color: #f7f8fa;
   min-height: 100vh;
   padding-bottom:70px;
 }
-
 /* 顶部header白色背景，和Map页面header完全一致 */
 .home-header {
   background:#fff;
@@ -153,7 +161,6 @@ const goDetail = (id) => {
   display: flex;
   gap:12px;
 }
-
 .tag-scroll{
   background:#fff;
   display:flex;
@@ -162,13 +169,11 @@ const goDetail = (id) => {
   padding:6px 14px;
   margin-bottom:16px;
 }
-
 .section-title{
   font-size:18px;
   font-weight:bold;
   margin:12px 14px;
 }
-
 /* 关键：网格布局，一行2个卡片 */
 .route-list{
   display: grid;
@@ -176,29 +181,24 @@ const goDetail = (id) => {
   gap:14px;
   padding:0 14px;
 }
-
 .route-card{
   background:#fff;
   border-radius:12px;
   overflow:hidden;
 }
-
 /* 图片高度保留250px */
 .card-img img{
   width:100%;
   height:250px;
   object-fit:cover;
 }
-
 .card-info{
   padding:12px;
 }
-
 .route-name{
   font-size:15px;
   font-weight:bold;
 }
-
 .route-meta{
   margin:6px 0;
   color:#666;
@@ -206,36 +206,41 @@ const goDetail = (id) => {
   display:flex;
   gap:12px;
 }
-
 .route-tags{
   margin:6px 0;
 }
-
 .route-stats{
   color:#777;
   font-size:13px;
   display:flex;
   gap:16px;
 }
-
-/* ==========底部Tab栏，与Map.vue完全保持一致========== */
+/* ==========新版底部Tab栏样式【Home和Map共用一套】========== */
 .tab-bar{
   position:fixed;
   bottom:0;
   left:0;
   width:100%;
-  height:60px;
-  background:#fff;
+  height:64px;
+  background:#ffffff;
   display:flex;
-  border-top:1px solid #eee;
+  border-top:1px solid #e8e8e8;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  z-index: 999;
 }
 .tab-item{
   flex:1;
   display:flex;
+  flex-direction: column;
   justify-content:center;
   align-items:center;
-  font-size:14px;
-  color:#666;
+  gap:3px;
+  font-size:12px;
+  color:#868686;
+  cursor: pointer;
+}
+.tab-icon{
+  font-size:20px;
 }
 .tab-item.active{
   color:#409eff;

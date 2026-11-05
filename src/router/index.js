@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
-
 const routes = [
   {
     path: '/',
@@ -84,6 +83,13 @@ const routes = [
     component: () => import('@/views-admin/TagManage.vue'),
     meta: { adminAuth: true }
   },
+  // ============新增：城市管理后台路由============
+  {
+    path: '/cityManage',
+    name: 'CityManage',
+    component: () => import('@/views-admin/CityManage.vue'),
+    meta: { adminAuth: true }
+  },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
@@ -95,18 +101,15 @@ const routes = [
     meta:{public:true}
   }
 ]
-
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
 // 同步守卫，Router4 标准return写法，无next、无async
 router.beforeEach((to) => {
   const userStore = useUserStore()
   // 每次路由切换先读取本地存储
   userStore.init()
-
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
       return '/adminlogin'
@@ -121,5 +124,4 @@ router.beforeEach((to) => {
   }
   return true
 })
-
 export default router
