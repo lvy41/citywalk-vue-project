@@ -1,141 +1,23 @@
 <template>
-<<<<<<< HEAD
-  <el-card class="publish-card">
-    <template #header>
-      <div class="title">发布CityWalk路线</div>
-    </template>
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-      <el-form-item label="路线名称" prop="routeName">
-        <el-input v-model="form.routeName" placeholder="请输入路线名称" />
-      </el-form-item>
-      <el-form-item label="所属城市" prop="cityId">
-        <el-select v-model="form.cityId" placeholder="选择城市" @change="onCityChange">
-          <el-option v-for="c in cityList" :key="c.id" :label="c.cityName" :value="c.id"></el-option>
-        </el-select>
-      </el-form-item>
-      <el-form-item label="预计耗时" prop="duration">
-        <el-input v-model="form.duration" placeholder="例如：2小时" />
-      </el-form-item>
-      <el-form-item label="总里程" prop="distance">
-        <el-input v-model="form.distance" placeholder="例如：3km" />
-      </el-form-item>
-      <el-form-item label="路线简介" prop="description">
-        <el-input v-model="form.description" type="textarea" :rows="4" placeholder="介绍这条路线、游玩提示" />
-      </el-form-item>
-      <el-form-item label="是否公开">
-        <el-radio-group v-model="form.isPublic">
-          <el-radio :label="1">公开</el-radio>
-          <el-radio :label="0">私密</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="submit">提交发布</el-button>
-        <el-button @click="reset">重置</el-button>
-      </el-form-item>
-    </el-form>
-  </el-card>
-</template>
-
-<script setup>
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
-import { useRouter } from 'vue-router'
-const router = useRouter()
-
-const formRef = ref(null)
-const cityList = ref([])
-const form = ref({
-  routeName: '',
-  cityId: null,
-  city: '', // 兼容旧字段，后端同时存city文本
-  duration: '',
-  distance: '',
-  description: '',
-  isPublic: 1
-})
-const rules = ref({
-  routeName: [{ required: true, message: '请填写路线名称', trigger: 'blur' }],
-  cityId: [{ required: true, message: '请选择城市', trigger: 'change' }],
-  duration: [{ required: true, message: '请填写预计耗时', trigger: 'blur' }],
-  distance: [{ required: true, message: '请填写里程', trigger: 'blur' }],
-  description: [{ required: true, message: '请填写路线简介', trigger: 'blur' }]
-})
-
-// 城市选择时自动回填city名字文本
-const onCityChange = (cid) => {
-  const cityItem = cityList.value.find(i => i.id === cid)
-  if (cityItem) {
-    form.value.city = cityItem.cityName
-  }
-}
-
-const loadCityList = async () => {
-  try {
-    const res = await request.get('/api/city/list')
-    if (res.code === 200) {
-      cityList.value = res.data
-    }
-  } catch (e) {
-    ElMessage.error("城市列表加载失败")
-  }
-}
-
-const submit = async () => {
-  await formRef.value.validate()
-  try {
-    await request.post('/route/add', form.value)
-    ElMessage.success("路线发布成功！")
-    router.push('/home')
-  } catch (e) {
-    ElMessage.error("发布失败")
-  }
-}
-
-const reset = () => {
-  formRef.value?.resetFields()
-  form.value.city = ''
-}
-
-onMounted(() => {
-  loadCityList()
-})
-</script>
-
-<style scoped>
-.publish-card {
-  max-width: 700px;
-  margin: 20px auto;
-  padding-bottom: 20px;
-}
-.title {
-  font-size: 18px;
-  font-weight: bold;
-=======
   <div class="publish-container">
     <!-- 背景层 -->
     <div class="bg-wrap"></div>
-
     <div class="content-wrap">
       <div class="form-card">
         <div class="card-header">
           <h2>发布步行路线</h2>
           <p>分享你的城市漫步路线</p>
         </div>
-
         <el-form :model="form" label-width="90px" class="publish-form">
           <el-form-item label="路线名称">
             <el-input v-model="form.name" placeholder="请输入路线名称"></el-input>
           </el-form-item>
-
           <el-form-item label="所属城市">
             <el-input v-model="form.city" placeholder="例如：广州"></el-input>
           </el-form-item>
-
           <el-form-item label="预计时长">
             <el-input v-model="form.duration" placeholder="例如：2小时"></el-input>
           </el-form-item>
-
           <el-form-item label="路线标签">
             <el-select v-model="form.tags" multiple placeholder="选择标签">
               <el-option label="老街" value="老街" />
@@ -146,7 +28,6 @@ onMounted(() => {
               <el-option label="短途徒步" value="短途徒步" />
             </el-select>
           </el-form-item>
-
           <el-form-item label="路线简介">
             <el-input
               v-model="form.desc"
@@ -155,7 +36,6 @@ onMounted(() => {
               placeholder="简单描述这条步行路线"
             ></el-input>
           </el-form-item>
-
           <el-form-item label="封面图片">
             <el-upload
               action="#"
@@ -166,7 +46,6 @@ onMounted(() => {
               <el-icon><Plus /></el-icon>
             </el-upload>
           </el-form-item>
-
           <el-form-item class="btn-group">
             <el-button type="primary" @click="handleSubmit" class="submit-btn">提交发布</el-button>
             <el-button @click="handleReset" class="reset-btn">重置</el-button>
@@ -174,14 +53,28 @@ onMounted(() => {
         </el-form>
       </div>
     </div>
-
-    <!-- 底部Tab导航，和Home、Map完全一致 -->
+    <!-- 底部Tab导航【和Home页面完全统一：图标在上文字在下】 -->
     <div class="tab-bar">
-      <div class="tab-item" @click="$router.push('/home')">首页</div>
-      <div class="tab-item" @click="$router.push('/map')">探索地图</div>
-      <div class="tab-item active">发布路线</div>
-      <div class="tab-item" @click="$router.push('/record')">打卡记录</div>
-      <div class="tab-item" @click="$router.push('/my')">我的</div>
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
+      </div>
     </div>
     <div class="blank-bottom"></div>
   </div>
@@ -189,11 +82,11 @@ onMounted(() => {
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-
 const router = useRouter()
+const route = useRoute()
 
 const form = ref({
   name: '',
@@ -210,7 +103,6 @@ const handleSubmit = () => {
   ElMessage.success('模拟发布成功，跳转首页')
   router.push('/home')
 }
-
 const handleReset = () => {
   form.value = {
     name: '',
@@ -238,10 +130,9 @@ const handleReset = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: url('/public/pictures/city-bg.png') center center / cover no-repeat;
+  background: url('/pictures/city-bg.png') center center / cover no-repeat;
   z-index: -1;
 }
-
 .content-wrap {
   padding: 40px 20px;
   display: flex;
@@ -257,7 +148,6 @@ const handleReset = () => {
   box-shadow: 0 10px 40px rgba(0,0,0,0.22);
   padding: 32px;
 }
-
 .card-header {
   text-align: center;
   margin-bottom: 26px;
@@ -293,7 +183,7 @@ const handleReset = () => {
   border-radius:12px;
 }
 
-/* ==========底部Tab栏========== */
+/* ==========底部Tab栏【和Home完全一致样式】========== */
 .tab-bar {
   position: fixed;
   bottom: 0;
@@ -303,21 +193,26 @@ const handleReset = () => {
   background: #fff;
   display: flex;
   border-top: 1px solid #eee;
+  z-index: 99;
 }
 .tab-item {
   flex: 1;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   font-size: 14px;
   color: #666;
+  gap: 3px;
+  cursor: pointer;
 }
 .tab-item.active {
-  color: #ff6b35;
-  font-weight: 500;
+  color: #409eff;
+}
+.tab-icon {
+  font-size: 20px;
 }
 .blank-bottom {
   height: 70px;
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 }
 </style>
