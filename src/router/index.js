@@ -15,7 +15,7 @@ const routes = [
     path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/map',
@@ -27,7 +27,7 @@ const routes = [
     path: '/publish',
     name: 'Publish',
     component: () => import('@/views/Publish.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/record',
@@ -41,11 +41,12 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
+  // ✅详情页修改为 requiresAuth: false，调试点击卡片不会跳登录
   {
     path: '/detail/:id',
     name: 'Detail',
     component: () => import('@/views/Detail.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: false }
   },
   {
     path: '/adminlogin',
