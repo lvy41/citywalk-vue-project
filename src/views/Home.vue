@@ -62,9 +62,6 @@
         </div>
       </div>
     </div>
-<<<<<<< HEAD
-    <!-- ========== 新版底部Tab导航 ========== -->
-=======
 
     <!-- 无搜索结果提示 -->
     <div v-if="filterRouteList.length === 0" class="empty-tip">
@@ -84,7 +81,6 @@
     </div>
 
     <!-- 底部Tab导航 -->
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
     <div class="tab-bar">
       <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
         <div class="tab-icon">🏠</div>
@@ -110,27 +106,19 @@
     <div class="blank-bottom"></div>
   </div>
 </template>
+
 <script setup>
-<<<<<<< HEAD
-import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-=======
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 const router = useRouter()
-const route = useRoute()
 // 搜索关键词
 const searchKey = ref('')
-
 // 当前选中标签
 const activeTag = ref('全部')
-
 // 当前定位城市
 const currentCity = ref('')
-
 // 标签列表
 const tagList = ref(['全部', '老街', '美食', '博物馆', '公园', '夜景', '短途徒步'])
 
@@ -211,9 +199,6 @@ const routeList = ref([
     hotScore: 355
   }
 ])
-<<<<<<< HEAD
-// 标签点击筛选
-=======
 
 // 筛选后的推荐路线
 const filterRouteList = computed(() => {
@@ -236,7 +221,6 @@ const filterRouteList = computed(() => {
   if (currentCity.value) {
     arr = arr.filter(item => item.city === currentCity.value)
   }
-
   return arr
 })
 
@@ -247,33 +231,18 @@ const topRankList = computed(() => {
 })
 
 // 标签点击
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 const handleTagClick = (tag) => {
   activeTag.value = tag
   searchKey.value = ''
 }
 // 搜索
 const handleSearch = () => {
-<<<<<<< HEAD
-  console.log('搜索内容：', searchKey.value)
-}
-// 获取定位
-const getLocation = () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((res) => {
-      console.log('定位成功', res.coords)
-    })
-=======
   if (!searchKey.value.trim()) {
     ElMessage.info('请输入搜索关键词')
     return
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
   }
   console.log('搜索：', searchKey.value)
 }
-<<<<<<< HEAD
-// 跳转到详情页
-=======
 
 // 定位
 const getLocation = () => {
@@ -293,7 +262,6 @@ const getLocation = () => {
 }
 
 // 跳转详情页
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 const goDetail = (id) => {
   router.push({ name: 'Detail', params: { id } })
 }
@@ -306,6 +274,7 @@ const rankClass = (num) => {
   return ''
 }
 </script>
+
 <style scoped>
 .home-container {
   background: url('/pictures/city-bg.png') no-repeat center center;
@@ -315,10 +284,6 @@ const rankClass = (num) => {
   padding-bottom: 70px;
   position: relative;
 }
-<<<<<<< HEAD
-/* 顶部header白色背景，和Map页面header完全一致 */
-=======
-
 .home-container::before {
   content: '';
   position: absolute;
@@ -343,32 +308,13 @@ const rankClass = (num) => {
 }
 
 /* 顶部搜索栏 */
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 .home-header {
   background: #fff;
   padding: 14px;
   display: flex;
   gap: 12px;
 }
-<<<<<<< HEAD
-.tag-scroll{
-  background:#fff;
-  display:flex;
-  gap:8px;
-  overflow-x:auto;
-  padding:6px 14px;
-  margin-bottom:16px;
-}
-.section-title{
-  font-size:18px;
-  font-weight:bold;
-  margin:12px 14px;
-}
-/* 关键：网格布局，一行2个卡片 */
-.route-list{
-=======
 
-/* 标签栏：去掉白色背景，直接在背景图上 */
 .tag-scroll {
   display: flex;
   gap: 14px;
@@ -378,7 +324,6 @@ const rankClass = (num) => {
   background: transparent;
 }
 
-/* 标签按钮变大 */
 .tag-scroll :deep(.tag-item) {
   font-size: 22px;
   font-weight: 500;
@@ -399,14 +344,12 @@ const rankClass = (num) => {
   padding: 0 14px;
   margin-bottom: 12px;
 }
-
 .banner-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 12px;
 }
-
 .banner-text {
   position: absolute;
   left: 20px;
@@ -419,75 +362,11 @@ const rankClass = (num) => {
 
 /* 路线卡片 */
 .route-list {
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   padding: 0 14px;
 }
-<<<<<<< HEAD
-.route-card{
-  background:#fff;
-  border-radius:12px;
-  overflow:hidden;
-}
-/* 图片高度保留250px */
-.card-img img{
-  width:100%;
-  height:250px;
-  object-fit:cover;
-}
-.card-info{
-  padding:12px;
-}
-.route-name{
-  font-size:15px;
-  font-weight:bold;
-}
-.route-meta{
-  margin:6px 0;
-  color:#666;
-  font-size:13px;
-  display:flex;
-  gap:12px;
-}
-.route-tags{
-  margin:6px 0;
-}
-.route-stats{
-  color:#777;
-  font-size:13px;
-  display:flex;
-  gap:16px;
-}
-/* ==========新版底部Tab栏样式【Home和Map共用一套】========== */
-.tab-bar{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  height:64px;
-  background:#ffffff;
-  display:flex;
-  border-top:1px solid #e8e8e8;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-  z-index: 999;
-}
-.tab-item{
-  flex:1;
-  display:flex;
-  flex-direction: column;
-  justify-content:center;
-  align-items:center;
-  gap:3px;
-  font-size:12px;
-  color:#868686;
-  cursor: pointer;
-}
-.tab-icon{
-  font-size:20px;
-=======
-
 .route-card {
   background: #fff;
   border-radius: 12px;
@@ -495,22 +374,18 @@ const rankClass = (num) => {
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-
 .card-img img {
   width: 100%;
   height: 250px;
   object-fit: cover;
 }
-
 .card-info {
   padding: 12px;
 }
-
 .route-name {
   font-size: 15px;
   font-weight: bold;
 }
-
 .route-meta {
   margin: 6px 0;
   color: #666;
@@ -518,11 +393,9 @@ const rankClass = (num) => {
   display: flex;
   gap: 12px;
 }
-
 .route-tags {
   margin: 6px 0;
 }
-
 .route-stats {
   color: #777;
   font-size: 13px;
@@ -543,9 +416,7 @@ const rankClass = (num) => {
   border-radius: 12px;
   padding: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
 }
-
 .rank-item {
   display: flex;
   align-items: center;
@@ -553,11 +424,9 @@ const rankClass = (num) => {
   border-bottom: 1px solid #f2f2f2;
   cursor: pointer;
 }
-
 .rank-item:last-child {
   border-bottom: none;
 }
-
 .rank-num {
   width: 24px;
   height: 24px;
@@ -570,23 +439,18 @@ const rankClass = (num) => {
   margin-right: 10px;
   background: #999;
 }
-
 .rank-first {
   background: #f56c6c;
 }
-
 .rank-second {
   background: #e6a23c;
 }
-
 .rank-third {
   background: #67c23a;
 }
-
 .rank-name {
   font-weight: 500;
 }
-
 .rank-sub {
   font-size: 12px;
   color: #888;
@@ -605,7 +469,6 @@ const rankClass = (num) => {
   border-top: 1px solid #eee;
   z-index: 99;
 }
-
 .tab-item {
   flex: 1;
   display: flex;
@@ -614,11 +477,9 @@ const rankClass = (num) => {
   font-size: 14px;
   color: #666;
 }
-
 .tab-item.active {
   color: #409eff;
 }
-
 .blank-bottom {
   height: 70px;
 }
