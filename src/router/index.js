@@ -84,6 +84,13 @@ const routes = [
     component: () => import('@/views-admin/TagManage.vue'),
     meta: { adminAuth: true }
   },
+  // ============新增：城市管理后台路由============
+  {
+    path: '/cityManage',
+    name: 'CityManage',
+    component: () => import('@/views-admin/CityManage.vue'),
+    meta: { adminAuth: true }
+  },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
