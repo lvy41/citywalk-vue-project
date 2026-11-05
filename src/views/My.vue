@@ -31,24 +31,20 @@
     </div>
     <!-- 功能菜单列表 -->
     <div class="menu-group">
-      <!-- 我的发布：查看自己创建的所有路线，支持编辑、删除、修改路线信息 -->
       <div class="menu-item" @click="goMyPublish">
         <span>我的发布</span>
         <el-icon><ArrowRight /></el-icon>
       </div>
-      <!-- 我的点赞：查看点赞过的所有路线 -->
       <div class="menu-item" @click="goMyLike">
         <span>我的点赞</span>
         <el-icon><ArrowRight /></el-icon>
       </div>
     </div>
     <div class="menu-group">
-      <!-- 消息通知：评论、点赞的消息提醒（可选功能） -->
       <div class="menu-item" @click="goMessage">
         <span>消息通知</span>
         <el-icon><ArrowRight /></el-icon>
       </div>
-      <!-- 系统设置：修改密码、隐私设置、清除缓存、关于我们 -->
       <div class="menu-item" @click="goSetting">
         <span>系统设置</span>
         <el-icon><ArrowRight /></el-icon>
@@ -58,84 +54,60 @@
     <div class="logout-wrap">
       <el-button class="btn-logout" type="default" plain @click="handleLogout">退出登录</el-button>
     </div>
-    <!-- 底部Tab导航（TabBar，第五个tab为个人中心My） -->
-	<div class="tab-bottom">
+    <!-- 底部Tab导航 -->
+    <div class="tab-bottom">
       <TabBar />
     </div>
   </div>
 </template>
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onActivated } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowRight } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
+import { storeToRefs } from 'pinia'
 import TabBar from "@/components/TabBar.vue";
-// 接口导入预留
-import { getUserInfoAPI } from "@/api/user";
-// import { getUserPublishRouteAPI } from "@/api/route"; // 查询用户发布路线接口（my-publish页使用）
-// import { getUserLikeListAPI } from "@/api/route";    // 点赞列表查询接口（my-like页使用）
-// import { updateUserInfoAPI } from "@/api/user";      // 修改用户信息接口（setting页使用）
+import { getUserInfoAPI } from '@/api/user'
+
 const router = useRouter();
 const userStore = useUserStore();
-// 用户基础信息：头像、昵称、用户ID
-const userInfo = ref({
-  avatar: "",
-  nickname: "",
-  userId: ""
-});
-// 统计数据：发布路线数量、总获赞数量、粉丝数量
+const { userInfo } = storeToRefs(userStore)
+
+// 统计数据
 const stat = ref({
   publishCount: 0,
   likeTotal: 0,
   fansCount: 0
 });
-// 获取用户信息+统计数据
-const loadUserInfo = async () => {
-  try {
-    const res = await getUserInfoAPI();
-    userInfo.value = res.data;
-    stat.value.publishCount = res.data.publishCount || 0;
-    stat.value.likeTotal = res.data.likeTotal || 0;
-    stat.value.fansCount = res.data.fansCount || 0;
-  } catch (err) {
-    console.error("获取个人信息失败", err);
+
+// 获取用户统计信息
+const getStatInfo = async () => {
+  const res = await getUserInfoAPI()
+  if (res.code === 200) {
+    // 后端返回里面带上这三个统计字段
+    stat.value.publishCount = res.data.publishCount || 0
+    stat.value.likeTotal = res.data.likeTotal || 0
+    stat.value.fansCount = res.data.fansCount || 0
   }
-};
-onMounted(() => {
-  loadUserInfo();
-});
-// 跳转方法
-/**
- * 我的发布：查看自己创建的所有路线，支持编辑、删除、修改路线信息
- */
+}
+
+// 每次进入页面都会刷新统计（重点：发布完返回这里数字自动更新）
+onActivated(() => {
+  getStatInfo()
+})
+
 const goMyPublish = () => {
-  console.log('👉点击了【我的发布】，isLoggedIn：', userStore.isLoggedIn)
   router.push("/my-publish");
 };
-/**
- * 我的点赞：查看点赞过的所有路线
- */
 const goMyLike = () => {
-  console.log('👉点击了【我的点赞】，isLoggedIn：', userStore.isLoggedIn)
   router.push("/my-like");
 };
-/**
- * 消息通知：评论、点赞的消息提醒（可选功能）
- */
 const goMessage = () => {
-  console.log('👉点击了【消息通知】，isLoggedIn：', userStore.isLoggedIn)
   router.push("/message");
 };
-/**
- * 系统设置：修改密码、隐私设置、清除缓存、关于我们
- */
 const goSetting = () => {
-  console.log('👉点击了【系统设置】，isLoggedIn：', userStore.isLoggedIn)
   router.push("/setting");
 };
-/**
- * 退出登录，清空用户信息并跳转登录页
- */
 const handleLogout = () => {
   userStore.clearUser();
   router.replace("/login");
@@ -147,9 +119,9 @@ const handleLogout = () => {
   min-height: 100vh;
   padding-bottom: 70px;
 }
-/* 顶部头部：和登录按钮一模一样的橙色渐变 */
 .my-header {
-  background: linear-gradient(135deg, #ff7a2f, #ffb14a);
+  /* 和登录按钮一致渐变：#e85d3a → #ff8c42 */
+  background: linear-gradient(135deg, #e85d3a, #ff8c42);
   color: #ffffff;
   padding: 44px 20px 24px;
   border-bottom-left-radius: 24px;
@@ -164,6 +136,9 @@ const handleLogout = () => {
 .avatar {
   border: 2px solid #fff;
 }
+.user-meta {
+  flex: 1;
+}
 .user-meta .nickname {
   font-size: 22px;
   font-weight: 600;
@@ -173,7 +148,6 @@ const handleLogout = () => {
   opacity: 0.85;
   margin-top: 4px;
 }
-/* 统计卡片 半透明白色，和你截图效果一致 */
 .stat-card {
   background: rgba(255, 255, 255, 0.22);
   border-radius: 16px;
@@ -197,7 +171,6 @@ const handleLogout = () => {
   opacity: 0.92;
   margin-top: 4px;
 }
-/* 菜单分组，大白圆角卡片 */
 .menu-group {
   margin: 16px;
   background: #ffffff;
@@ -218,7 +191,6 @@ const handleLogout = () => {
 .menu-item:last-child {
   border-bottom: none;
 }
-/* 退出登录按钮 */
 .logout-wrap {
   margin: 24px 16px;
 }
@@ -227,10 +199,9 @@ const handleLogout = () => {
   height: 48px;
   border-radius: 14px;
   font-size: 15px;
-  color: #ff7a2f;
-  border-color: #ff7a2f;
+  color: #e85d3a;
+  border-color: #e85d3a;
 }
-/* 底部Tab栏固定 */
 .tab-bottom {
   position: fixed;
   left: 0;
