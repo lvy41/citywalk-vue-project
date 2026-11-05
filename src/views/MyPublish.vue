@@ -1,102 +1,152 @@
 <template>
   <div class="page-my-publish">
     <div class="page-header">
-      <el-icon @click="$router.back()" class="back-icon"><ArrowLeft /></el-icon>
-      <span class="title">我的发布</span>
+      <div class="back-icon" @click="$router.back()">
+        <el-icon><ArrowLeft /></el-icon>
+      </div>
+      <div class="page-title">我的发布</div>
     </div>
-    <div class="route-list">
-      <div class="route-item" v-for="item in publishList" :key="item.id">
-        <div class="route-name">{{ item.routeName }}</div>
-        <div class="route-desc">{{ item.desc }}</div>
-        <div class="action-wrap">
-          <el-button size="small" @click="editRoute(item)">编辑</el-button>
-          <el-button size="small" type="danger" @click="delRoute(item.id)">删除</el-button>
+
+    <div class="content-wrap">
+      <!-- 有路线列表 -->
+      <div v-if="list.length > 0" class="route-list">
+        <div class="route-item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
+          <div class="route-img">
+            <img :src="item.cover || defaultImg" alt="">
+          </div>
+          <div class="route-info">
+            <div class="route-name">{{ item.title }}</div>
+            <div class="route-desc">{{ item.content }}</div>
+            <div class="route-time">{{ item.createTime }}</div>
+          </div>
         </div>
       </div>
-    </div>
-    <div v-if="publishList.length === 0" class="empty">暂无发布路线</div>
-    <!-- 底部tab -->
-    <div class="tab-bottom">
-      <TabBar />
+      <!-- 空状态 -->
+      <div v-else class="empty-wrap">
+        <div class="empty-text">暂无发布路线</div>
+      </div>
     </div>
   </div>
 </template>
+
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import TabBar from '@/components/TabBar.vue'
-import { getUserPublishRouteAPI } from '@/api/route'
+import { useRouter } from 'vue-router'
+import { getUserRouteListAPI } from '@/api/route' // 你的查询用户发布路线接口
+const router = useRouter()
 
-const publishList = ref([])
-// 获取我的发布路线
+const list = ref([])
+const defaultImg = ref('https://picsum.photos/id/1039/300/200')
+
+// 跳转到路线详情
+const goDetail = (id) => {
+  router.push(`/detail/${id}`)
+}
+
+// 获取我的发布列表
 const getList = async () => {
-  const res = await getUserPublishRouteAPI()
-  publishList.value = res.data || []
+  const res = await getUserRouteListAPI()
+  if (res.code === 200) {
+    list.value = res.data
+  }
 }
-// 编辑路线
-const editRoute = (row) => {
-  // 跳转到路线编辑页，你后续可以自己补编辑页面
-  console.log('编辑', row)
-}
-// 删除路线
-const delRoute = (id) => {
-  console.log('删除id', id)
-}
-onMounted(()=>{
+
+onMounted(() => {
   getList()
 })
 </script>
+
 <style scoped>
-.page-my-publish{
-  background:#f5f5f7;
-  min-height:100vh;
-  padding-bottom:70px;
+.page-my-publish {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
 }
-.page-header{
-  display:flex;
-  align-items:center;
-  padding:16px;
-  background:#fff;
-  font-size:18px;
-  font-weight:600;
+
+.page-header {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  background: #ffffff;
+  border-bottom: 1px solid #f5e7d3;
+  padding: 0 16px;
+  position: relative;
 }
-.back-icon{
-  font-size:22px;
-  margin-right:12px;
-  cursor:pointer;
+
+.back-icon {
+  font-size: 20px;
+  color: #333;
+  cursor: pointer;
 }
-.route-list{
-  padding:16px;
+
+.page-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 600;
+  color: #222;
 }
-.route-item{
-  background:#fff;
+
+.content-wrap {
+  padding: 20px 16px 40px;
+}
+
+.empty-wrap {
+  text-align: center;
+  margin-top: 120px;
+}
+.empty-text {
+  font-size: 22px;
+  color: #999;
+}
+
+.route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.route-item {
+  background: #fff;
+  border-radius: 20px;
+  padding: 14px;
+  display: flex;
+  gap:12px;
+  box-shadow: 0 4px 16px rgba(255,130,50,0.1);
+  cursor: pointer;
+}
+.route-img {
+  width: 100px;
+  height: 80px;
   border-radius:12px;
-  padding:16px;
-  margin-bottom:12px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
-.route-name{
+.route-img img {
+  width:100%;
+  height:100%;
+  object-fit: cover;
+}
+.route-info {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  justify-content: space-between;
+}
+.route-name {
   font-size:16px;
   font-weight:500;
+  color:#222;
 }
-.route-desc{
+.route-desc {
   font-size:13px;
   color:#666;
-  margin:6px 0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
-.action-wrap{
-  display:flex;
-  gap:8px;
-  margin-top:8px;
-}
-.empty{
-  text-align:center;
-  padding:40px;
+.route-time {
+  font-size:12px;
   color:#999;
-}
-.tab-bottom {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 100%;
 }
 </style>

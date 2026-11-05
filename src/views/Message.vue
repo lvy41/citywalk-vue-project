@@ -1,15 +1,20 @@
 <template>
   <div class="page-message">
-    <div class="header">
-      <el-button text @click="$router.back()">← 返回</el-button>
-      <h2>消息通知</h2>
+    <div class="page-header">
+      <div class="back-icon" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+      </div>
+      <div class="page-title">消息通知</div>
     </div>
 
-    <div class="list-wrap">
-      <div v-if="msgList.length===0" class="empty">暂无消息</div>
-      <div v-for="item in msgList" :key="item.id" class="msg-item">
-        <div class="title">{{ item.title }}</div>
-        <div class="time">{{ item.time }}</div>
+    <div class="content-wrap">
+      <div v-if="msgList.length === 0" class="empty-box">
+        <p>暂无消息</p>
+      </div>
+      <div v-else class="msg-list">
+        <div class="msg-item" v-for="item in msgList" :key="item.id">
+          {{ item.content }}
+        </div>
       </div>
     </div>
 
@@ -20,67 +25,75 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import TabBar from "@/components/TabBar.vue";
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import TabBar from '@/components/TabBar.vue'
 
+const router = useRouter()
 const msgList = ref([])
 
-const loadMsg = ()=>{
-  //模拟消息
-  msgList.value = [
-    {id:1,title:"用户点赞了你的路线",time:"2026‑10‑01 12:30"},
-    {id:2,title:"用户评论了你的路线",time:"2026‑10‑02 09:10"}
-  ]
+const goBack = () => {
+  router.back()
 }
 
-onMounted(()=>{
-  loadMsg()
+const loadData = () => {
+  // 消息接口在这里调用
+}
+onMounted(() => {
+  loadData()
 })
 </script>
 
 <style scoped>
-.page-message{
-  min-height:100vh;
-  background:#f8f8f8;
-  padding-bottom:70px;
+.page-message {
+  background-color: #f8f8f8;
+  min-height: 100vh;
+  padding-bottom: 70px;
 }
-.header{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:16px;
-  background:#fff;
+.page-header {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  background: #fff;
+  padding: 0 16px;
+  position: relative;
+  border-bottom: 1px solid #eee;
 }
-h2{
-  margin:0;
-  font-size:18px;
+.back-icon {
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 2;
 }
-.list-wrap{
-  padding:16px;
+.page-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 600;
 }
-.empty{
-  text-align:center;
-  color:#999;
-  padding:40px 0;
+.content-wrap {
+  padding-top: 40px;
 }
-.msg-item{
-  background:#fff;
-  padding:14px 16px;
-  border-radius:10px;
-  margin-bottom:10px;
+.empty-box {
+  text-align: center;
+  color: #999;
+  font-size: 20px;
+  padding: 60px 0;
 }
-.title{
-  font-size:15px;
+.msg-list {
+  padding: 16px;
 }
-.time{
-  font-size:12px;
-  color:#999;
-  margin-top:4px;
+.msg-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
 }
-.tab-bottom{
-  position:fixed;
-  left:0;
-  bottom:0;
-  width:100%;
+.tab-bottom {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
 }
 </style>

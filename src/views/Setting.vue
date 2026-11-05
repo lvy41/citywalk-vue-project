@@ -1,103 +1,104 @@
 <template>
   <div class="page-setting">
-    <div class="header">
-      <el-button text @click="$router.back()">← 返回</el-button>
-      <h2>系统设置</h2>
-    </div>
-
-    <div class="content">
-      <el-card style="margin-bottom:16px">
-        <template #header>
-          <span>修改密码</span>
-        </template>
-        <el-form :model="pwdForm" label-width="80px">
-          <el-form-item label="旧密码">
-            <el-input v-model="pwdForm.oldPwd" show-password></el-input>
-          </el-form-item>
-          <el-form-item label="新密码">
-            <el-input v-model="pwdForm.newPwd" show-password></el-input>
-          </el-form-item>
-          <el-form-item label="确认密码">
-            <el-input v-model="pwdForm.confirmPwd" show-password></el-input>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary">保存修改</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-
-      <div class="menu-group">
-        <div class="menu-item" @click="handleClearCache">清除本地缓存</div>
-        <div class="menu-item">关于我们</div>
+    <div class="page-header">
+      <div class="back-icon" @click="$router.back()">
+        <el-icon><ArrowLeft /></el-icon>
       </div>
+      <div class="title">系统设置</div>
     </div>
 
-    <div class="tab-bottom">
-      <TabBar />
+    <div class="menu-group">
+      <div class="menu-item" @click="goEditUser">
+        <span>编辑个人信息</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
+      <div class="menu-item" @click="goChangePwd">
+        <span>修改密码</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
+      <div class="menu-item" @click="goClearCache">
+        <span>清除缓存</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
+      <div class="menu-item" @click="goAbout">
+        <span>关于我们</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useUserStore } from "@/store/user";
-import TabBar from "@/components/TabBar.vue";
-// import { updateUserInfoAPI } from "@/api/user";
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/user'
 
-const userStore = useUserStore();
+const router = useRouter()
+const userStore = useUserStore()
 
-const pwdForm = ref({
-  oldPwd:"",
-  newPwd:"",
-  confirmPwd:""
-})
-
-//清除本地缓存（清除pinia状态、localStorage）
-const handleClearCache = ()=>{
-  userStore.clearUser()
-  localStorage.clear()
-  alert("缓存已清除，请重新登录")
+// 跳转编辑个人信息
+const goEditUser = () => {
+  router.push('/edit-user')
+}
+// 跳转修改密码
+const goChangePwd = () => {
+  router.push('/change-pwd')
+}
+// 跳转清除缓存页面
+const goClearCache = () => {
+  router.push('/clear-cache')
+}
+// 跳转关于我们页面
+const goAbout = () => {
+  router.push('/about')
 }
 </script>
 
 <style scoped>
 .page-setting {
-  min-height:100vh;
-  background:#f8f8f8;
-  padding-bottom:70px;
+  background-color: #f8f8f8;
+  min-height: 100vh;
 }
-.header{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:16px;
-  background:#fff;
+.page-header {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  background: #fff;
+  position: relative;
+  border-bottom: 1px solid #eee;
+  padding: 0 16px;
 }
-h2{
-  margin:0;
-  font-size:18px;
+.back-icon {
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 2;
 }
-.content{
-  padding:16px;
+.title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 600;
 }
-.menu-group{
-  background:#fff;
-  border-radius:12px;
-  overflow:hidden;
+.menu-group {
+  margin: 16px;
+  background: #ffffff;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
-.menu-item{
-  padding:16px;
-  border-bottom:1px solid #eee;
-  font-size:15px;
-  cursor:pointer;
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  font-size: 15px;
+  color: #222;
+  border-bottom: 1px solid #f2f2f2;
+  cursor: pointer;
 }
-.menu-item:last-child{
-  border-bottom:none;
-}
-.tab-bottom{
-  position:fixed;
-  left:0;
-  bottom:0;
-  width:100%;
+.menu-item:last-child {
+  border-bottom: none;
 }
 </style>

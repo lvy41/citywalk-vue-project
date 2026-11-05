@@ -41,7 +41,56 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
-  // ✅详情页修改为 requiresAuth: false，调试点击卡片不会跳登录
+  // ==========你新增的个人页面路由==========
+  {
+    path: '/my-publish',
+    name: 'MyPublish',
+    component: () => import('@/views/MyPublish.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/my-like',
+    name: 'MyLike',
+    component: () => import('@/views/MyLike.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/message',
+    name: 'Message',
+    component: () => import('@/views/Message.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/setting',
+    name: 'Setting',
+    component: () => import('@/views/Setting.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/clear-cache',
+    name: 'ClearCache',
+    component: () => import('@/views/ClearCache.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: () => import('@/views/About.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/change-pwd',
+    name: 'ChangePwd',
+    component: () => import('@/views/ChangePwd.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/edit-user',
+    name: 'EditUser',
+    component: () => import('@/views/EditUserInfo.vue'),
+    meta: { requiresAuth: true }
+  },
+  // ✅详情页（组长设置不需要登录）
   {
     path: '/detail/:id',
     name: 'Detail',
@@ -84,7 +133,7 @@ const routes = [
     component: () => import('@/views-admin/TagManage.vue'),
     meta: { adminAuth: true }
   },
-  // ============新增：城市管理后台路由============
+  // 组长新增：城市管理后台路由
   {
     path: '/cityManage',
     name: 'CityManage',
@@ -106,6 +155,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes
 })
+
 // 同步守卫，Router4 标准return写法，无next、无async
 router.beforeEach((to) => {
   const userStore = useUserStore()
