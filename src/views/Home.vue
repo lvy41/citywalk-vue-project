@@ -15,7 +15,6 @@
       </el-input>
       <el-button type="primary" @click="getLocation">定位</el-button>
     </div>
-
     <!-- 轮播Banner -->
     <div class="banner-wrap">
       <el-carousel height="220px" indicator-position="outside">
@@ -25,7 +24,6 @@
         </el-carousel-item>
       </el-carousel>
     </div>
-
     <!-- 横向滚动路线分类标签栏 -->
     <div class="tag-scroll">
       <el-tag
@@ -38,7 +36,6 @@
         {{ item }}
       </el-tag>
     </div>
-
     <!-- 为你推荐路线 -->
     <div class="section-title">为你推荐路线</div>
     <div class="route-list">
@@ -62,12 +59,10 @@
         </div>
       </div>
     </div>
-
     <!-- 无搜索结果提示 -->
     <div v-if="filterRouteList.length === 0" class="empty-tip">
       没有找到匹配的路线，请更换关键词或标签试试
     </div>
-
     <!-- 热门排行榜板块 -->
     <div class="section-title">🔥 热门排行榜</div>
     <div class="rank-wrap">
@@ -79,7 +74,6 @@
         </div>
       </div>
     </div>
-
     <!-- 底部Tab导航 -->
     <div class="tab-bar">
       <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
@@ -106,12 +100,10 @@
     <div class="blank-bottom"></div>
   </div>
 </template>
-
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-
 const router = useRouter()
 // 搜索关键词
 const searchKey = ref('')
@@ -121,7 +113,6 @@ const activeTag = ref('全部')
 const currentCity = ref('')
 // 标签列表
 const tagList = ref(['全部', '老街', '美食', '博物馆', '公园', '夜景', '短途徒步'])
-
 // 轮播Banner数据
 const bannerList = ref([
   {
@@ -140,7 +131,6 @@ const bannerList = ref([
     img: '/pictures/3.png'
   }
 ])
-
 // 路线模拟数据
 const routeList = ref([
   {
@@ -199,15 +189,12 @@ const routeList = ref([
     hotScore: 355
   }
 ])
-
 // 筛选后的推荐路线
 const filterRouteList = computed(() => {
   let arr = [...routeList.value]
-
   if (activeTag.value !== '全部') {
     arr = arr.filter(item => item.tags.includes(activeTag.value))
   }
-
   if (searchKey.value.trim()) {
     const kw = searchKey.value.trim().toLowerCase()
     arr = arr.filter(item => {
@@ -217,19 +204,16 @@ const filterRouteList = computed(() => {
       )
     })
   }
-
   if (currentCity.value) {
     arr = arr.filter(item => item.city === currentCity.value)
   }
   return arr
 })
-
 // 热门排行榜
 const topRankList = computed(() => {
   const sortArr = [...routeList.value].sort((a, b) => b.hotScore - a.hotScore)
   return sortArr.slice(0, 5)
 })
-
 // 标签点击
 const handleTagClick = (tag) => {
   activeTag.value = tag
@@ -243,7 +227,6 @@ const handleSearch = () => {
   }
   console.log('搜索：', searchKey.value)
 }
-
 // 定位
 const getLocation = () => {
   if (!navigator.geolocation) {
@@ -260,12 +243,10 @@ const getLocation = () => {
     }
   )
 }
-
 // 跳转详情页
 const goDetail = (id) => {
   router.push({ name: 'Detail', params: { id } })
 }
-
 // 排行榜序号样式
 const rankClass = (num) => {
   if (num === 1) return 'rank-first'
@@ -274,7 +255,6 @@ const rankClass = (num) => {
   return ''
 }
 </script>
-
 <style scoped>
 .home-container {
   background: url('/pictures/city-bg.png') no-repeat center center;
@@ -294,7 +274,6 @@ const rankClass = (num) => {
   background-color: rgba(255, 255, 255, 0.72);
   z-index: 0;
 }
-
 .home-header,
 .banner-wrap,
 .tag-scroll,
@@ -306,7 +285,6 @@ const rankClass = (num) => {
   position: relative;
   z-index: 1;
 }
-
 /* 顶部搜索栏 */
 .home-header {
   background: #fff;
@@ -314,7 +292,6 @@ const rankClass = (num) => {
   display: flex;
   gap: 12px;
 }
-
 .tag-scroll {
   display: flex;
   gap: 14px;
@@ -323,7 +300,6 @@ const rankClass = (num) => {
   margin-bottom: 16px;
   background: transparent;
 }
-
 .tag-scroll :deep(.tag-item) {
   font-size: 22px;
   font-weight: 500;
@@ -332,13 +308,11 @@ const rankClass = (num) => {
   white-space: nowrap;
   cursor: pointer;
 }
-
 .section-title {
   font-size: 18px;
   font-weight: bold;
   margin: 12px 14px;
 }
-
 /* 轮播 */
 .banner-wrap {
   padding: 0 14px;
@@ -359,7 +333,6 @@ const rankClass = (num) => {
   font-weight: bold;
   text-shadow: 0 0 6px #333;
 }
-
 /* 路线卡片 */
 .route-list {
   display: grid;
@@ -402,13 +375,11 @@ const rankClass = (num) => {
   display: flex;
   gap: 16px;
 }
-
 .empty-tip {
   text-align: center;
   padding: 30px 0;
   color: #666;
 }
-
 /* 排行榜 */
 .rank-wrap {
   background: #fff;
@@ -457,7 +428,7 @@ const rankClass = (num) => {
   margin-top: 2px;
 }
 
-/* 底部Tab栏 */
+/* =========修复后的底部Tab【与Record/Publish/My完全一模一样】 ========= */
 .tab-bar {
   position: fixed;
   bottom: 0;
@@ -472,13 +443,19 @@ const rankClass = (num) => {
 .tab-item {
   flex: 1;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   font-size: 14px;
   color: #666;
+  gap: 3px;
+  cursor: pointer;
 }
 .tab-item.active {
   color: #409eff;
+}
+.tab-icon {
+  font-size: 20px;
 }
 .blank-bottom {
   height: 70px;

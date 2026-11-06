@@ -1,6 +1,5 @@
 <template>
   <div class="record-container">
-
     <!-- ================= 列表页 ================= -->
     <div v-if="currentView === 'list'" class="fade-in">
       <!-- 返回主页按钮 -->
@@ -329,9 +328,9 @@
       </div>
 
       <div class="search-bar">
-        <el-input 
-          v-model="searchKeyword" 
-          placeholder="搜索城市或打卡点，如：广州、玉林..." 
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索城市或打卡点，如：广州、玉林..."
           clearable
           class="search-input"
         >
@@ -342,9 +341,9 @@
       </div>
 
       <div class="checkin-gallery">
-        <div 
-          v-for="point in filteredCheckinPoints" 
-          :key="point.id" 
+        <div
+          v-for="point in filteredCheckinPoints"
+          :key="point.id"
           class="gallery-card"
         >
           <img :src="point.image" class="gallery-img" alt="打卡图">
@@ -632,7 +631,7 @@ const checkinList = ref([
   {
     id: 1,
     routeName: '广州·珠江夜景漫步',
-    coverImage: 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80', 
+    coverImage: 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
     pointCount: 3,
     createTime: '2026-11-01 20:30',
     points: [
@@ -681,7 +680,7 @@ const checkinList = ref([
     pointCount: 3,
     createTime: '2026-10-02 09:00',
     points: [
-       {
+      {
         name: '南锣鼓巷',
         time: '09:00',
         location: '东城区南锣鼓巷胡同',
@@ -759,7 +758,6 @@ const openDetail = (item, viewName) => {
   currentView.value = viewName
 }
 
-// 把所有路线里的点位拆解出来，变成一个总的打卡点列表
 const allCheckinPoints = computed(() => {
   let points = []
   checkinList.value.forEach(route => {
@@ -774,8 +772,8 @@ const allCheckinPoints = computed(() => {
 const filteredCheckinPoints = computed(() => {
   if (!searchKeyword.value) return allCheckinPoints.value
   const keyword = searchKeyword.value.toLowerCase()
-  return allCheckinPoints.value.filter(pt => 
-    pt.city.toLowerCase().includes(keyword) || 
+  return allCheckinPoints.value.filter(pt =>
+    pt.city.toLowerCase().includes(keyword) ||
     pt.name.toLowerCase().includes(keyword) ||
     pt.location.toLowerCase().includes(keyword)
   )
@@ -797,7 +795,6 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 </script>
 
 <style scoped>
-/* ================= 基础样式 ================= */
 .record-container {
   padding: 20px 15px;
   background: linear-gradient(180deg, #FFF6F0 0%, #F5F7FA 100%);
@@ -835,14 +832,12 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .yellow-btn { background: linear-gradient(to right, #FFD15C, #FFA04D); color: #fff; }
 .pink-btn { color: #FC6076; border-color: #FFD1D9; background-color: #FFF0F3; }
 
-/* ================= 详情页公共 ================= */
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px dashed #FFE4D6; }
 .back-btn { display: flex; align-items: center; gap: 4px; font-size: 15px; color: #FF7A45; font-weight: bold; cursor: pointer; background: #FFF0F3; padding: 6px 12px; border-radius: 20px; }
 .detail-title { margin: 0; font-size: 18px; color: #303133; font-weight: 800; }
 .header-placeholder { width: 70px; }
 .section-title { font-size: 16px; font-weight: bold; color: #303133; margin: 20px 0 10px 0; padding-left: 5px; border-left: 4px solid #FF7A45; }
 
-/* 时间轴 */
 .timeline-container { padding: 10px 0; }
 .point-item { display: flex; margin-bottom: 10px; }
 .timeline-left { display: flex; flex-direction: column; align-items: center; width: 60px; margin-right: 10px; }
