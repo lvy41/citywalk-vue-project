@@ -2,18 +2,18 @@
   <div class="page-my">
     <!-- 顶部头部区域：头像、昵称、佩戴称号标签、用户ID -->
     <!-- ✅ 修改这里：优先使用用户上传的bgImage，没有就兜底 /pictures/Myback.jpg -->
-    <div class="my-header" :style="{backgroundImage: userInfo.bgImage ? `url(${userInfo.bgImage})` : `url(/pictures/Myback.jpg)`}">
+    <div class="my-header" :style="{backgroundImage: userStore.userInfo.bgImage ? `url(${userStore.userInfo.bgImage})` : `url(/pictures/Myback.jpg)`}">
       <div class="user-profile">
-        <el-avatar :size="80" :src="userInfo.avatar" class="avatar">
-          <span v-if="!userInfo.avatar">用</span>
+        <el-avatar :size="80" :src="userStore.userInfo.avatar" class="avatar">
+          <span v-if="!userStore.userInfo.avatar">用</span>
         </el-avatar>
         <div class="user-meta">
           <div class="nickname-row">
-            <span class="nickname">{{ userInfo.nickname || "匿名用户" }}</span>
+            <span class="nickname">{{ userStore.userInfo.nickname || "匿名用户" }}</span>
             <span class="title-tag">{{ wearTitle.name }}</span>
           </div>
-          <div class="user-id">用户ID：{{ userInfo.userId }}</div>
-          <div class="user-ip" v-if="userInfo.ipAddress">IP：{{ userInfo.ipAddress }}</div>
+          <div class="user-id">用户ID：{{ userStore.userInfo.userId }}</div>
+          <div class="user-ip" v-if="userStore.userInfo.ipAddress">IP：{{ userStore.userInfo.ipAddress }}</div>
         </div>
       </div>
       <!-- 数据统计卡片：发布路线数量、总获赞数量、粉丝数量 -->
@@ -78,24 +78,43 @@
     <div class="logout-wrap">
       <el-button class="btn-logout" type="default" plain @click="handleLogout">退出登录</el-button>
     </div>
-    <!-- 底部Tab导航 -->
-    <div class="tab-bottom">
-      <TabBar />
+
+    <!-- ========== 底部Tab导航，与Home/Publish/Record完全统一 ========== -->
+    <div class="tab-bar">
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
+      </div>
     </div>
+    <div class="blank-bottom"></div>
   </div>
 </template>
+
 <script setup>
 import { ref, onActivated, computed } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowRight } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
-import { storeToRefs } from 'pinia'
-import TabBar from "@/components/TabBar.vue";
 import { getUserInfoAPI } from '@/api/user'
 
 const router = useRouter();
 const userStore = useUserStore();
-const { userInfo } = storeToRefs(userStore)
 
 // 统计数据
 const stat = ref({
@@ -135,6 +154,7 @@ const getStatInfo = async () => {
   }
 }
 
+// 每次进入页面都会刷新统计
 onActivated(() => {
   getStatInfo()
 })
@@ -163,6 +183,7 @@ const handleLogout = () => {
   router.replace("/login");
 };
 </script>
+
 <style scoped>
 .page-my {
   /* 和子页面统一的渐变背景 */
@@ -172,7 +193,7 @@ const handleLogout = () => {
 }
 /* 头部：背景图 + 兜底橙色渐变 */
 .my-header {
-  background: linear-gradient(140deg, #e65b38, #ff9048);
+  background: linear-gradient(135deg, #e85d3a, #ff8c42);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -341,10 +362,36 @@ const handleLogout = () => {
   transform: scale(0.98);
 }
 
-.tab-bottom {
+/* =========底部Tab栏【与Home/Publish/Record完全统一】 ========= */
+.tab-bar {
   position: fixed;
-  left: 0;
   bottom: 0;
+  left: 0;
   width: 100%;
+  height: 60px;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #eee;
+  z-index: 99;
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  gap: 3px;
+  cursor: pointer;
+}
+.tab-item.active {
+  color: #409eff;
+}
+.tab-icon {
+  font-size: 20px;
+}
+.blank-bottom {
+  height: 70px;
 }
 </style>

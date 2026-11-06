@@ -1,9 +1,8 @@
 <template>
   <div class="record-container">
-
     <!-- ================= 列表页 ================= -->
     <div v-if="currentView === 'list'" class="fade-in">
-      <!-- 👇 新增：返回主页按钮 👇 -->
+      <!-- 👇 返回主页按钮 👇 -->
       <div class="list-back-btn" @click="goHome">
         <el-icon><ArrowLeft /></el-icon> 返回
       </div>
@@ -145,7 +144,7 @@
         </div>
       </div>
 
-      <!-- 评论区 (升级版) -->
+      <!-- 评论区 -->
       <div class="section-title">💬 大家的评论 ({{ currentRoute.comments.length }})</div>
       <div class="comment-list">
         <div v-for="cmt in currentRoute.comments" :key="cmt.id" class="comment-item">
@@ -154,31 +153,26 @@
             <div class="cmt-header">
               <div>
                 <span class="cmt-name">{{ cmt.username }}</span>
-                <!-- 身份标签 -->
                 <span v-if="cmt.isMine" class="mine-tag">我</span>
                 <span v-else-if="cmt.isAuthor" class="author-tag">楼主</span>
               </div>
               <span class="cmt-time">{{ cmt.time }}</span>
             </div>
             <p class="cmt-text">{{ cmt.content }}</p>
-            
-            <!-- 评论底部操作栏 -->
+
             <div class="cmt-actions">
               <div class="action-left">
-                <!-- 点赞 -->
                 <span class="action-btn-text" :class="{ 'is-liked': cmt.isLiked }" @click="toggleLike(cmt)">
                   👍 {{ cmt.likes || 0 }}
                 </span>
-                <!-- 删除按钮 (权限控制：自己的评论 OR 拥有楼主权限) -->
-                <span 
-                  class="action-btn-text danger-text" 
+                <span
+                  class="action-btn-text danger-text"
                   v-if="cmt.isMine || isOwner"
                   @click="deleteComment(cmt)"
                 >
                   🗑️ 删除
                 </span>
               </div>
-              <!-- 忽略 -->
               <span class="action-btn-text ignore-text" @click="ignoreComment(cmt)">
                 忽略
               </span>
@@ -187,40 +181,35 @@
         </div>
       </div>
 
-                  <!-- 底部悬浮评论输入框 -->
       <div class="comment-input-box">
-        <el-input 
-          v-model="newComment" 
-          placeholder="说点什么吧，分享你的游玩感受..." 
+        <el-input
+          v-model="newComment"
+          placeholder="说点什么吧，分享你的游玩感受..."
           class="comment-input"
           @keyup.enter="submitComment"
           ref="inputRef"
         />
-        
-        <!-- 点击展开/收起表情面板 -->
         <div class="emoji-btn" @click="toggleEmojiPanel">
           😀
         </div>
-        
         <el-button type="primary" class="send-btn" @click="submitComment">发送</el-button>
       </div>
 
-                  <!-- 微信风格：全宽底部表情面板 -->
       <div v-if="showEmojiPanel" class="emoji-keyboard-panel" @click.self="showEmojiPanel = false">
         <div class="emoji-grid">
-          <span 
-            v-for="emoji in emojiList" 
-            :key="emoji" 
-            class="emoji-item" 
+          <span
+            v-for="emoji in emojiList"
+            :key="emoji"
+            class="emoji-item"
             @click="insertEmoji(emoji)"
           >
             {{ emoji }}
           </span>
         </div>
       </div>
-
     </div>
-        <!-- 👇 新增：所有打卡点位汇总页 👇 -->
+
+    <!-- 👇 所有打卡点位汇总页 👇 -->
     <div v-else-if="currentView === 'all-points'" class="fade-in">
       <div class="detail-header">
         <div class="back-btn" @click="currentView = 'list'">
@@ -232,9 +221,9 @@
 
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input 
-          v-model="searchKeyword" 
-          placeholder="搜索城市或打卡点，如：广州、玉林..." 
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索城市或打卡点，如：广州、玉林..."
           clearable
           class="search-input"
         >
@@ -246,9 +235,9 @@
 
       <!-- 打卡点网格展示 -->
       <div class="checkin-gallery">
-        <div 
-          v-for="point in filteredCheckinPoints" 
-          :key="point.id" 
+        <div
+          v-for="point in filteredCheckinPoints"
+          :key="point.id"
           class="gallery-card"
         >
           <img :src="point.image" class="gallery-img" alt="打卡图">
@@ -263,22 +252,46 @@
         </div>
       </div>
     </div>
-  
+
+    <!-- ==========统一底部Tab导航栏，和Home/Publish/My完全一致 ========== -->
+    <div class="tab-bar">
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
+      </div>
+    </div>
+    <div class="blank-bottom"></div>
+
   </div>
 </template>
 
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ref, computed , nextTick} from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Search, Location, Back } from '@element-plus/icons-vue'
-// 注意：上面把 Back 图标也加进去了
+import { ref, computed, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { ArrowLeft, Search, Location } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 
-// 返回主页的方法
 const goHome = () => {
-  router.push('/home') // 假设你们的主页路由路径是 '/'，如果是 '/home' 请改成 '/home'
+  router.push('/home')
 }
 const currentView = ref('list')
 const activeTab = ref('checkin')
@@ -287,48 +300,38 @@ const currentRoute = ref({})
 const newComment = ref('')
 const searchKeyword = ref('')
 
-// 表情包状态
 const showEmojiPanel = ref(false)
-const inputRef = ref(null) // 获取输入框的引用
+const inputRef = ref(null)
 
-// 表情库（扩展了一点常用表情）
 const emojiList = ref([
-  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', 
-  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', 
-  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', 
-  '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', 
-  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', 
-  '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', 
-  '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', 
-  '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', 
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+  '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+  '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+  '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯',
+  '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '👍',
   '👎', '👏', '🙏', '❤️', '💔', '🔥', '✨', '🌟', '🎉', '💯'
 ])
 
-// 切换表情面板
 const toggleEmojiPanel = () => {
   showEmojiPanel.value = !showEmojiPanel.value
 }
 
-// 点击表情
 const insertEmoji = (emoji) => {
-  // 1. 插入表情
   newComment.value += emoji
-  // 2. 自动收起表情面板
   showEmojiPanel.value = false
-  // 3. 光标重新聚焦到输入框
   nextTick(() => {
     if (inputRef.value) {
       inputRef.value.focus()
     }
   })
 }
-// ======= 评论区交互逻辑 =======
 
-// 模拟当前用户为普通访客，无楼主权限 (false)
 const isOwner = ref(false)
 
-// 发表评论
 const submitComment = () => {
   if (!newComment.value.trim()) {
     ElMessage.warning('评论内容不能为空哦~')
@@ -340,7 +343,7 @@ const submitComment = () => {
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80',
     time: '刚刚',
     content: newComment.value,
-    isMine: true, // 标记为是我发的
+    isMine: true,
     likes: 0,
     isLiked: false
   })
@@ -348,7 +351,6 @@ const submitComment = () => {
   ElMessage.success('评论发布成功！')
 }
 
-// 点赞 / 取消点赞
 const toggleLike = (cmt) => {
   if (!cmt.isLiked) {
     cmt.likes = (cmt.likes || 0) + 1
@@ -360,7 +362,6 @@ const toggleLike = (cmt) => {
   }
 }
 
-// 删除评论（只有自己或楼主能删）
 const deleteComment = (cmt) => {
   ElMessageBox.confirm('确定要删除这条评论吗？', '提示', {
     confirmButtonText: '确定',
@@ -375,7 +376,6 @@ const deleteComment = (cmt) => {
   }).catch(() => {})
 }
 
-// 忽略评论
 const ignoreComment = (cmt) => {
   const index = currentRoute.value.comments.findIndex(c => c.id === cmt.id)
   if (index > -1) {
@@ -383,14 +383,12 @@ const ignoreComment = (cmt) => {
     ElMessage.info('已忽略此评论')
   }
 }
-// =====================================
 
-// 假数据：我的打卡记录 (完全保留原来的4条)
 const checkinList = ref([
   {
     id: 1,
     routeName: '广州·珠江夜景漫步',
-    coverImage: 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80', 
+    coverImage: 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
     pointCount: 3,
     createTime: '2026-11-01 20:30',
     points: [
@@ -439,7 +437,7 @@ const checkinList = ref([
     pointCount: 3,
     createTime: '2026-10-02 09:00',
     points: [
-       {
+      {
         name: '南锣鼓巷',
         time: '09:00',
         location: '东城区南锣鼓巷胡同',
@@ -470,7 +468,6 @@ const checkinList = ref([
   }
 ])
 
-// 假数据：收藏路线 (扩充版，包含丰富的评论)
 const favoriteList = ref([
   {
     id: 5,
@@ -636,13 +633,10 @@ const openDetail = (item, viewName) => {
   currentView.value = viewName
 }
 
-// 把所有路线里的点位拆解出来，变成一个总的打卡点列表
 const allCheckinPoints = computed(() => {
   let points = []
   checkinList.value.forEach(route => {
-    // 从路线名称中提取城市（比如 '广州·珠江夜景漫步' 提取出 '广州'）
     const cityName = route.routeName.split('·')[0] || '未知'
-    
     route.points.forEach((pt, index) => {
       points.push({
         ...pt,
@@ -654,12 +648,11 @@ const allCheckinPoints = computed(() => {
   return points
 })
 
-// 根据搜索框的内容过滤打卡点
 const filteredCheckinPoints = computed(() => {
   if (!searchKeyword.value) return allCheckinPoints.value
   const keyword = searchKeyword.value.toLowerCase()
-  return allCheckinPoints.value.filter(pt => 
-    pt.city.toLowerCase().includes(keyword) || 
+  return allCheckinPoints.value.filter(pt =>
+    pt.city.toLowerCase().includes(keyword) ||
     pt.name.toLowerCase().includes(keyword) ||
     pt.location.toLowerCase().includes(keyword)
   )
@@ -670,7 +663,6 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 </script>
 
 <style scoped>
-/* ================= 基础样式 ================= */
 .record-container {
   padding: 20px 15px;
   background: linear-gradient(180deg, #FFF6F0 0%, #F5F7FA 100%);
@@ -680,7 +672,6 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ================= 列表页 ================= */
 .stats-card { display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #FF9A44 0%, #FC6076 100%); color: white; padding: 22px 10px; border-radius: 20px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(252, 96, 118, 0.25); position: relative; overflow: hidden; }
 .stats-card::before { content: ''; position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; }
 .stat-item { text-align: center; z-index: 1; }
@@ -708,14 +699,12 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .yellow-btn { background: linear-gradient(to right, #FFD15C, #FFA04D); color: #fff; }
 .pink-btn { color: #FC6076; border-color: #FFD1D9; background-color: #FFF0F3; }
 
-/* ================= 详情页公共 ================= */
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px dashed #FFE4D6; }
 .back-btn { display: flex; align-items: center; gap: 4px; font-size: 15px; color: #FF7A45; font-weight: bold; cursor: pointer; background: #FFF0F3; padding: 6px 12px; border-radius: 20px; }
 .detail-title { margin: 0; font-size: 18px; color: #303133; font-weight: 800; }
 .header-placeholder { width: 70px; }
 .section-title { font-size: 16px; font-weight: bold; color: #303133; margin: 20px 0 10px 0; padding-left: 5px; border-left: 4px solid #FF7A45; }
 
-/* 时间轴 */
 .timeline-container { padding: 10px 0; }
 .point-item { display: flex; margin-bottom: 10px; }
 .timeline-left { display: flex; flex-direction: column; align-items: center; width: 60px; margin-right: 10px; }
@@ -735,14 +724,12 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .review-label { font-size: 12px; font-weight: bold; color: #E6A23C; margin-bottom: 5px; }
 .review-content { font-size: 13px; color: #8a6d3b; line-height: 1.5; }
 
-/* ================= 收藏详情特有 ================= */
 .fav-hero { margin-bottom: 15px; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .hero-img { width: 100%; height: 180px; object-fit: cover; }
 .hero-info { padding: 15px; background: #fff; }
 .hero-info h2 { margin: 0 0 8px 0; font-size: 18px; color: #303133; }
 .hero-info p { margin: 0; font-size: 13px; color: #909399; }
 
-/* ================= 评论区样式 ================= */
 .comment-list { display: flex; flex-direction: column; gap: 15px; margin-bottom: 70px; }
 .comment-item { display: flex; gap: 12px; background: #fff; padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
 .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
@@ -752,11 +739,9 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .cmt-time { font-size: 12px; color: #C0C4CC; }
 .cmt-text { margin: 0 0 10px 0; font-size: 13px; color: #606266; line-height: 1.6; }
 
-/* 身份标签 */
 .mine-tag { background: #FF9A44; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
 .author-tag { background: #FC6076; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
 
-/* 评论操作栏 */
 .cmt-actions {
   display: flex;
   justify-content: space-between;
@@ -785,7 +770,6 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .danger-text:hover { color: #F56C6C; }
 .ignore-text:hover { color: #E6A23C; }
 
-/* 底部悬浮输入框 */
 .comment-input-box {
   position: fixed;
   bottom: 0;
@@ -813,7 +797,7 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
   border: none;
   padding: 0 20px;
 }
-/* ======== 搜索栏与打卡网格 ======== */
+
 .search-bar { margin: 10px 0 20px 0; }
 .search-input :deep(.el-input__wrapper) {
   border-radius: 20px;
@@ -842,7 +826,7 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .gallery-city { font-size: 11px; color: #FF7A45; background: #FFF0F3; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 .gallery-desc { margin: 0 0 5px 0; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 3px; }
 .gallery-time { margin: 0; font-size: 12px; color: #C0C4CC; }
-/* ================= 列表页返回按钮样式 ================= */
+
 .list-back-btn {
   display: inline-flex;
   align-items: center;
@@ -854,37 +838,34 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
   background: #FFF0F3;
   padding: 6px 12px;
   border-radius: 20px;
-  margin-bottom: 15px; /* 和下方的统计卡片拉开距离 */
+  margin-bottom: 15px;
   transition: all 0.2s ease;
 }
-
 .list-back-btn:hover {
   background: #FFE4D6;
 }
-/* ================= 底部悬浮输入框 ================= */
-.comment-input-box { 
-  position: fixed; 
-  bottom: 0; 
-  left: 0; 
-  width: 100%; 
-  background: #fff; 
-  padding: 10px 15px; 
-  display: flex; 
-  align-items: center; 
-  gap: 12px; 
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05); 
-  z-index: 100; 
-  box-sizing: border-box; 
-}
 
+.comment-input-box {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  z-index: 100;
+  box-sizing: border-box;
+}
 .comment-input { flex: 1; }
-.comment-input :deep(.el-input__wrapper) { 
-  border-radius: 20px; 
-  background-color: #F5F7FA; 
-  box-shadow: none; 
+.comment-input :deep(.el-input__wrapper) {
+  border-radius: 20px;
+  background-color: #F5F7FA;
+  box-shadow: none;
   padding: 8px 15px;
 }
-
 .emoji-btn {
   font-size: 26px;
   cursor: pointer;
@@ -894,32 +875,28 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .emoji-btn:active {
   transform: scale(0.9);
 }
-
-.send-btn { 
-  border-radius: 20px; 
-  background: linear-gradient(to right, #FF9A44, #FC6076); 
-  border: none; 
-  padding: 0 20px; 
+.send-btn {
+  border-radius: 20px;
+  background: linear-gradient(to right, #FF9A44, #FC6076);
+  border: none;
+  padding: 0 20px;
   height: 36px;
 }
 
-/* ================= 微信风格底部表情面板 ================= */
 .emoji-keyboard-panel {
   position: fixed;
-  bottom: 60px; /* 距离底部的距离，刚好在输入框上方，如果你的输入框高度变了，这里要微调 */
+  bottom: 60px;
   left: 0;
   width: 100%;
-  height: 300px; /* 固定高度 */
+  height: 300px;
   background: #F5F7FA;
   z-index: 99;
   padding: 15px;
   box-sizing: border-box;
-  overflow-y: auto; /* 👈 关键：允许纵向滚动 */
+  overflow-y: auto;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
   animation: slideUp 0.25s ease-out;
 }
-
-/* 隐藏滚动条让界面更干净（可选） */
 .emoji-keyboard-panel::-webkit-scrollbar {
   width: 6px;
 }
@@ -927,20 +904,16 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
   background: #DCDFE6;
   border-radius: 3px;
 }
-
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
-
 .emoji-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
   gap: 10px;
   justify-items: center;
-  /* padding-bottom: 10px; 如果底部被遮挡可以加上这个 */
 }
-
 .emoji-item {
   font-size: 28px;
   cursor: pointer;
@@ -949,8 +922,40 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
   transition: background 0.2s;
   user-select: none;
 }
-
 .emoji-item:active {
   background: #E4E7ED;
+}
+
+/* =========统一底部Tab栏样式，与Home/Publish/My完全统一 ========= */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #eee;
+  z-index: 99;
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  gap: 3px;
+  cursor: pointer;
+}
+.tab-item.active {
+  color: #409eff;
+}
+.tab-icon {
+  font-size: 20px;
+}
+.blank-bottom {
+  height: 70px;
 }
 </style>
