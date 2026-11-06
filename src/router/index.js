@@ -41,7 +41,7 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
-  // ==========你新增的个人页面路由==========
+  // ==========个人中心子页面路由==========
   {
     path: '/my-publish',
     name: 'MyPublish',
@@ -90,13 +90,14 @@ const routes = [
     component: () => import('@/views/EditUserInfo.vue'),
     meta: { requiresAuth: true }
   },
-  // ✅详情页（组长设置不需要登录）
+  // 路线详情：不需要登录即可访问
   {
     path: '/detail/:id',
     name: 'Detail',
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: false }
   },
+  // ============后台管理路由============
   {
     path: '/adminlogin',
     name: 'AdminLogin',
@@ -133,7 +134,6 @@ const routes = [
     component: () => import('@/views-admin/TagManage.vue'),
     meta: { adminAuth: true }
   },
-  // 组长新增：城市管理后台路由
   {
     path: '/cityManage',
     name: 'CityManage',
@@ -156,7 +156,7 @@ const router = createRouter({
   routes
 })
 
-// 同步守卫，Router4 标准return写法，无next、无async
+// ✅ 官方正确写法：只在守卫内部调用 useUserStore()
 router.beforeEach((to) => {
   const userStore = useUserStore()
   // 每次路由切换先读取本地存储
