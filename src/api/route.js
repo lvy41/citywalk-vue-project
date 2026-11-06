@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-<<<<<<< HEAD
 
 /**
  * 获取路线详情+有序点位
@@ -10,7 +9,9 @@ export function getRouteDetailAPI(routeId) {
     url: '/route/detail',
     method: 'get',
     params: { routeId }
-=======
+  })
+}
+
 // 查询用户发布路线接口
 export function getUserPublishRouteAPI(){
   return request({
@@ -23,6 +24,5 @@ export function getUserLikeListAPI(){
   return request({
     url:'/route/user-like',
     method:'get'
->>>>>>> 347f91d955943ff7d92daec9466ec3067abbce4a
   })
 }
