@@ -73,6 +73,24 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/my-follow',
+    name: 'MyFollow',
+    component: () => import('@/views/MyFollow.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/recycle-route',
+    name: 'RecycleRoute',
+    component: () => import('@/views/RecycleRoute.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/shop',
+    name: 'Shop',
+    component: () => import('@/views/Shop.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),
@@ -82,6 +100,12 @@ const routes = [
     path: '/change-pwd',
     name: 'ChangePwd',
     component: () => import('@/views/ChangePwd.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/title-list',
+    name: 'TitleList',
+    component: () => import('@/views/TitleList.vue'),
     meta: { requiresAuth: true }
   },
   {
