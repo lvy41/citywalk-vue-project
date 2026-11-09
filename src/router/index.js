@@ -90,11 +90,25 @@ const routes = [
     component: () => import('@/views/EditUserInfo.vue'),
     meta: { requiresAuth: true }
   },
-  // ✅详情页（组长设置不需要登录）
+  // ✅详情页（组长设置不需要登录）【保持原有配置，name=Detail，与Home页面跳转name完全对应】
   {
     path: '/detail/:id',
     name: 'Detail',
     component: () => import('@/views/Detail.vue'),
+    meta: { requiresAuth: false }
+  },
+  // ✅【新增城市路线页面】点击城市跳转到此页面，无需登录
+  {
+    path: '/city/:cityName',
+    name: 'CityRoute',
+    component: () => import('@/views/CityRoute.vue'),
+    meta: { requiresAuth: false }
+  },
+  // ✅【新增：城市选择页面】首页点击定位文字跳转
+  {
+    path: '/city-select',
+    name: 'CitySelect',
+    component: () => import('@/views/CitySelect.vue'),
     meta: { requiresAuth: false }
   },
   {
@@ -155,7 +169,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
 // 同步守卫，Router4 标准return写法，无next、无async
 router.beforeEach((to) => {
   const userStore = useUserStore()
