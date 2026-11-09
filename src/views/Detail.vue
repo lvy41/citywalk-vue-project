@@ -1,389 +1,120 @@
-<!-- src/views/Detail.vue 路线详情页｜适配params路由 /detail/:id -->
 <template>
   <div class="detail-page">
-    <!-- 顶部封面栏 -->
-    <div class="detail-cover">
-      <img v-if="routeInfo.cover" :src="routeInfo.cover" alt="路线封面" />
-      <div class="cover-op">
-        <el-button circle size="small" @click="$router.back()">←</el-button>
-        <div class="op-right">
-          <el-button circle size="small" @click="handleCollect">⭐</el-button>
-          <el-button circle size="small" @click="handleLike">❤️</el-button>
-        </div>
-      </div>
+    <!-- 返回按钮：统一样式 ＜ 返回，回退上一页 -->
+    <div class="back-btn" @click="$router.back()">＜ 返回</div>
+    <div class="img-box">
+      <img class="route-img" :src="info.cover" alt="" />
     </div>
-
-    <div class="detail-content">
-      <!-- 路线基础信息 -->
-      <div class="info-block">
-        <h2 class="title">{{ routeInfo.routeName }}</h2>
-        <div class="meta-row">
-          <span>{{ routeInfo.city }}</span>
-          <span>⏱ {{ routeInfo.duration }}</span>
-          <span>📏 {{ routeInfo.distance }}</span>
-        </div>
-        <div class="tag-wrap">
-          <el-tag v-for="tag in routeInfo.tags" :key="tag" size="small">{{tag}}</el-tag>
-        </div>
-        <div class="author">创作者：{{ routeInfo.authorName }}</div>
-        <div class="desc">
-          <div class="sub-title">路线简介</div>
-          <p>{{ routeInfo.description }}</p>
-        </div>
-      </div>
-
-      <!-- 内嵌预览小地图 -->
-      <div class="map-preview-block">
-        <div class="sub-title">路线轨迹预览</div>
-        <div id="mini-map" class="mini-map"></div>
-      </div>
-
-      <!-- 打卡点有序列表 -->
-      <div class="point-block">
-        <div class="sub-title">打卡点位（行走顺序）</div>
-        <div class="point-item" v-for="(p,index) in pointList" :key="p.id">
-          <div class="point-index">{{ index+1 }}</div>
-          <div class="point-main">
-            <img v-if="p.imageUrl" :src="p.imageUrl" class="point-img" />
-            <div class="point-name">{{ p.pointName }}</div>
-            <div class="point-intro">{{ p.description }}</div>
-            <div class="point-btn-wrap">
-              <el-button size="small" @click="goToMap(p.longitude,p.latitude)">前往该点位地图</el-button>
-              <el-button size="small" type="success" @click="handleCheckIn(p)">打卡</el-button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 评论区 -->
-      <div class="comment-block">
-        <div class="sub-title">用户评论</div>
-        <el-input v-model="commentText" placeholder="写下你的游玩感受..." />
-        <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
-        <div class="comment-item" v-for="c in commentList" :key="c.id">
-          <div class="c-user">{{c.userName}}</div>
-          <div class="c-content">{{c.content}}</div>
-        </div>
-      </div>
+    <h2 class="title">{{ info.name }}</h2>
+    <div class="meta">{{ info.city }} · {{ info.duration }}</div>
+    <div class="tags">
+      <span v-for="t in info.tags" :key="t">{{ t }}</span>
     </div>
-
-    <!-- 底部留白，避开tab -->
-    <div class="bottom-space"></div>
-
-    <!-- 全局底部Tab导航，和Home、Map完全统一 -->
-    <div class="tab-bar">
-      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
-        <div class="tab-icon">🏠</div>
-        <div class="tab-text">首页</div>
-      </div>
-      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
-        <div class="tab-icon">🗺</div>
-        <div class="tab-text">探索地图</div>
-      </div>
-      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
-        <div class="tab-icon">✏️</div>
-        <div class="tab-text">发布路线</div>
-      </div>
-      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
-        <div class="tab-icon">📝</div>
-        <div class="tab-text">打卡记录</div>
-      </div>
-      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
-        <div class="tab-icon">👤</div>
-        <div class="tab-text">我的</div>
-      </div>
+    <div class="stat">
+      <button class="like-btn" :class="{active:info.isLiked}" @click="routeStore.toggleLike(info)">
+        {{ info.isLiked ? '❤️' : '🤍' }} 点赞 {{ info.likeNum }}
+      </button>
+      <button class="collect-btn" :class="{active:info.isCollected}" @click="routeStore.toggleCollect(info)">
+        {{ info.isCollected ? '⭐' : '☆' }} 收藏 {{ info.starNum }}
+      </button>
+    </div>
+    <div class="desc">
+      <h4>路线介绍</h4>
+      <p>{{ info.description }}</p>
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { load } from "@amap/amap-jsapi-loader"
-import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailAPI } from '@/api/route'
-const router = useRouter()
+import { useRoute, useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRouteStore } from '@/store/routeStore'
 const route = useRoute()
-
-//【重点：从params拿id，适配 /detail/:id】
-const routeId = ref(Number(route.params.id))
-let miniMap = null
-let miniPolyline = null
-
-// 路线详情数据
-const routeInfo = ref({})
-const pointList = ref([])
-const commentText = ref("")
-const commentList = ref([])
-
-// mock模拟数据（后端接口未就绪演示用）
-const mockDetailData = {
-  id:1001,
-  routeName:"老城人文漫步",
-  city:"广州",
-  duration:"2小时",
-  distance:"4.2km",
-  tags:["人文","老街"],
-  authorName:"漫游爱好者",
-  cover:"https://picsum.photos/id/24/750/320",
-  description:"广州老城一日漫步，游览岭南古建筑，感受老城烟火气息，适合周末休闲出行。最佳游玩时间：下午14点‑18点。",
-  points:[
-    {id:1,pointName:"陈家祠",longitude:113.2401,latitude:23.1375,imageUrl:"https://picsum.photos/id/24/200/120",description:"岭南古建筑群，精美的砖雕石雕"},
-    {id:2,pointName:"沙面岛",longitude:113.2408,latitude:23.1147,imageUrl:"https://picsum.photos/id/27/200/120",description:"欧式复古小岛，拍照出片"},
-    {id:3,pointName:"北京路",longitude:113.2704,latitude:23.1234,imageUrl:"https://picsum.photos/id/25/200/120",description:"千年古道，老牌商业步行街"}
-  ]
-}
-const mockComment = [
-  {id:1,userName:"游客A",content:"这条路线很不错，周末已经去过！"},
-  {id:2,userName:"游客B",content:"推荐大家下午过去，风景很好"}
-]
-
-// 加载详情
-const loadDetail = async ()=>{
-  try{
-    // 真实后端接口
-    const res = await getRouteDetailAPI(routeId.value)
-    const data = res.data
-    routeInfo.value = data
-    pointList.value = data.points
-    commentList.value = mockComment
-    await initMiniMap(data.points)
-  }catch(e){
-    ElMessage.info("后端接口未就绪，加载模拟数据演示")
-    const data = mockDetailData
-    routeInfo.value = data
-    pointList.value = data.points
-    commentList.value = mockComment
-    await initMiniMap(data.points)
-  }
-}
-
-//初始化内嵌预览小地图
-const initMiniMap = async (points)=>{
-  const AMap = await load({
-    key: import.meta.env.VITE_AMAP_KEY,
-    version:"2.0",
-    plugins:[]
-  })
-  miniMap = new AMap.Map("mini-map",{
-    zoom:12,
-    showCompass:false,
-    showZoomBar:false
-  })
-  const path = points.map(p=>[p.longitude,p.latitude])
-  miniPolyline = new AMap.Polyline({
-    path:path,
-    strokeColor:"#409eff",
-    strokeWeight:4
-  })
-  miniMap.add(miniPolyline)
-  miniMap.setFitView(miniPolyline)
-}
-
-//跳转到地图页面，并定位到该打卡点位（query传经纬度）
-const goToMap = (lng,lat)=>{
-  router.push({
-    path:"/map",
-    query:{
-      targetLng:lng,
-      targetLat:lat
-    }
-  })
-}
-
-//打卡业务（核心，距离校验逻辑）
-const handleCheckIn = (point)=>{
-  ElMessage.info(`打卡点位：${point.pointName}，实际项目这里调用GPS，判断用户和该点距离小于阈值允许打卡`)
-}
-
-//收藏
-const handleCollect = ()=>{
-  ElMessage.success("收藏操作")
-}
-//点赞
-const handleLike = ()=>{
-  ElMessage.success("点赞操作")
-}
-//提交评论
-const submitComment = ()=>{
-  if(!commentText.value.trim()) return
-  ElMessage.success("发表评论："+commentText.value)
-  commentText.value=""
-}
-
-onMounted(()=>{
-  if(!routeId.value){
-    ElMessage.warning("路线id不存在，返回首页")
-    router.push("/home")
-    return
-  }
-  loadDetail()
-})
-
-onUnmounted(()=>{
-  if(miniMap) miniMap.destroy()
+const router = useRouter()
+const routeStore = useRouteStore()
+// 根据id找到对应路线
+const info = computed(()=>{
+  const findId = Number(route.params.id)
+  return routeStore.routeList.find(item => item.id === findId)
 })
 </script>
-
 <style scoped>
-.detail-page{
-  background:#f7f8fa;
-  min-height:100vh;
-  padding-bottom:70px;
+.detail-page {
+  padding: 16px;
+  background: linear-gradient(180deg, #ffdfd0, #fff7f0);
+  min-height: 100vh;
+  box-sizing: border-box;
 }
-.detail-cover{
-  width:100%;
-  height:220px;
-  position:relative;
+.back-btn {
+  color: #ff6b35;
+  cursor: pointer;
+  margin-bottom: 14px;
+  font-size: 17px;
+  font-weight: 500;
 }
-.detail-cover img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
+.img-box {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  overflow: hidden;
 }
-.cover-op{
-  position:absolute;
-  top:10px;
-  left:10px;
-  right:10px;
-  display:flex;
-  justify-content:space-between;
+.route-img {
+  width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: cover;
 }
-.detail-content{
-  padding:14px;
+.title {
+  font-size: 22px;
+  margin: 8px 0 6px;
+  font-weight: bold;
 }
-.info-block{
-  background:#fff;
-  border-radius:10px;
-  padding:14px;
-  margin-bottom:14px;
+.meta {
+  font-size: 15px;
+  color: #666;
+  margin-bottom: 12px;
 }
-.title{
-  font-size:18px;
-  margin:0 0 8px;
+.tags {
+  margin-bottom: 16px;
 }
-.meta-row{
-  display:flex;
-  gap:14px;
-  color:#666;
-  font-size:13px;
+.tags span {
+  background: #f2d9cb;
+  color: #c26a3b;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-right: 6px;
+  font-size: 14px;
 }
-.tag-wrap{
-  margin:8px 0;
+.stat {
+  margin-bottom: 20px;
 }
-.author{
-  font-size:13px;
-  color:#888;
-  margin:6px 0;
-}
-.sub-title{
-  font-weight:bold;
-  margin:10px 0 6px;
-}
-.map-preview-block{
-  background:#fff;
-  border-radius:10px;
-  padding:14px;
-  margin-bottom:14px;
-}
-.mini-map{
-  width:100%;
-  height:200px;
-  border-radius:6px;
-}
-.point-block{
-  background:#fff;
-  border-radius:10px;
-  padding:14px;
-  margin-bottom:14px;
-}
-.point-item{
-  display:flex;
-  gap:10px;
-  padding:12px 0;
-  border-bottom:1px solid #eee;
-}
-.point-index{
-  width:24px;
-  height:24px;
-  background:#409eff;
-  color:#fff;
-  border-radius:50%;
-  text-align:center;
-  flex-shrink:0;
-  font-size:13px;
-  line-height:24px;
-}
-.point-main{
-  flex:1;
-}
-.point-img{
-  width:100%;
-  height:130px;
-  object-fit:cover;
-  border-radius:6px;
-}
-.point-name{
-  font-weight:bold;
-  margin:4px 0;
-}
-.point-intro{
-  font-size:13px;
-  color:#666;
-}
-.point-btn-wrap{
-  margin-top:8px;
-  display:flex;
-  gap:8px;
-}
-.comment-block{
-  background:#fff;
-  border-radius:10px;
-  padding:14px;
-}
-.comment-item{
-  padding:8px 0;
-  border-bottom:1px solid #eee;
-}
-.c-user{
-  font-size:13px;
-  color:#409eff;
-}
-.c-content{
-  font-size:14px;
-  margin-top:2px;
-}
-.bottom-space{
-  height:70px;
-}
-/*底部tab，和Home、Map完全一致 */
-.tab-bar{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  height:64px;
-  background:#ffffff;
-  display:flex;
-  border-top:1px solid #e8e8e8;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-  z-index: 999;
-}
-.tab-item{
-  flex:1;
-  display:flex;
-  flex-direction: column;
-  justify-content:center;
-  align-items:center;
-  gap:3px;
-  font-size:12px;
-  color:#868686;
+.like-btn, .collect-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #ffd8c4;
+  color: #333;
+  margin-right: 10px;
+  font-size: 15px;
   cursor: pointer;
 }
-.tab-icon{
-  font-size:20px;
+.like-btn.active {
+  background:#f56c6c;
+  color:white;
 }
-.tab-item.active{
-  color:#409eff;
+.collect-btn.active {
+  background:#e6a23c;
+  color:white;
+}
+.desc h4{
+  font-size:17px;
+  margin-bottom:8px;
+  color:#222;
+}
+.desc p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #333;
+  text-align:justify;
 }
 </style>
