@@ -10,10 +10,17 @@
         </div>
         <el-form :model="form" label-width="90px" class="publish-form">
           <el-form-item label="路线名称">
-            <el-input v-model="form.name" placeholder="请输入路线名称"></el-input>
+            <el-input v-model="form.routeName" placeholder="请输入路线名称"></el-input>
           </el-form-item>
-          <el-form-item label="所属城市">
-            <el-input v-model="form.city" placeholder="例如：广州"></el-input>
+          <el-form-item label="所属城市" prop="cityId">
+            <el-select v-model="form.cityId" placeholder="选择城市" style="width:100%">
+              <el-option
+                v-for="city in cityList"
+                :key="city.id"
+                :label="city.cityName"
+                :value="city.id"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="预计时长">
             <el-input v-model="form.duration" placeholder="例如：2小时"></el-input>
@@ -30,7 +37,7 @@
           </el-form-item>
           <el-form-item label="路线简介">
             <el-input
-              v-model="form.desc"
+              v-model="form.description"
               type="textarea"
               :rows="4"
               placeholder="简单描述这条步行路线"
@@ -81,39 +88,64 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 const router = useRouter()
 const route = useRoute()
 
+const cityList = ref([])
 const form = ref({
-  name: '',
-  city: '',
+  routeName: '',
+  cityId: null,
   duration: '',
   tags: [],
-  desc: ''
+  description: ''
 })
 const fileList = ref([])
 
-const handleSubmit = () => {
+// 加载城市下拉列表
+const loadCityList = async () => {
+  try {
+    const res = await request.get('/api/city/list')
+    if (res.code === 200) {
+      cityList.value = res.data
+    }
+  } catch (err) {
+    console.error('城市加载失败', err)
+  }
+}
+
+const handleSubmit = async () => {
   console.log('提交表单数据：', form.value)
   console.log('上传图片：', fileList.value)
-  ElMessage.success('模拟发布成功，跳转首页')
-  router.push('/home')
+  try {
+    const res = await request.post('/api/route/add', form.value)
+    if(res.code === 200){
+      ElMessage.success('发布成功，跳转首页')
+      router.push('/home')
+    }
+  } catch (err) {
+    ElMessage.error('发布失败')
+  }
 }
 const handleReset = () => {
   form.value = {
-    name: '',
-    city: '',
+    routeName: '',
+    cityId: null,
     duration: '',
     tags: [],
-    desc: ''
+    description: ''
   }
   fileList.value = []
   ElMessage.info('表单已重置')
 }
+
+onMounted(()=>{
+  loadCityList()
+})
 </script>
 
 <style scoped>
