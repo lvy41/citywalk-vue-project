@@ -21,7 +21,7 @@
       <el-table-column label="操作">
         <template #default="scope">
           <el-button link v-if="scope.row.status===1" type="warning" @click="banUser(scope.row)">禁用账号</el-button>
-          <el-button link v‑else type="primary" @click="unBanUser(scope.row)">启用账号</el-button>
+          <el-button link v-else type="primary" @click="unBanUser(scope.row)">启用账号</el-button>
         </template>
       </el-table-column>
     </el-table>

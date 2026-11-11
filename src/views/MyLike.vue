@@ -32,7 +32,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
 import { getUserLikeListAPI } from '@/api/route'
 const router = useRouter()
 
@@ -59,8 +58,7 @@ onMounted(() => {
 <style scoped>
 .page-my-like {
   min-height: 100vh;
-  /* 和我的发布一模一样的背景渐变 */
-  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
+  padding-bottom: 24px;
 }
 
 .page-header {
@@ -116,45 +114,8 @@ onMounted(() => {
 }
 .route-item {
   background: #fff;
-  border-radius: 20px;
-  padding: 14px;
-  display: flex;
-  gap:12px;
-  box-shadow: 0 4px 16px rgba(255,130,50,0.1);
-  cursor: pointer;
-}
-.route-img {
-  width: 100px;
-  height: 80px;
-  border-radius:12px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.route-img img {
-  width:100%;
-  height:100%;
-  object-fit: cover;
-}
-.route-info {
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  justify-content: space-between;
-}
-.route-name {
-  font-size:16px;
-  font-weight:500;
-  color:#222;
-}
-.route-desc {
-  font-size:13px;
-  color:#666;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.route-time {
-  font-size:12px;
-  color:#999;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
 }
 </style>

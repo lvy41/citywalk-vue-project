@@ -49,6 +49,11 @@ localStorage.removeItem('adminToken')
 localStorage.removeItem('userInfo')
 }
 
+// 401 时由 request 拦截器调用，语义等同于清除登录
+const logout = () => {
+clearUser()
+}
+
 // 获取用户信息
 const fetchUserInfo = async () => {
 try {
@@ -86,6 +91,7 @@ getAdminToken,
 setUserInfo,
 getUserInfo,
 clearUser,
+logout,
 fetchUserInfo,
 init
 }

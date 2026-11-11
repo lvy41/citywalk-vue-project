@@ -26,3 +26,39 @@ export function getUserLikeListAPI(){
     method:'get'
   })
 }
+
+// 点赞 / 取消点赞
+export function likeRouteAPI(routeId){
+  return request({
+    url:'/route/like',
+    method:'post',
+    params:{ routeId }
+  })
+}
+
+export function unlikeRouteAPI(routeId){
+  return request({
+    url:'/route/like',
+    method:'delete',
+    params:{ routeId }
+  })
+}
+
+export function getRouteDetailFullAPI(routeId) {
+  return request({ url: "/route/detailFull", method: "get", params: { routeId } })
+}
+
+// 路线分页列表（首页用，避免一次拉全库）
+export function getRouteListAPI(params) {
+  return request({ url: "/route/list", method: "get", params })
+}
+
+// 路线评论列表（未登录可读）
+export function getRouteCommentsAPI(routeId) {
+  return request({ url: "/route/comment/list", method: "get", params: { routeId } })
+}
+
+// 发表评论（需要登录）
+export function addRouteCommentAPI(data) {
+  return request({ url: "/route/comment", method: "post", data })
+}

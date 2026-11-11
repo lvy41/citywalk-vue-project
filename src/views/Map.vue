@@ -44,11 +44,63 @@
           <span @click="confirmArea">确定</span>
         </div>
       </template>
-      <el-cascader-panel
-        v-model="tempSelectedArea"
-        :options="areaOptions"
-        :props="cascaderProps"
-      />
+      <!-- 单列逐级下钻，按拼音排序，避免三列并排超出屏宽 -->
+      <div class="area-picker">
+        <div class="area-breadcrumb">
+          <span :class="{ current: areaLevel === 0 }" @click="backToLevel(0)">省份</span>
+          <template v-if="tempProvince">
+            <span class="sep">›</span>
+            <span :class="{ current: areaLevel === 1 }" @click="backToLevel(1)">{{ tempProvince.label }}</span>
+          </template>
+          <template v-if="tempCity">
+            <span class="sep">›</span>
+            <span :class="{ current: areaLevel === 2 }" @click="backToLevel(2)">{{ tempCity.label }}</span>
+          </template>
+        </div>
+
+        <div class="area-body">
+          <div class="area-list" ref="areaListRef">
+            <div
+              v-for="group in groupedLevelList"
+              :key="group.letter"
+              class="area-group"
+              :ref="el => { if (el) letterRefMap[group.letter] = el }"
+            >
+              <div class="area-group-letter">{{ group.letter }}</div>
+              <div
+                v-for="item in group.list"
+                :key="item.id"
+                class="area-row"
+                :class="{ active: isLevelActive(item) }"
+                @click="pickAreaItem(item)"
+              >
+                <span class="area-row-name">{{ item.label }}</span>
+                <el-icon v-if="hasChildren(item)" class="area-row-arrow"><ArrowRight /></el-icon>
+                <el-icon v-else-if="isLevelActive(item)" class="area-row-check"><Check /></el-icon>
+              </div>
+            </div>
+            <div v-if="currentLevelList.length === 0" class="area-empty">
+              {{ areaLevel === 0 ? '暂无省份数据' : '该地区暂无下级区县，可直接点“确定”' }}
+            </div>
+          </div>
+        
+          <!-- 右侧字母索引栏，微信通讯录那种：可点、可按住拖动 -->
+          <div
+            class="area-index"
+            @touchstart.stop.prevent="onIndexTouch"
+            @touchmove.stop.prevent="onIndexTouch"
+            @touchend.stop="onIndexTouchEnd"
+            @touchcancel.stop="onIndexTouchEnd"
+          >
+            <span
+              v-for="letter in levelLetters"
+              :key="letter"
+              @click.stop="scrollToLetter(letter)"
+            >{{ letter }}</span>
+          </div>
+        </div>
+
+      </div>
     </el-drawer>
     <!-- 路线推荐浮层 -->
     <div class="route-list-panel" v-if="nearRouteList.length > 0">
@@ -117,10 +169,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { pinyin } from 'pinyin-pro'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Location, Refresh, ArrowDown } from '@element-plus/icons-vue'
+import { Location, Refresh, ArrowDown, ArrowRight, Check } from '@element-plus/icons-vue'
 import { load } from '@amap/amap-jsapi-loader'
 import request from '@/utils/request'
 
@@ -136,8 +189,11 @@ const routePointsCache = {}
 
 // 弹窗控制
 const areaDrawerVisible = ref(false)
-// 临时选中（弹窗里）
-const tempSelectedArea = ref(null)
+// 弹窗内的逐级下钻状态：0=省 1=市 2=区县
+const areaLevel = ref(0)
+const tempProvince = ref(null)
+const tempCity = ref(null)
+const tempDistrict = ref(null)
 // 最终选中，格式：[provinceId] 或 [provinceId, cityId] 或 [provinceId, cityId, districtId]
 const selectedArea = ref(null)
 const areaOptions = ref([])
@@ -155,12 +211,145 @@ const locating = ref(false)
 // 区县没有专属路线时，是否回退成城市全部路线
 const districtFallback = ref(false)
 
-// 级联面板配置
-const cascaderProps = {
-  value: 'id',
-  label: 'label',
-  children: 'children',
-  expandTrigger: 'click'
+// 拼音排序：zh-Hans-CN 的排序规则即按拼音，多音字按常用读音
+const sortByPinyin = (list = []) =>
+  [...list].sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
+
+const hasChildren = (item) => !!(item && item.children && item.children.length)
+
+// 当前层级要展示的列表
+const currentLevelList = computed(() => {
+  if (areaLevel.value === 0) return sortByPinyin(areaOptions.value)
+  if (areaLevel.value === 1) return sortByPinyin(tempProvince.value?.children || [])
+  if (areaLevel.value === 2) return sortByPinyin(tempCity.value?.children || [])
+  return []
+})
+
+const getInitial = (name = '') => {
+  const first = pinyin(name.trim().slice(0, 2), { pattern: 'first', toneType: 'none', type: 'array' })[0] || ''
+  const letter = first.charAt(0).toUpperCase()
+  return /[A-Z]/.test(letter) ? letter : '#'
+}
+
+// 把当前层级的列表按首字母分组：{ A:[...], B:[...] }
+const groupedLevelList = computed(() => {
+  const groups = {}
+  currentLevelList.value.forEach(item => {
+    const letter = getInitial(item.label)
+    if (!groups[letter]) groups[letter] = []
+    groups[letter].push(item)
+  })
+  return Object.keys(groups).sort().map(letter => ({ letter, list: groups[letter] }))
+})
+
+// 右侧索引栏只显示有内容的字母
+const levelLetters = computed(() => groupedLevelList.value.map(g => g.letter))
+
+// 点字母 → 滚到对应分组（用 rect 差值算，不受嵌套定位影响）
+// 这里用普通对象存 DOM，不要用 ref：模板里 ref 会被自动解包，写 .value 反而会报 undefined
+const letterRefMap = {}
+const areaListRef = ref(null)
+const scrollToLetter = (letter) => {
+  const el = letterRefMap[letter]
+  const list = areaListRef.value
+  if (!el || !list) return
+  const offset = el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop
+  list.scrollTop = Math.max(0, offset)
+}
+
+// 右侧索引栏按住拖动时连续定位（微信通讯录那种手感）
+let lastLetterIdx = -1
+const locateByPointerY = (clientY, rect) => {
+  const total = levelLetters.value.length
+  if (!total) return
+  const step = rect.height / total
+  const idx = Math.min(total - 1, Math.max(0, Math.floor((clientY - rect.top) / step)))
+  if (idx !== lastLetterIdx) {
+    lastLetterIdx = idx
+    scrollToLetter(levelLetters.value[idx])
+  }
+}
+const onIndexTouch = (e) => {
+  const rect = e.currentTarget.getBoundingClientRect()
+  locateByPointerY(e.touches[0].clientY, rect)
+}
+const onIndexTouchEnd = () => {
+  lastLetterIdx = -1
+}
+
+// 切换层级 / 打开抽屉时，列表回到顶部，索引手势状态重置
+watch([areaLevel, areaDrawerVisible], () => {
+  lastLetterIdx = -1
+  nextTick(() => {
+    if (areaListRef.value) areaListRef.value.scrollTop = 0
+  })
+})
+// 当前层级里被选中的那一项
+const isLevelActive = (item) => {
+  if (areaLevel.value === 0) return tempProvince.value?.id === item.id
+  if (areaLevel.value === 1) return tempCity.value?.id === item.id
+  if (areaLevel.value === 2) return tempDistrict.value?.id === item.id
+  return false
+}
+
+// 弹窗里的临时选择，回填 / 确认都用它
+const tempSelectedArea = computed(() => {
+  const ids = []
+  if (tempProvince.value) ids.push(tempProvince.value.id)
+  if (tempCity.value) ids.push(tempCity.value.id)
+  if (tempDistrict.value) ids.push(tempDistrict.value.id)
+  return ids.length ? ids : null
+})
+
+// 清空弹窗内的临时下钻状态
+const resetTempArea = () => {
+  tempProvince.value = null
+  tempCity.value = null
+  tempDistrict.value = null
+  areaLevel.value = 0
+}
+
+// 点某一项：省 → 进市；市 → 进区县（没有区县就停在市）；区县 → 选中
+const pickAreaItem = (item) => {
+  if (areaLevel.value === 0) {
+    tempProvince.value = item
+    tempCity.value = null
+    tempDistrict.value = null
+    areaLevel.value = hasChildren(item) ? 1 : 0
+    return
+  }
+  if (areaLevel.value === 1) {
+    tempCity.value = item
+    tempDistrict.value = null
+    if (hasChildren(item)) {
+      areaLevel.value = 2
+    }
+    return
+  }
+  if (areaLevel.value === 2) {
+    tempDistrict.value = item
+  }
+}
+
+// 面包屑回退
+const backToLevel = (level) => {
+  if (level === 0) {
+    tempProvince.value = null
+    tempCity.value = null
+    tempDistrict.value = null
+    areaLevel.value = 0
+    return
+  }
+  if (level === 1 && tempProvince.value) {
+    tempCity.value = null
+    tempDistrict.value = null
+    areaLevel.value = 1
+    return
+  }
+  if (level === 2 && tempCity.value) {
+    tempDistrict.value = null
+    areaLevel.value = 2
+  }
 }
 
 // 回显：拼接省 / 市 / 区县名称
@@ -237,21 +426,47 @@ const emptyTip = computed(() => {
   return '暂无路线数据'
 })
 
-// 打开地区弹窗时，先用当前选中值回填
+// 打开地区弹窗时，用当前已选地区回填下钻层级
 const openAreaDrawer = () => {
-  tempSelectedArea.value = selectedArea.value ? [...selectedArea.value] : null
+  tempProvince.value = null
+  tempCity.value = null
+  tempDistrict.value = null
+  areaLevel.value = 0
+
+  const ids = selectedArea.value
+  if (ids && ids.length) {
+    const province = areaOptions.value.find(item => item.id === ids[0])
+    if (province) {
+      tempProvince.value = province
+      areaLevel.value = hasChildren(province) ? 1 : 0
+      const city = ids[1] ? (province.children || []).find(item => item.id === ids[1]) : null
+      if (city) {
+        tempCity.value = city
+        const district = ids[2] ? (city.children || []).find(item => item.id === ids[2]) : null
+        if (district) {
+          tempDistrict.value = district
+          areaLevel.value = 2
+        } else if (hasChildren(city)) {
+          areaLevel.value = 2
+        }
+      }
+    }
+  }
   areaDrawerVisible.value = true
 }
 
-// 取消地区选择
+// 取消地区选择：丢弃弹窗里的临时选择
 const cancelArea = () => {
-  tempSelectedArea.value = selectedArea.value
   areaDrawerVisible.value = false
 }
 
 // 确认地区选择：选地区就走城市/区县维度，不再用定位半径
 const confirmArea = () => {
-  selectedArea.value = tempSelectedArea.value
+  if (!tempSelectedArea.value) {
+    ElMessage.warning('请先选择一个地区')
+    return
+  }
+  selectedArea.value = [...tempSelectedArea.value]
   areaDrawerVisible.value = false
   currentLng.value = null
   currentLat.value = null
@@ -527,21 +742,27 @@ const refreshNearRoute = () => {
   fetchNearRoute()
 }
 
-// 画“我的位置”蓝点
+// 画“我的位置”蓝点：地图还没完全就绪时高德内部会抛异常，这里单独兜住，不影响定位结果
 const drawMyLocation = (pos) => {
-  if (!map || !AMap) return
-  if (myLocationMarker) {
-    myLocationMarker.setPosition(pos)
-    return
+  if (!map || !AMap || !pos) return false
+  try {
+    if (myLocationMarker) {
+      myLocationMarker.setPosition(pos)
+      return true
+    }
+    myLocationMarker = new AMap.Marker({
+      position: pos,
+      map,
+      zIndex: 200,
+      offset: new AMap.Pixel(-10, -10),
+      title: '我的位置',
+      content: '<div style="width:14px;height:14px;border-radius:50%;background:#1677ff;border:3px solid #fff;box-shadow:0 0 0 4px rgba(22,119,255,.22)"></div>'
+    })
+    return true
+  } catch (err) {
+    console.warn('定位点绘制失败（不影响定位结果）', err)
+    return false
   }
-  myLocationMarker = new AMap.Marker({
-    position: pos,
-    map,
-    zIndex: 200,
-    offset: new AMap.Pixel(-10, -10),
-    title: '我的位置',
-    content: '<div style="width:14px;height:14px;border-radius:50%;background:#1677ff;border:3px solid #fff;box-shadow:0 0 0 4px rgba(22,119,255,.22)"></div>'
-  })
 }
 
 /**
@@ -576,10 +797,14 @@ const locateUser = async (auto = false) => {
     located.value = true
     // 定位后清掉地区选择，切到“附近”模式
     selectedArea.value = null
-    tempSelectedArea.value = null
+    resetTempArea()
     selectedRouteId.value = null
     drawMyLocation(pos)
-    map.setZoomAndCenter(14, pos)
+    try {
+      map.setZoomAndCenter(14, pos)
+    } catch (err) {
+      console.warn('地图视野调整失败（不影响定位结果）', err)
+    }
     await fetchNearRoute()
     return true
   } catch (e) {
@@ -598,7 +823,7 @@ const getCurrentLocation = () => {
     currentLat.value = Number(route.query.targetLat)
     located.value = true
     selectedArea.value = null
-    tempSelectedArea.value = null
+    resetTempArea()
     drawMyLocation([currentLng.value, currentLat.value])
     map.setZoomAndCenter(14, [currentLng.value, currentLat.value])
     fetchNearRoute()
@@ -660,6 +885,18 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
+/*
+ * 高德版权标识（.amap-logo / .amap-copyright）是高德 API 注入的，条款要求必须可见，
+ * 这里不隐藏，只整体抬到底部导航栏（60px）之上，避免被压住看不清
+ */
+.amap-container :deep(.amap-logo) {
+  bottom: 66px !important;
+  z-index: 5 !important;
+}
+.amap-container :deep(.amap-copyright) {
+  bottom: 66px !important;
+  z-index: 5 !important;
+}
 .map-filter-panel {
   position: absolute;
   top: 12px;
@@ -714,14 +951,109 @@ onUnmounted(() => {
   color: #333;
   font-weight: bold;
 }
-/* 级联面板样式，适配APP，加大行高、字体 */
-:deep(.el-cascader-panel) {
-  font-size: 16px;
+/* 单列逐级下钻地区选择器，适配 APP：不出横向滚动条 */
+:deep(.el-drawer__body) {
+  padding: 0;
+  overflow-x: hidden;
 }
-:deep(.el-cascader-node) {
-  height: 48px !important;
-  line-height: 48px !important;
-  padding:0 16px !important;
+.area-picker {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.area-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #909399;
+  border-bottom: 1px solid #f2f2f2;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.area-breadcrumb::-webkit-scrollbar { display: none; }
+.area-breadcrumb .current { color: #409eff; font-weight: bold; }
+.area-breadcrumb .sep { color: #c0c4cc; }
+.area-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+.area-list {
+  flex: 1;
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 0 16px;
+  padding-right: 24px;   /* 给索引栏让位 */
+  -webkit-overflow-scrolling: touch;
+}
+.area-group-letter {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 16px;
+  font-size: 12px;
+  color: #909399;
+  background: #f7f8fa;
+}
+.area-index {
+  width: 24px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 11px;
+  color: #409eff;
+  background: transparent;
+  user-select: none;
+  touch-action: none;   /* 拖动索引时不要触发列表滚动 */
+  padding: 8px 0;
+}
+.area-index span {
+  flex: 1;                 /* 字母自动均分高度，屏幕越矮越紧 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  cursor: pointer;
+}
+
+.area-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 16px;
+  font-size: 16px;
+  color: #303133;
+  border-bottom: 1px solid #f7f7f7;
+  cursor: pointer;
+}
+.area-row:active { background: #f5f7fa; }
+.area-row.active { color: #409eff; font-weight: 600; }
+.area-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.area-row-arrow { color: #c0c4cc; font-size: 16px; }
+.area-row-check { color: #409eff; font-size: 18px; }
+.area-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: #909399;
+  font-size: 14px;
 }
 .route-list-panel {
   position: absolute;
