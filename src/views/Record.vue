@@ -20,11 +20,6 @@
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-num">{{ myPublishedCount }}</div>
-          <div class="stat-label">我的发布</div>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
           <div class="stat-num">{{ completedRoutes.length }}</div>
           <div class="stat-label">我的闯关</div>
         </div>
@@ -71,25 +66,6 @@
                   <el-button type="warning" size="small" round class="action-btn yellow-btn" @click.stop="startCheckin(item)">去打卡</el-button>
                   <el-button type="danger" size="small" round plain class="action-btn pink-btn" @click.stop="cancelFavorite(item.id)">取消收藏</el-button>
                 </div>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- 我的发布标签页 -->
-        <el-tab-pane label="我的发布" name="published">
-          <div class="card-list">
-            <div v-for="item in myPublishedList" :key="item.id" class="record-card">
-              <img :src="item.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80'" class="card-cover" alt="封面">
-              <div class="card-info">
-                <div class="title-row">
-                  <h3 class="card-title link-title" @click="openDetail(item, 'fav-detail')">
-                    {{ item.routeName }} <span class="arrow">></span>
-                  </h3>
-                   <span class="delete-icon" @click.stop="deletePublishedRoute(item.id, item.routeName)">🗑️</span>
-                </div>
-                <p class="card-desc"><span class="tag-icon">🏙️</span> 城市：{{ item.city }}</p>
-                <p class="card-desc"><span class="tag-icon">🕒</span> 发布时间：{{ item.createTime }}</p>
               </div>
             </div>
           </div>
@@ -358,6 +334,30 @@
         </div>
       </div>
     </div>
+
+    <!-- 底部导航栏：与 Home / Map 一致 -->
+    <div class="tab-bar">
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
+      </div>
+    </div>
   </div>
 
   <!-- 通关奖励弹窗 -->
@@ -402,6 +402,29 @@ const currentView = ref('list')
 const activeTab = ref('checkin')
 const currentRoute = ref({})
 const searchKeyword = ref('')
+
+// 我的打卡路线持久化：供「发布路线」页的一键导入使用
+const saveCheckinList = () => {
+  try {
+    localStorage.setItem('citywalk_checkin_list', JSON.stringify(checkinList.value))
+  } catch (err) {
+    console.error('打卡路线本地保存失败', err)
+  }
+}
+
+const loadCheckinList = () => {
+  try {
+    const raw = localStorage.getItem('citywalk_checkin_list')
+    if (raw) {
+      const saved = JSON.parse(raw)
+      if (Array.isArray(saved) && saved.length) {
+        checkinList.value = saved
+      }
+    }
+  } catch (err) {
+    console.error('打卡路线本地读取失败', err)
+  }
+}
 
 // ======= 奖杯与通关记录逻辑 =======
 const trophyCount = ref(0)
@@ -536,36 +559,6 @@ const closeTrophyDialog = () => {
   showTrophyDialog.value = false
 }
 
-// ======= 我的发布列表逻辑 =======
-const myPublishedCount = ref(0)
-const myPublishedList = ref([])
-
-const loadPublishedList = () => {
-  const publishedData = localStorage.getItem('citywalk_published_list')
-  if (publishedData) {
-    myPublishedList.value = JSON.parse(publishedData)
-    myPublishedCount.value = myPublishedList.value.length
-  } else {
-    myPublishedList.value = []
-    myPublishedCount.value = 0
-  }
-}
-loadPublishedList()
-
-const deletePublishedRoute = (id, routeName) => {
-  ElMessageBox.confirm(`确定要撤回并删除发布的路线「${routeName}」吗？`, '撤回发布', {
-    confirmButtonText: '确定删除', cancelButtonText: '再想想', type: 'warning', confirmButtonClass: 'el-button--danger'
-  }).then(() => {
-    const index = myPublishedList.value.findIndex(item => item.id === id)
-    if (index > -1) {
-      myPublishedList.value.splice(index, 1)
-      localStorage.setItem('citywalk_published_list', JSON.stringify(myPublishedList.value))
-      myPublishedCount.value = myPublishedList.value.length
-      ElMessage.success('已成功撤回发布')
-    }
-  }).catch(() => {})
-}
-
 // ======= 创建打卡路线逻辑 =======
 const createForm = ref({
   routeName: '', city: '', coverImage: '',
@@ -604,6 +597,7 @@ const submitCreateRoute = () => {
   }
 
   checkinList.value.unshift(newRoute)
+  saveCheckinList()
   
   createForm.value = {
     routeName: '', city: '', coverImage: '',
@@ -613,15 +607,29 @@ const submitCreateRoute = () => {
   ElMessage.success('足迹记录成功！（仅自己可见）')
 }
 
-// ======= 删除我的打卡路线逻辑 =======
+// ======= 删除我的打卡路线逻辑（删除后进「我的垃圾站」，可恢复） =======
+const RECYCLE_KEY = 'citywalk_recycle_list'
+const pushToRecycle = (item) => {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECYCLE_KEY) || '[]')
+    list.unshift({ ...item, deletedTime: new Date().toLocaleString() })
+    localStorage.setItem(RECYCLE_KEY, JSON.stringify(list.slice(0, 20)))
+  } catch (e) {
+    console.warn('写入垃圾站失败', e)
+  }
+}
+
 const deleteMyRoute = (id, routeName) => {
-  ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？删除后不可恢复哦。`, '删除打卡足迹', {
+  ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？删除后会放进「我的垃圾站」，可以随时恢复。`, '删除打卡足迹', {
     confirmButtonText: '确定删除', cancelButtonText: '再想想', type: 'warning', confirmButtonClass: 'el-button--danger'
   }).then(() => {
     const index = checkinList.value.findIndex(item => item.id === id)
     if (index > -1) {
+      const removed = checkinList.value[index]
       checkinList.value.splice(index, 1)
-      ElMessage.success('打卡路线已删除')
+      saveCheckinList()
+      pushToRecycle(removed)
+      ElMessage.success('已移入「我的垃圾站」')
     }
   }).catch(() => {})
 }
@@ -781,6 +789,7 @@ const filteredCheckinPoints = computed(() => {
 
 // 从首页跳转过来自动触发打卡
 onMounted(() => {
+  loadCheckinList()
   if (route.query.playRouteId) {
     const targetRoute = favoriteList.value.find(item => item.id == route.query.playRouteId)
     if (targetRoute) {
@@ -796,10 +805,10 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 
 <style scoped>
 .record-container {
-  padding: 20px 15px;
+  padding: 20px 15px 150px;
   background: linear-gradient(180deg, #FFF6F0 0%, #F5F7FA 100%);
   min-height: 100vh;
-  padding-bottom: 80px;
+  box-sizing: border-box;
 }
 .fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -885,8 +894,35 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .point-edit-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #FF7A45; margin-bottom: 10px; }
 .add-point-btn { width: 100%; height: 44px; border-radius: 10px; border-color: #FF9A44; color: #FF7A45; background: #FFF9F0; font-weight: bold; }
 .add-point-btn:hover { background: #FFF0F3; }
-.submit-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; padding: 10px 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 100; box-sizing: border-box; }
+.submit-bar { position: fixed; bottom: 60px; left: 0; width: 100%; background: #fff; padding: 10px 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 98; box-sizing: border-box; }
 .submit-btn { width: 100%; border-radius: 20px; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; font-size: 16px; font-weight: bold; padding: 12px 0; }
+
+/* 底部导航栏：与 Home / Map 一致 */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #eee;
+  z-index: 99;
+}
+.tab-bar .tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  gap: 3px;
+  cursor: pointer;
+}
+.tab-bar .tab-item.active { color: #409eff; }
+.tab-bar .tab-icon { font-size: 20px; }
+.tab-bar .tab-text { font-size: 14px; line-height: 1; }
 
 /* 删除图标 */
 .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }

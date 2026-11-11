@@ -17,10 +17,6 @@
         </div>
       </div>
     </div>
-
-    <div class="tab-bottom">
-      <TabBar />
-    </div>
   </div>
 </template>
 
@@ -28,7 +24,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import TabBar from '@/components/TabBar.vue'
 
 const router = useRouter()
 const msgList = ref([])
@@ -49,7 +44,7 @@ onMounted(() => {
 .page-message {
   background-color: #f8f8f8;
   min-height: 100vh;
-  padding-bottom: 70px;
+  padding-bottom: 24px;
 }
 .page-header {
   display: flex;
@@ -89,11 +84,5 @@ onMounted(() => {
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-}
-.tab-bottom {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 100%;
 }
 </style>

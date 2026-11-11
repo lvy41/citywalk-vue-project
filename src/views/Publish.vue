@@ -2,7 +2,7 @@
   <div class="publish-container">
     <!-- 顶部返回 -->
     <div class="detail-header">
-      <div class="back-btn" @click="$router.back()">
+      <div class="back-btn" @click="$router.push('/home')">
         <el-icon><ArrowLeft /></el-icon> 返回
       </div>
       <h2 class="detail-title">发布公开路线</h2>
@@ -10,19 +10,24 @@
     </div>
 
     <div class="create-form">
-      <!-- 👇 核心新增：一键导入个人足迹 👇 -->
+      <!-- 一键导入个人足迹 -->
       <div class="form-card import-card">
         <h3 class="section-title">✨ 快捷导入</h3>
-        <p style="font-size: 13px; color: #909399; margin-bottom: 10px;">
-          你可以直接选择之前在“我的打卡”中记录的个人足迹，一键提取路线和点位，无需重新填写。
+        <p class="import-tip">
+          可以直接选择「打卡记录」里保存的个人足迹，一键提取路线和点位，无需重新填写。
         </p>
         <div style="display: flex; gap: 10px;">
-          <el-select v-model="selectedRecordId" placeholder="请选择要导入的个人打卡路线" style="flex: 1;">
-            <el-option 
-              v-for="item in myCheckinList" 
-              :key="item.id" 
-              :label="item.routeName" 
-              :value="item.id" 
+          <el-select
+            v-model="selectedRecordId"
+            :placeholder="myCheckinList.length ? '请选择要导入的个人打卡路线' : '暂无个人打卡记录'"
+            style="flex: 1;"
+            :disabled="!myCheckinList.length"
+          >
+            <el-option
+              v-for="item in myCheckinList"
+              :key="item.id"
+              :label="item.routeName"
+              :value="item.id"
             />
           </el-select>
           <el-button type="primary" @click="importFromCheckin" :disabled="!selectedRecordId">
@@ -36,10 +41,10 @@
         <h3 class="section-title">📝 路线基础信息</h3>
         <el-form label-position="top">
           <el-form-item label="路线名称">
-            <el-input v-model="form.routeName" placeholder="请输入路线名称"></el-input>
+            <el-input v-model="form.routeName" placeholder="请输入路线名称，例如：广州·沙面老街漫步"></el-input>
           </el-form-item>
-          <el-form-item label="所属城市" prop="cityId">
-            <el-select v-model="form.cityId" placeholder="选择城市" style="width:100%">
+          <el-form-item label="所属城市">
+            <el-select v-model="form.cityId" placeholder="选择城市" style="width:100%" filterable>
               <el-option
                 v-for="city in cityList"
                 :key="city.id"
@@ -49,16 +54,16 @@
             </el-select>
           </el-form-item>
           <el-form-item label="路线封面图 (URL)">
-            <el-input v-model="publishForm.coverImage" placeholder="输入图片链接 (可选)"></el-input>
+            <el-input v-model="form.coverImage" placeholder="输入图片链接 (可选)"></el-input>
           </el-form-item>
           <el-form-item label="路线标签">
-            <el-select v-model="form.tags" multiple placeholder="选择标签">
+            <el-select v-model="form.tags" multiple placeholder="选择标签" style="width:100%">
               <el-option label="老街" value="老街" />
               <el-option label="美食" value="美食" />
-              <el-option label="博物馆" value="博物馆" />
+              <el-option label="人文" value="人文" />
               <el-option label="公园" value="公园" />
               <el-option label="夜景" value="夜景" />
-              <el-option label="短途徒步" value="短途徒步" />
+              <el-option label="摄影打卡" value="摄影打卡" />
             </el-select>
           </el-form-item>
           <el-form-item label="路线简介">
@@ -69,33 +74,19 @@
               placeholder="简单描述这条步行路线"
             ></el-input>
           </el-form-item>
-          <el-form-item label="封面图片">
-            <el-upload
-              action="#"
-              :auto-upload="false"
-              :file-list="fileList"
-              list-type="picture-card"
-            >
-              <el-icon><Plus /></el-icon>
-            </el-upload>
-          </el-form-item>
-          <el-form-item class="btn-group">
-            <el-button type="primary" @click="handleSubmit" class="submit-btn">提交发布</el-button>
-            <el-button @click="handleReset" class="reset-btn">重置</el-button>
-          </el-form-item>
         </el-form>
       </div>
 
-      <!-- 打卡点列表 (动态添加) -->
+      <!-- 打卡点列表 -->
       <div class="form-card">
         <h3 class="section-title">📍 途径打卡点</h3>
-        
-        <div v-for="(point, index) in publishForm.points" :key="index" class="point-edit-item">
+
+        <div v-for="(point, index) in form.points" :key="index" class="point-edit-item">
           <div class="point-edit-header">
             <span>打卡点 {{ index + 1 }}</span>
-            <el-button type="danger" link @click="removePoint(index)" v-if="publishForm.points.length > 1">删除</el-button>
+            <el-button type="danger" link @click="removePoint(index)" v-if="form.points.length > 1">删除</el-button>
           </div>
-          
+
           <el-form label-position="top">
             <el-form-item label="具体地点名称">
               <el-input v-model="point.name" placeholder="例如：断桥残雪"></el-input>
@@ -116,10 +107,34 @@
           + 添加新的打卡点
         </el-button>
       </div>
+    </div>
 
-      <!-- 提交按钮 -->
-      <div class="submit-bar">
-        <el-button type="primary" class="submit-btn" @click="submitPublish">确认发布到首页</el-button>
+    <!-- 底部提交栏：抬到底部导航之上 -->
+    <div class="submit-bar">
+      <el-button type="primary" class="submit-btn" :loading="submitting" @click="submitPublish">确认发布到首页</el-button>
+    </div>
+
+    <!-- 底部导航栏：与 Home / Map 保持一致 -->
+    <div class="tab-bar">
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
       </div>
     </div>
   </div>
@@ -127,80 +142,179 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+
 const router = useRouter()
 
 const cityList = ref([])
+const myCheckinList = ref([])
+const selectedRecordId = ref(null)
+const submitting = ref(false)
+
+const defaultPoint = () => ({ name: '', time: '09:00', transport: '', image: '' })
+
 const form = ref({
   routeName: '',
   cityId: null,
-  duration: '',
+  coverImage: '',
   tags: [],
-  description: ''
+  description: '',
+  points: [defaultPoint()]
 })
 
-// 加载城市下拉列表
+// 城市下拉：baseURL 已带 /api，这里只能写 /city/list
 const loadCityList = async () => {
   try {
-    const res = await request.get('/api/city/list')
-    if (res.code === 200) {
-      cityList.value = res.data
-    }
+    const res = await request.get('/city/list')
+    cityList.value = res.data || []
   } catch (err) {
-    console.error('城市加载失败', err)
+    console.error('城市列表加载失败', err)
   }
 }
 
-const handleSubmit = async () => {
-  console.log('提交表单数据：', form.value)
-  console.log('上传图片：', fileList.value)
+// 打卡记录页保存的个人足迹
+const loadCheckinList = () => {
   try {
-    const res = await request.post('/api/route/add', form.value)
-    if(res.code === 200){
-      ElMessage.success('发布成功，跳转首页')
-      router.push('/home')
-    }
+    const raw = localStorage.getItem('citywalk_checkin_list')
+    myCheckinList.value = raw ? JSON.parse(raw) : []
   } catch (err) {
-    ElMessage.error('发布失败')
+    console.error('打卡记录读取失败', err)
+    myCheckinList.value = []
   }
 }
-const handleReset = () => {
+
+const importFromCheckin = () => {
+  const record = myCheckinList.value.find(item => item.id === selectedRecordId.value)
+  if (!record) {
+    ElMessage.warning('请先选择要导入的打卡记录')
+    return
+  }
+  form.value.routeName = record.routeName || ''
+  form.value.coverImage = record.coverImage || ''
+  form.value.description = record.description || ''
+  form.value.points = (record.points || []).map(pt => ({
+    name: pt.name || '',
+    time: pt.time || '09:00',
+    transport: pt.transport || '',
+    image: pt.image || ''
+  }))
+  if (!form.value.points.length) {
+    form.value.points = [defaultPoint()]
+  }
+  ElMessage.success(`已导入「${record.routeName}」的 ${form.value.points.length} 个打卡点`)
+}
+
+const addPoint = () => {
+  form.value.points.push(defaultPoint())
+}
+
+const removePoint = (index) => {
+  if (form.value.points.length <= 1) return
+  form.value.points.splice(index, 1)
+}
+
+const resetForm = () => {
   form.value = {
     routeName: '',
     cityId: null,
-    duration: '',
+    coverImage: '',
     tags: [],
-    description: ''
+    description: '',
+    points: [defaultPoint()]
+  }
+  selectedRecordId.value = null
+}
+
+// 同步到打卡记录页的「我的发布」列表
+const saveToLocalPublished = (record) => {
+  try {
+    const raw = localStorage.getItem('citywalk_published_list')
+    const list = raw ? JSON.parse(raw) : []
+    list.unshift(record)
+    localStorage.setItem('citywalk_published_list', JSON.stringify(list))
+  } catch (err) {
+    console.error('本地发布记录写入失败', err)
   }
 }
 
-onMounted(()=>{
+const submitPublish = async () => {
+  if (!form.value.routeName.trim()) {
+    ElMessage.warning('请先填写路线名称')
+    return
+  }
+  if (!form.value.cityId) {
+    ElMessage.warning('请选择所属城市')
+    return
+  }
+
+  const city = cityList.value.find(item => item.id === form.value.cityId)
+  const localRecord = {
+    id: Date.now(),
+    routeName: form.value.routeName.trim(),
+    city: city ? city.cityName : '',
+    coverImage: form.value.coverImage,
+    tags: form.value.tags,
+    description: form.value.description,
+    pointCount: form.value.points.length,
+    createTime: new Date().toLocaleString()
+  }
+
+  const payload = {
+    routeName: localRecord.routeName,
+    cityId: form.value.cityId,
+    city: localRecord.city,
+    coverImage: form.value.coverImage,
+    description: form.value.description,
+    isPublic: 1,
+    auditStatus: 1
+  }
+
+  submitting.value = true
+  try {
+    const res = await request.post('/route/add', payload)
+    saveToLocalPublished(localRecord)
+    ElMessage.success(res.msg || '路线发布成功')
+    resetForm()
+    router.push('/home')
+  } catch (err) {
+    // 后端未启动时先本地留存，避免用户白填一遍
+    saveToLocalPublished(localRecord)
+    ElMessage.warning('服务器暂时未响应，路线已暂存到本地「我的发布」')
+    resetForm()
+    router.push('/record')
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(() => {
   loadCityList()
+  loadCheckinList()
 })
 </script>
 
 <style scoped>
-/* 这里直接复用你 Record.vue 里的样式，保证风格统一 */
 .publish-container {
-  padding: 20px 15px;
+  padding: 20px 15px 150px;
   background: linear-gradient(180deg, #FFF6F0 0%, #F5F7FA 100%);
   min-height: 100vh;
-  padding-bottom: 80px;
+  box-sizing: border-box;
 }
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px dashed #FFE4D6; }
 .back-btn { display: flex; align-items: center; gap: 4px; font-size: 15px; color: #FF7A45; font-weight: bold; cursor: pointer; background: #FFF0F3; padding: 6px 12px; border-radius: 20px; }
 .detail-title { margin: 0; font-size: 18px; color: #303133; font-weight: 800; }
 .header-placeholder { width: 70px; }
 
-.create-form { padding-bottom: 80px; }
+.create-form { padding-bottom: 10px; }
 .form-card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
 .section-title { font-size: 16px; font-weight: bold; color: #303133; margin: 0 0 15px 0; padding-left: 8px; border-left: 4px solid #FF7A45; }
 
 .import-card { background: #FFF9F0; border: 1px dashed #FFD15C; }
 .import-card .section-title { border-left-color: #E6A23C; }
+.import-tip { font-size: 13px; color: #909399; margin: 0 0 10px 0; }
 
 .point-edit-item { background: #F9F9F9; border: 1px dashed #DCDFE6; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
 .point-edit-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #FF7A45; margin-bottom: 10px; }
@@ -208,6 +322,34 @@ onMounted(()=>{
 .add-point-btn { width: 100%; height: 44px; border-radius: 10px; border-color: #FF9A44; color: #FF7A45; background: #FFF9F0; font-weight: bold; }
 .add-point-btn:hover { background: #FFF0F3; }
 
-.submit-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; padding: 10px 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 100; box-sizing: border-box; }
+/* 提交栏固定在 tab-bar 之上，避免互相遮挡 */
+.submit-bar { position: fixed; bottom: 60px; left: 0; width: 100%; background: #fff; padding: 10px 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 98; box-sizing: border-box; }
 .submit-btn { width: 100%; border-radius: 20px; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; font-size: 16px; font-weight: bold; padding: 12px 0; }
+
+/* 底部导航栏：与 Home / Map 一致 */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background: #fff;
+  display: flex;
+  border-top: 1px solid #eee;
+  z-index: 99;
+}
+.tab-bar .tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  gap: 3px;
+  cursor: pointer;
+}
+.tab-bar .tab-item.active { color: #409eff; }
+.tab-bar .tab-icon { font-size: 20px; }
+.tab-bar .tab-text { font-size: 14px; line-height: 1; }
 </style>

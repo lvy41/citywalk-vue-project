@@ -52,7 +52,7 @@
       </div>
 
       <div class="btn-wrap">
-        <el-button type="primary" class="save-btn" @click="submit">保存修改</el-button>
+        <el-button type="primary" class="save-btn" :loading="submitting" @click="submit">保存修改</el-button>
       </div>
     </div>
   </div>
@@ -63,6 +63,7 @@ import { ref } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
+import { changePasswordAPI } from '@/api/user'
 
 const router = useRouter()
 
@@ -72,8 +73,9 @@ const formData = ref({
   confirmPwd: ''
 })
 
-const submit = () => {
-  // 前端简单校验，后面对接后端再调用接口
+const submitting = ref(false)
+
+const submit = async () => {
   if (!formData.value.oldPwd) {
     ElMessage.warning('请输入原密码')
     return
@@ -95,9 +97,21 @@ const submit = () => {
     return
   }
 
-  // 这里后面对接后端接口：修改密码接口
-  ElMessage.success('密码修改成功（前端模拟，待对接后端）')
-  router.back()
+  // 对接后端：PUT /api/user/password（字段名必须是 oldPassword / newPassword）
+  submitting.value = true
+  try {
+    await changePasswordAPI({
+      oldPassword: formData.value.oldPwd,
+      newPassword: formData.value.newPwd
+    })
+    ElMessage.success('密码修改成功')
+    router.back()
+  } catch (e) {
+    // 后端抛出的错误文案（如"原密码不正确"）已由 request 拦截器提示
+    console.warn('修改密码失败', e)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 

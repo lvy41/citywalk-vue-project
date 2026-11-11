@@ -33,7 +33,7 @@
 import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getUserRouteListAPI } from '@/api/route' // 你的查询用户发布路线接口
+import { getUserPublishRouteAPI } from '@/api/route' // 查询用户发布路线接口
 const router = useRouter()
 
 const list = ref([])
@@ -44,11 +44,25 @@ const goDetail = (id) => {
   router.push(`/detail/${id}`)
 }
 
-// 获取我的发布列表
+// 获取我的发布列表：优先后端，接口不可用时退回本地暂存
 const getList = async () => {
-  const res = await getUserRouteListAPI()
-  if (res.code === 200) {
-    list.value = res.data
+  try {
+    const res = await getUserPublishRouteAPI()
+    const data = res && res.data
+    if (Array.isArray(data)) {
+      list.value = data
+      return
+    }
+    list.value = []
+  } catch (e) {
+    console.warn('我的发布接口不可用，改用本地暂存', e)
+    try {
+      const raw = localStorage.getItem('citywalk_published_list')
+      const local = raw ? JSON.parse(raw) : []
+      list.value = Array.isArray(local) ? local : []
+    } catch (err) {
+      list.value = []
+    }
   }
 }
 
