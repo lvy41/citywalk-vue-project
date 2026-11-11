@@ -11,27 +11,27 @@
         router
         background-color="#FFF6F0"
       >
-        <el-menu-item index="/dashboard">
+        <el-menu-item index="/admin/dashboard">
           <el-icon><DataLine /></el-icon>
           <span>数据仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/userManage">
+        <el-menu-item index="/admin/userManage">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
-        <el-menu-item index="/routeManage">
+        <el-menu-item index="/admin/routeManage">
           <el-icon><MapLocation /></el-icon>
           <span>路线管理</span>
         </el-menu-item>
-        <el-menu-item index="/commentManage">
+        <el-menu-item index="/admin/commentManage">
           <el-icon><ChatDotRound /></el-icon>
           <span>评论管理</span>
         </el-menu-item>
-        <el-menu-item index="/tagManage">
+        <el-menu-item index="/admin/tagManage">
           <el-icon><PriceTag /></el-icon>
           <span>标签管理</span>
         </el-menu-item>
-        <el-menu-item index="/cityManage">
+        <el-menu-item index="/admin/cityManage">
           <el-icon><OfficeBuilding /></el-icon>
           <span>城市管理</span>
         </el-menu-item>
@@ -44,7 +44,7 @@
       <el-header class="header">
         <div class="header-left">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/admin/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item>{{ $route.meta.title || '管理页' }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
