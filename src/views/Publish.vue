@@ -36,16 +36,52 @@
         <h3 class="section-title">📝 路线基础信息</h3>
         <el-form label-position="top">
           <el-form-item label="路线名称">
-            <el-input v-model="publishForm.routeName" placeholder="例如：杭州·西湖漫步"></el-input>
+            <el-input v-model="form.routeName" placeholder="请输入路线名称"></el-input>
           </el-form-item>
-          <el-form-item label="所属城市">
-            <el-input v-model="publishForm.city" placeholder="例如：杭州"></el-input>
+          <el-form-item label="所属城市" prop="cityId">
+            <el-select v-model="form.cityId" placeholder="选择城市" style="width:100%">
+              <el-option
+                v-for="city in cityList"
+                :key="city.id"
+                :label="city.cityName"
+                :value="city.id"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="路线封面图 (URL)">
             <el-input v-model="publishForm.coverImage" placeholder="输入图片链接 (可选)"></el-input>
           </el-form-item>
-          <el-form-item label="路线简介 / 游玩提示">
-            <el-input type="textarea" v-model="publishForm.description" placeholder="写一点走心推荐吧..."></el-input>
+          <el-form-item label="路线标签">
+            <el-select v-model="form.tags" multiple placeholder="选择标签">
+              <el-option label="老街" value="老街" />
+              <el-option label="美食" value="美食" />
+              <el-option label="博物馆" value="博物馆" />
+              <el-option label="公园" value="公园" />
+              <el-option label="夜景" value="夜景" />
+              <el-option label="短途徒步" value="短途徒步" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="路线简介">
+            <el-input
+              v-model="form.description"
+              type="textarea"
+              :rows="4"
+              placeholder="简单描述这条步行路线"
+            ></el-input>
+          </el-form-item>
+          <el-form-item label="封面图片">
+            <el-upload
+              action="#"
+              :auto-upload="false"
+              :file-list="fileList"
+              list-type="picture-card"
+            >
+              <el-icon><Plus /></el-icon>
+            </el-upload>
+          </el-form-item>
+          <el-form-item class="btn-group">
+            <el-button type="primary" @click="handleSubmit" class="submit-btn">提交发布</el-button>
+            <el-button @click="handleReset" class="reset-btn">重置</el-button>
           </el-form-item>
         </el-form>
       </div>
@@ -91,119 +127,59 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
-import request from '@/utils/request' // 假设这是你们封装的请求
-
+import { Plus } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 const router = useRouter()
 
-// 1. 个人打卡路线列表（用于下拉框展示）
-const myCheckinList = ref([])
-const selectedRecordId = ref(null)
-
-// 2. 发布表单数据
-const publishForm = ref({
+const cityList = ref([])
+const form = ref({
   routeName: '',
-  city: '',
-  coverImage: '',
-  description: '',
-  points: [
-    { name: '', time: '09:00', transport: '', image: '' }
-  ]
+  cityId: null,
+  duration: '',
+  tags: [],
+  description: ''
 })
 
-onMounted(() => {
-  // 每次进入发布页，都从浏览器缓存里读取最新鲜的“我的打卡”数据
-  const localData = localStorage.getItem('citywalk_checkin_list')
-  
-  if (localData) {
-    // 如果本地有数据，直接解析
-    myCheckinList.value = JSON.parse(localData)
-  } else {
-    // 如果本地没数据（说明你还没在“我的打卡”里创建过），给一个兜底的假数据
-    myCheckinList.value = [
-      { id: 1, routeName: '广州·珠江夜景漫步', points: [{ name: '广州塔', time: '20:00', transport: '步行', image: '' }] },
-      { id: 2, routeName: '上海·武康路漫游', points: [{ name: '武康大楼', time: '14:00', transport: '步行', image: '' }] }
-    ]
-  }
-})
-
-// 3. 一键导入逻辑
-const importFromCheckin = () => {
-  const record = myCheckinList.value.find(item => item.id === selectedRecordId.value)
-  if (!record) return
-
-  // 把个人打卡的数据填入发布表单
-  publishForm.value.routeName = record.routeName
-  publishForm.value.city = record.routeName.split('·')[0] || '未知城市'
-  publishForm.value.coverImage = record.coverImage
-  publishForm.value.points = JSON.parse(JSON.stringify(record.points)) // 深拷贝，防止相互影响
-
-  ElMessage.success('导入成功，你可以继续修改后发布！')
-}
-
-// 添加打卡点
-const addPoint = () => {
-  publishForm.value.points.push({ name: '', time: '12:00', transport: '', image: '' })
-}
-
-// 删除打卡点
-const removePoint = (index) => {
-  publishForm.value.points.splice(index, 1)
-}
-
-const submitPublish = async () => {
-  if (!publishForm.value.routeName || !publishForm.value.city) {
-    ElMessage.warning('请至少填写路线名称和城市！')
-    return
-  }
-
+// 加载城市下拉列表
+const loadCityList = async () => {
   try {
-    // 1. 组装要发给后端的真实数据
-    const postData = {
-      routeName: publishForm.value.routeName,
-      city: publishForm.value.city,
-      coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80', // 替换成了有效默认图
-      description: publishForm.value.description || '这个作者很懒，什么都没写~',
-      points: publishForm.value.points
+    const res = await request.get('/api/city/list')
+    if (res.code === 200) {
+      cityList.value = res.data
     }
-
-    // 2. 发送请求给后端
-    const res = await request.post('/route/add', postData)
-
-    // 3. 判断结果
-    if (res.code === 200 || res.code === 0) {
-      ElMessage.success('🎉 路线发布成功！现在可以在首页搜索到它了')
-      
-      // 👇 核心逻辑：把刚刚发布成功的完整路线信息存入本地缓存，供 Record.vue 读取
-      const publishedData = localStorage.getItem('citywalk_published_list')
-      let list = publishedData ? JSON.parse(publishedData) : []
-      
-      list.push({
-        id: Date.now(),
-        routeName: publishForm.value.routeName,
-        city: publishForm.value.city,
-        coverImage: postData.coverImage, // 使用处理过后的封面图
-        createTime: new Date().toLocaleString(),
-        points: publishForm.value.points
-      })
-      
-      localStorage.setItem('citywalk_published_list', JSON.stringify(list))
-
-      // 发布成功后，跳回首页
-      setTimeout(() => {
-        router.push('/home')
-      }, 1000)
-      
-    } else {
-      ElMessage.error(res.msg || '发布失败，请检查内容')
-    }
-  } catch (error) {
-    console.error(error)
-    ElMessage.error('网络错误，请联系后端开发人员')
+  } catch (err) {
+    console.error('城市加载失败', err)
   }
 }
+
+const handleSubmit = async () => {
+  console.log('提交表单数据：', form.value)
+  console.log('上传图片：', fileList.value)
+  try {
+    const res = await request.post('/api/route/add', form.value)
+    if(res.code === 200){
+      ElMessage.success('发布成功，跳转首页')
+      router.push('/home')
+    }
+  } catch (err) {
+    ElMessage.error('发布失败')
+  }
+}
+const handleReset = () => {
+  form.value = {
+    routeName: '',
+    cityId: null,
+    duration: '',
+    tags: [],
+    description: ''
+  }
+}
+
+onMounted(()=>{
+  loadCityList()
+})
 </script>
 
 <style scoped>
