@@ -2,6 +2,24 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 
+// 后台接口判定（/admin/* + 标签/城市的增删改）
+const isAdminRequest = (url = '') =>
+  url.includes('/admin/')
+  || url.startsWith('/tag/add') || url.startsWith('/tag/update') || url.startsWith('/tag/delete')
+  || url.startsWith('/city/add') || url.startsWith('/city/update') || url.startsWith('/city/delete')
+
+// 管理员登录失效：清掉可能残留的旧 token（例如老版本写的 admin-token-1），回后台登录页
+function handleAdminExpired(msg) {
+  const hadToken = localStorage.getItem('adminToken')
+  localStorage.removeItem('adminToken')
+  if (hadToken) {
+    ElMessage.error(msg || '管理员登录已过期，请重新登录')
+  }
+  if (!window.location.pathname.startsWith('/adminlogin')) {
+    window.location.href = '/adminlogin'
+  }
+}
+
 const request = axios.create({
   baseURL: 'http://127.0.0.1:8080/api',
   timeout: 10000,
@@ -43,12 +61,15 @@ request.interceptors.request.use(
       '/area/cityListByProvince',
       '/area/districtListByCity'
     ]
-    const isSkipApi = skipUrls.some(path => (config.url || '').endsWith(path))
+    const isSkipApi = skipUrls.some(path => url.split('?')[0] === path)
 
-    if (!isSkipApi) {
-      if (token) {
+    // 后台接口一律带管理员 Token（/admin/login 除外）；公开接口（/route/list 等）不带 Token
+    if (isAdminApi) {
+      if (url !== '/admin/login' && token) {
         config.headers.Authorization = `Bearer ${token}`
       }
+    } else if (!isSkipApi && token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -65,13 +86,17 @@ request.interceptors.response.use(
     const { code, data, msg, message } = resBody
     const text = msg || message
 
-    // 后台接口报错不弹窗、不踢人，交给管理页自己按 code/msg 处理
+    // 后台接口：正常返回交给页面取 .data；401 说明管理员登录已失效，清掉旧 token 引导重新登录
     const reqUrl = response.config.url || ''
-    if (reqUrl.includes('/admin/') || reqUrl.startsWith('/tag/') || reqUrl.startsWith('/city/')) {
+    if (isAdminRequest(reqUrl)) {
       if (code === 200 || code === 0) {
         return resBody
       }
-      console.warn('后台接口报错，已静默处理:', text)
+      if (code === 401) {
+        handleAdminExpired(text)
+        return { code, msg: text, data: [] }
+      }
+      console.warn('后台接口报错:', text)
       return { code, msg: text, data: [] }
     }
 
@@ -86,8 +111,10 @@ request.interceptors.response.use(
   (error) => {
     if (error.response) {
       const { status, data } = error.response
-      // 后台接口 401 不踢人，返回空数据让管理页自己处理
-      if ((error.config.url || '').includes('/admin/') && status === 401) {
+      const reqUrl = error.config?.url || ''
+      // 后台接口 401：管理员 token 失效/是旧版假 token，清掉并要求重新登录后台
+      if (isAdminRequest(reqUrl) && status === 401) {
+        handleAdminExpired('未登录或登录已过期')
         return { code: 401, msg: '未登录', data: [] }
       }
 
