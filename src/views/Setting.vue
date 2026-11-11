@@ -1,10 +1,12 @@
 <template>
   <div class="page-setting">
     <div class="page-header">
-      <div class="back-icon" @click="$router.back()">
+      <div class="back" @click="$router.back()">
         <el-icon><ArrowLeft /></el-icon>
+        <span>返回</span>
       </div>
       <div class="title">系统设置</div>
+      <div class="placeholder"></div>
     </div>
 
     <div class="menu-group">
@@ -57,29 +59,41 @@ const goAbout = () => {
 
 <style scoped>
 .page-setting {
-  background-color: #f8f8f8;
+  /* 只修改背景，和我的发布保持一致渐变，其余不动 */
+  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
   min-height: 100vh;
 }
 .page-header {
+  background: linear-gradient(140deg, #e65b38, #ff9048);
+  color: #fff;
+  padding: 18px 20px;
+  position: relative;
   display: flex;
   align-items: center;
-  height: 52px;
-  background: #fff;
-  position: relative;
-  border-bottom: 1px solid #eee;
-  padding: 0 16px;
+  justify-content: space-between;
 }
-.back-icon {
-  font-size: 20px;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #FF7A45;
+  font-weight: bold;
   cursor: pointer;
-  z-index: 2;
+  background: #FFF0F3;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
 .title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 600;
+}
+.placeholder {
+  width: 70px;
 }
 .menu-group {
   margin: 16px;
