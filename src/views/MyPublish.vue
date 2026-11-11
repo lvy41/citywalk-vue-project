@@ -12,12 +12,15 @@
       <div v-if="list.length > 0" class="route-list">
         <div class="route-item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
           <div class="route-img">
-            <img :src="item.cover || defaultImg" alt="">
+            <img :src="item.coverImage || defaultImg" alt="">
           </div>
           <div class="route-info">
-            <div class="route-name">{{ item.title }}</div>
-            <div class="route-desc">{{ item.content }}</div>
-            <div class="route-time">{{ item.createTime }}</div>
+            <div class="route-name">
+              {{ item.routeName }}
+              <el-tag size="small" :type="statusTag(item.auditStatus).type">{{ statusTag(item.auditStatus).text }}</el-tag>
+            </div>
+            <div class="route-desc">{{ item.description }}</div>
+            <div class="route-time">{{ item.city }} · {{ formatTime(item.createTime) }}</div>
           </div>
         </div>
       </div>
@@ -33,22 +36,34 @@
 import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getUserRouteListAPI } from '@/api/route' // 你的查询用户发布路线接口
+import { getUserPublishRouteAPI } from '@/api/route'
 const router = useRouter()
 
 const list = ref([])
 const defaultImg = ref('https://picsum.photos/id/1039/300/200')
+
+// 审核状态 -> 标签
+const statusTag = (status) => {
+  if (status === 0) return { type: 'info', text: '待审核' }
+  if (status === 1) return { type: 'success', text: '已上线' }
+  if (status === 2) return { type: 'danger', text: '已下架' }
+  return { type: 'info', text: '未知' }
+}
+
+const formatTime = (t) => (t ? String(t).replace('T', ' ').substring(0, 16) : '')
 
 // 跳转到路线详情
 const goDetail = (id) => {
   router.push(`/detail/${id}`)
 }
 
-// 获取我的发布列表
+// 获取我的发布列表（后端直接返回数组）
 const getList = async () => {
-  const res = await getUserRouteListAPI()
-  if (res.code === 200) {
-    list.value = res.data
+  try {
+    const res = await getUserPublishRouteAPI()
+    list.value = Array.isArray(res) ? res : []
+  } catch (e) {
+    list.value = []
   }
 }
 

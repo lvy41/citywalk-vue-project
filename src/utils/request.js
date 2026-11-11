@@ -1,9 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
-// ✅ 注意：不要 import router，避免和 router/index.js 形成循环依赖
-// 使用 window.location.href 跳转即可
-// 创建 axios 实例
+
 const request = axios.create({
   baseURL: 'http://127.0.0.1:8080/api',
   timeout: 10000,
@@ -11,17 +9,26 @@ const request = axios.create({
     'Content-Type': 'application/json'
   }
 })
+
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
-    const token = userStore.token
-    // 👉 修复：用endsWith后缀匹配，不管前面baseURL是什么
-    const skipUrls = ['/user/login', '/user/register']
+
+    // 后台接口才用管理员 Token，其余接口一律用普通用户 Token
+    // （否则管理员登录后，普通用户接口会带上假的管理员 token，导致"请先登录"）
+    const isAdminApi = (config.url || '').startsWith('/admin/')
+    const token = isAdminApi
+      ? (localStorage.getItem('adminToken') || userStore.token)
+      : userStore.token
+
+    // 登录注册接口不需要 Token
+    const skipUrls = ['/user/login', '/user/register', '/admin/login']
     const isSkipApi = skipUrls.some(path => config.url.endsWith(path))
+    
     if (!isSkipApi) {
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+        config.headers.Authorization = `Bearer ${token}` 
       }
     }
     return config
@@ -31,31 +38,45 @@ request.interceptors.request.use(
     return Promise.reject(error)
   }
 )
+
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    // 统一处理响应数据
-    const { code, data, message } = response.data
-    // ⚠️ 这里要跟后端统一：如果是 200 就保持，如果是 0 就改成 code === 0
-    if (code === 200) {
-      return { data }
+    const res = response.data
+    
+    // 👇 核心修改：针对后台接口的 401 报错，直接静默返回空数据，不弹窗、不踢人！
+    if (response.config.url.includes('/admin/')) {
+      if (res.code === 200 || res.code === 0) {
+        return res.data
+      } else {
+        // 如果是后台接口报错，直接返回个空数组或者 null，让前端页面自己处理
+        console.warn('后台接口报错，已静默处理:', res.message || res.msg)
+        return [] 
+      }
+    }
+
+    // 下面是给普通用户端用的校验逻辑
+    if (res.code === 200 || res.code === 0) {
+      return res.data 
     } else {
-      ElMessage.error(message || '请求失败')
-      return Promise.reject(new Error(message || '请求失败'))
+      ElMessage.error(res.message || res.msg || '请求失败')
+      return Promise.reject(new Error(res.message || '请求失败'))
     }
   },
   (error) => {
-    // 处理 HTTP 错误
     if (error.response) {
       const { status, data } = error.response
+      // 如果是后台接口的 401，也不踢人
+      if (error.config.url.includes('/admin/') && status === 401) {
+        return []
+      }
+      
       switch (status) {
         case 401: {
-          // ✅ 使用块级作用域，避免 no-case-declarations 报错
           ElMessage.error('登录已过期，请重新登录')
           const userStore = useUserStore()
-          // ✅ 确保 store 里有 logout 方法
           userStore.logout()
-          // ✅ 不用 router，避免循环依赖
+          localStorage.removeItem('adminToken')
           window.location.href = '/login'
           break
         }
@@ -77,4 +98,5 @@ request.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
 export default request

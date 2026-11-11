@@ -73,6 +73,14 @@
             <el-form-item label="打卡照片 (URL)">
               <el-input v-model="point.image" placeholder="输入照片链接 (可选)"></el-input>
             </el-form-item>
+            <div style="display: flex; gap: 10px;">
+              <el-form-item label="经度 (选填)" style="flex: 1;">
+                <el-input v-model="point.longitude" placeholder="例如 113.2401"></el-input>
+              </el-form-item>
+              <el-form-item label="纬度 (选填)" style="flex: 1;">
+                <el-input v-model="point.latitude" placeholder="例如 23.1375"></el-input>
+              </el-form-item>
+            </div>
           </el-form>
         </div>
 
@@ -94,9 +102,11 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import request from '@/utils/request' // 假设这是你们封装的请求
+import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 // 1. 个人打卡路线列表（用于下拉框展示）
 const myCheckinList = ref([])
@@ -109,7 +119,7 @@ const publishForm = ref({
   coverImage: '',
   description: '',
   points: [
-    { name: '', time: '09:00', transport: '', image: '' }
+    { name: '', time: '09:00', transport: '', image: '', longitude: '', latitude: '' }
   ]
 })
 
@@ -145,7 +155,7 @@ const importFromCheckin = () => {
 
 // 添加打卡点
 const addPoint = () => {
-  publishForm.value.points.push({ name: '', time: '12:00', transport: '', image: '' })
+  publishForm.value.points.push({ name: '', time: '12:00', transport: '', image: '', longitude: '', latitude: '' })
 }
 
 // 删除打卡点
@@ -154,6 +164,18 @@ const removePoint = (index) => {
 }
 
 const submitPublish = async () => {
+  // 发布必须登录，后端要按 token 记录发布者
+  if (!userStore.token) {
+    ElMessage.warning('请先登录后再发布路线')
+    router.push('/login')
+    return
+  }
+  if (!userStore.token.startsWith('eyJ')) {
+    // 之前登录过管理后台的话，localStorage 里的 token 是假的 admin-token，需要重新登录
+    ElMessage.warning('登录状态已失效，请重新登录普通用户账号')
+    router.push('/login')
+    return
+  }
   if (!publishForm.value.routeName || !publishForm.value.city) {
     ElMessage.warning('请至少填写路线名称和城市！')
     return
@@ -164,44 +186,35 @@ const submitPublish = async () => {
     const postData = {
       routeName: publishForm.value.routeName,
       city: publishForm.value.city,
-      coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80', // 替换成了有效默认图
+      coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
       description: publishForm.value.description || '这个作者很懒，什么都没写~',
-      points: publishForm.value.points
+      points: publishForm.value.points.map(p => ({
+        name: p.name,
+        time: p.time,
+        transport: p.transport,
+        image: p.image,
+        longitude: p.longitude,
+        latitude: p.latitude
+      }))
     }
 
-    // 2. 发送请求给后端
-    const res = await request.post('/route/add', postData)
+    // 2. 发送请求给后端（后端会把路线置为“待审核”，并写入点位）
+    const data = await request.post('/route/add', postData)
 
-    // 3. 判断结果
-    if (res.code === 200 || res.code === 0) {
-      ElMessage.success('🎉 路线发布成功！现在可以在首页搜索到它了')
-      
-      // 👇 核心逻辑：把刚刚发布成功的完整路线信息存入本地缓存，供 Record.vue 读取
-      const publishedData = localStorage.getItem('citywalk_published_list')
-      let list = publishedData ? JSON.parse(publishedData) : []
-      
-      list.push({
-        id: Date.now(),
-        routeName: publishForm.value.routeName,
-        city: publishForm.value.city,
-        coverImage: postData.coverImage, // 使用处理过后的封面图
-        createTime: new Date().toLocaleString(),
-        points: publishForm.value.points
-      })
-      
-      localStorage.setItem('citywalk_published_list', JSON.stringify(list))
-
-      // 发布成功后，跳回首页
+    if (data && data.id) {
+      let tip = '🎉 路线已提交，等待管理员审核通过后就会出现在首页'
+      if (data.skippedPoints > 0) {
+        tip += `（有 ${data.skippedPoints} 个点位没填经纬度，已跳过）`
+      }
+      ElMessage.success(tip)
       setTimeout(() => {
-        router.push('/home')
-      }, 1000)
-      
+        router.push('/my-publish')
+      }, 1200)
     } else {
-      ElMessage.error(res.msg || '发布失败，请检查内容')
+      ElMessage.error('发布失败，请检查内容')
     }
   } catch (error) {
     console.error(error)
-    ElMessage.error('网络错误，请联系后端开发人员')
   }
 }
 </script>

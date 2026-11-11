@@ -75,7 +75,7 @@
       </el-form>
 
       <div class="agree-wrap">
-        <el-checkbox v-model="agree">
+        <el-checkbox v-model="agreeProtocol">
           已阅读并同意
           <span class="link" @click="$router.push('/privacy')">《隐私协议》</span>
         </el-checkbox>
@@ -90,6 +90,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import request from '@/utils/request'
 import axios from 'axios'
 
 const router = useRouter()
@@ -99,22 +101,43 @@ const loginForm = ref({
   password: '123456'
 })
 
-const agree = ref(false)
 const loginFormRef = ref(null)
 
+// 是否勾选隐私协议
+const agreeProtocol = ref(false)
+
 const handleLogin = async () => {
-  if (!agree) {
-    alert('请勾选同意隐私协议')
+  // 1. 判断账号密码不能为空
+  if (!loginForm.value.username || !loginForm.value.password) {
+    ElMessage.warning('请输入用户名和密码')
     return
   }
 
+  // 2. 判断必须勾选隐私协议
+  if (!agreeProtocol.value) {
+    ElMessage.warning('请先勾选同意隐私协议')
+    return
+  }
+
+  // 3. 发送请求
   try {
-    const res = await axios.post('/api/admin/login', loginForm.value)
-    localStorage.setItem('adminToken', res.data.token)
-    router.push('/dashboard')
-  } catch (err) {
-    console.error(err)
-    alert('登录失败，请检查账号密码或后端服务')
+    const res = await request.post('/admin/login', loginForm.value)
+    console.log('后端返回的完整数据：', res)
+        // 只要 res 有数据，就说明请求成功了
+    if (res) { 
+      ElMessage.success('登录成功')
+      
+      // 注意：数据现在在 res 里面
+      localStorage.setItem('adminToken', res.token) 
+      localStorage.setItem('token', res.token)
+      
+      // 跳转到后台首页
+      router.push('/admin/dashboard')
+    } else {
+      ElMessage.error('账号或密码错误')
+    }
+  } catch (error) {
+    ElMessage.error('网络请求失败，请检查后端是否启动')
   }
 }
 </script>

@@ -141,13 +141,22 @@ const mockComment = [
 // 加载详情
 const loadDetail = async ()=>{
   try{
-    // 真实后端接口
+    // 后端返回 { route: {...}, points: [...], authorName: 'xxx' }
     const res = await getRouteDetailAPI(routeId.value)
-    const data = res.data
-    routeInfo.value = data
-    pointList.value = data.points
+    const r = res && res.route ? res.route : res
+    const points = (res && res.points) || []
+
+    routeInfo.value = {
+      ...r,
+      cover: r.coverImage && r.coverImage !== 'xxx'
+        ? r.coverImage
+        : `https://picsum.photos/seed/cw${r.id}/750/320`,
+      tags: [],
+      authorName: (res && res.authorName) || '匿名用户'
+    }
+    pointList.value = points
     commentList.value = mockComment
-    await initMiniMap(data.points)
+    await initMiniMap(points)
   }catch(e){
     ElMessage.info("后端接口未就绪，加载模拟数据演示")
     const data = mockDetailData

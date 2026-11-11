@@ -1,5 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
+
+// 👇 引入后台的全局布局外壳
+import Layout from '@/views-admin/Layout.vue'
+
 const routes = [
   {
     path: '/',
@@ -41,7 +45,7 @@ const routes = [
     component: () => import('@/views/My.vue'),
     meta: { requiresAuth: true }
   },
-  // ==========你新增的个人页面路由==========
+  // ==========个人中心子页面路由==========
   {
     path: '/my-publish',
     name: 'MyPublish',
@@ -90,77 +94,90 @@ const routes = [
     component: () => import('@/views/EditUserInfo.vue'),
     meta: { requiresAuth: true }
   },
-  // ✅详情页（组长设置不需要登录）
+  // 路线详情：不需要登录即可访问
   {
     path: '/detail/:id',
     name: 'Detail',
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: false }
   },
+
+  // ============后台管理路由============
+  // 1. 管理员登录页（独立页面，不套外壳）
   {
     path: '/adminlogin',
     name: 'AdminLogin',
     component: () => import('@/views-admin/AdminLogin.vue'),
     meta: { public: true }
   },
+  
+  // 2. 后台管理主框架（所有后台页面都套在这个 Layout 里）
   {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/views-admin/Dashboard.vue'),
-    meta: { adminAuth: true }
+    path: '/admin',
+    component: Layout,
+    redirect: '/admin/dashboard',
+    children: [
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views-admin/Dashboard.vue'),
+        meta: { adminAuth: true, title: '仪表盘' }
+      },
+      {
+        path: 'user',
+        name: 'UserManage',
+        component: () => import('@/views-admin/UserManage.vue'),
+        meta: { adminAuth: true, title: '用户管理' }
+      },
+      {
+        path: 'route',
+        name: 'RouteManage',
+        component: () => import('@/views-admin/RouteManage.vue'),
+        meta: { adminAuth: true, title: '路线管理' }
+      },
+      {
+        path: 'comment',
+        name: 'CommentManage',
+        component: () => import('@/views-admin/CommentManage.vue'),
+        meta: { adminAuth: true, title: '评论管理' }
+      },
+      // 如果你还有其它后台页面，继续往里加
+      {
+        path: 'tag',
+        name: 'TagManage',
+        component: () => import('@/views-admin/TagManage.vue'),
+        meta: { adminAuth: true, title: '标签管理' }
+      },
+      {
+        path: 'city',
+        name: 'CityManage',
+        component: () => import('@/views-admin/CityManage.vue'),
+        meta: { adminAuth: true, title: '城市管理' }
+      }
+    ]
   },
-  {
-    path: '/routeManage',
-    name: 'RouteManage',
-    component: () => import('@/views-admin/RouteManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/userManage',
-    name: 'UserManage',
-    component: () => import('@/views-admin/UserManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/commentManage',
-    name: 'CommentManage',
-    component: () => import('@/views-admin/CommentManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/tagManage',
-    name: 'TagManage',
-    component: () => import('@/views-admin/TagManage.vue'),
-    meta: { adminAuth: true }
-  },
-  // 组长新增：城市管理后台路由
-  {
-    path: '/cityManage',
-    name: 'CityManage',
-    component: () => import('@/views-admin/CityManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/'
-  },
+
   {
     path: '/privacy',
     name: 'Privacy',
     component: () => import('@/views/PrivacyAgreement.vue'),
-    meta:{public:true}
+    meta: { public: true }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
+
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
 
-// 同步守卫，Router4 标准return写法，无next、无async
 router.beforeEach((to) => {
   const userStore = useUserStore()
-  // 每次路由切换先读取本地存储
   userStore.init()
+  
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
       return '/adminlogin'
@@ -175,4 +192,5 @@ router.beforeEach((to) => {
   }
   return true
 })
+
 export default router
