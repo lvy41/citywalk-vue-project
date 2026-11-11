@@ -53,17 +53,30 @@
         <div class="line"></div>
 
         <div class="form-row">
+          <span class="label">个性签名</span>
+          <el-input
+            v-model="formData.signature"
+            placeholder="一句话介绍自己"
+            maxlength="60"
+            class="form-input"
+          />
+        </div>
+
+        <div class="line"></div>
+
+        <div class="form-row">
           <span class="label">用户ID</span>
           <el-input
-            v-model="formData.userId"
-            placeholder="设置用户ID（类似微信号）"
+            v-model="formData.userNo"
+            placeholder="设置用户ID（类似微信号，保存到服务端）"
+            maxlength="30"
             class="form-input"
           />
         </div>
       </div>
 
       <div class="btn-wrap">
-        <el-button type="primary" class="save-btn" @click="submit">保存修改</el-button>
+        <el-button type="primary" class="save-btn" :loading="submitting" @click="submit">保存修改</el-button>
       </div>
     </div>
   </div>
@@ -75,17 +88,18 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
+import { updateUserInfoAPI } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
 const fileRef = ref(null)
-const bgFileRef = ref(null) // 背景封面input
+const submitting = ref(false)
 
 const formData = ref({
   avatar: '',
   nickname: '',
-  userId: '',
-  bgImage: '' // 新增背景封面
+  signature: '',
+  userNo: ''
 })
 
 // 头像上传
@@ -102,46 +116,56 @@ const onFileChange = (e) => {
   reader.readAsDataURL(file)
 }
 
-// 背景封面上传
-const triggerBgUpload = () => {
-  bgFileRef.value.click()
-}
-const onBgFileChange = (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    formData.value.bgImage = ev.target.result
-  }
-  reader.readAsDataURL(file)
-}
-
-// 加载：从pinia拿本地信息
+// 加载：先读 pinia 缓存，没有再拉一次接口
 const loadInfo = () => {
-  const info = userStore.userInfo
+  const info = userStore.userInfo || {}
   formData.value.avatar = info.avatar || ''
   formData.value.nickname = info.nickname || '匿名用户'
-  formData.value.userId = info.userId || ''
-  formData.value.bgImage = info.bgImage || ''
+  formData.value.signature = info.signature || ''
+  formData.value.userNo = info.userNo || ''
 }
 
-// 保存，把bgImage一起存入pinia
-const submit = () => {
-  if (!formData.value.userId) {
+// 保存：昵称 / 头像 / 签名 / 用户ID 全部提交到 PUT /api/user/update
+const submit = async () => {
+  if (!formData.value.userNo) {
     ElMessage.warning('用户ID不能为空')
     return
   }
-  userStore.setUserInfo({
-    avatar: formData.value.avatar,
-    nickname: formData.value.nickname,
-    userId: formData.value.userId,
-    bgImage: formData.value.bgImage
-  })
-  ElMessage.success('修改成功！')
-  router.back()
+  submitting.value = true
+  try {
+    const res = await updateUserInfoAPI({
+      nickname: formData.value.nickname,
+      avatar: formData.value.avatar,
+      signature: formData.value.signature,
+      userNo: formData.value.userNo
+    })
+    // 后端返回最新资料（已含 userNo），直接回写 store
+    userStore.setUserInfo(res.data || {})
+    ElMessage.success('修改成功！')
+    router.back()
+  } catch (e) {
+    // 后端不可用时先保留本地输入，避免白填一遍
+    userStore.setUserInfo({
+      nickname: formData.value.nickname,
+      avatar: formData.value.avatar,
+      signature: formData.value.signature,
+      userNo: formData.value.userNo
+    })
+    ElMessage.warning('保存失败（用户ID可能已被占用），已暂存本地')
+    console.warn('更新资料失败', e)
+  } finally {
+    submitting.value = false
+  }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  if (!userStore.userInfo || !userStore.userInfo.nickname) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (e) {
+      console.warn('拉取用户资料失败', e)
+    }
+  }
   loadInfo()
 })
 </script>

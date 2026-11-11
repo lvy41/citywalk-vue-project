@@ -3,7 +3,7 @@
     <!-- 返回按钮：统一样式 ＜ 返回，回退上一页 -->
     <div class="back-btn" @click="$router.back()">＜ 返回</div>
     <div class="img-box">
-      <img class="route-img" :src="routeInfo.cover" alt="" />
+      <img class="route-img" :src="routeInfo.coverImage || '/pictures/Myback.jpg'" alt="" />
     </div>
     <div class="detail-content">
       <!-- 路线基础信息 -->
@@ -18,6 +18,13 @@
           <el-tag v-for="tag in routeInfo.tags" :key="tag" size="small">{{tag}}</el-tag>
         </div>
         <div class="author">创作者：{{ routeInfo.authorName }}</div>
+        <!-- 点赞条：真实调用后端 /route/like，点赞数据会进「我的点赞」 -->
+        <div class="like-bar">
+          <div class="like-btn" :class="{ liked }" @click="handleLike">
+            <span class="like-icon">{{ liked ? '❤️' : '🤍' }}</span>
+            <span class="like-text">{{ liked ? '已点赞' : '点赞' }} {{ likeCount }}</span>
+          </div>
+        </div>
         <div class="desc">
           <div class="sub-title">路线简介</div>
           <p>{{ routeInfo.description }}</p>
@@ -50,10 +57,10 @@
         <el-input v-model="commentText" placeholder="写下你的游玩感受..." />
         <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
         <div class="comment-item" v-for="c in commentList" :key="c.id">
-          <div class="c-user">{{c.userName}}</div>
-          <div class="c-content">{{c.content}}</div>
+          <div class="c-user">{{ c.nickname || '匿名用户' }}</div>
+          <div class="c-content">{{ c.content }}</div>
         </div>
-        <div v-if="!commentList.length" class="c-empty">还没有评论，来做第一条吧～</div>
+        <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
       </div>
     </div>
     <!-- 底部留白，避开tab -->
@@ -88,10 +95,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailAPI } from '@/api/route'
-import request from '@/utils/request'
-import { useUserStore } from '@/store/user'
-const userStore = useUserStore()
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+import { getRoutePath } from '@/api/map'
 const router = useRouter()
 const route = useRoute()
 //【重点：从params拿id，适配 /detail/:id】
@@ -103,6 +108,8 @@ const routeInfo = ref({})
 const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
+const likeCount = ref(0)
+const liked = ref(false)
 // mock模拟数据（后端接口未就绪演示用）
 const mockDetailData = {
   id:1001,
@@ -120,48 +127,35 @@ const mockDetailData = {
     {id:3,pointName:"北京路",longitude:113.2704,latitude:23.1234,imageUrl:"https://picsum.photos/id/25/200/120",description:"千年古道，老牌商业步行街"}
   ]
 }
-const mockComment = [
-  {id:1,userName:"游客A",content:"这条路线很不错，周末已经去过！"},
-  {id:2,userName:"游客B",content:"推荐大家下午过去，风景很好"}
-]
-// 加载真实评论（公开接口，未登录也能看）
-const loadComments = async ()=>{
-  try{
-    const res = await request.get('/route/comments',{params:{routeId:routeId.value}})
-    if(res && res.code === 200){
-      commentList.value = Array.isArray(res.data) ? res.data : []
-    }
-  }catch(e){
+// 评论列表：走 /route/comment/list（未登录也能读）
+const loadComments = async () => {
+  try {
+    const res = await getRouteCommentsAPI(routeId.value)
+    commentList.value = res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch (e) {
     commentList.value = []
   }
 }
 // 加载详情
-const loadDetail = async ()=>{
-  try{
-    // 后端返回 { code, data: { route: {...}, points: [...], authorName: 'xxx' } }
-    const resBody = await getRouteDetailAPI(routeId.value)
-    const payload = (resBody && resBody.data) ? resBody.data : resBody
-    const r = payload && payload.route ? payload.route : payload
-    const points = (payload && payload.points) || []
-
-    routeInfo.value = {
-      ...r,
-      cover: r.coverImage && r.coverImage !== 'xxx'
-        ? r.coverImage
-        : `https://picsum.photos/seed/cw${r.id}/750/320`,
-      tags: ((payload && payload.tags) || []).map(t => t.tagName),
-      authorName: (payload && payload.authorName) || '匿名用户'
-    }
-    pointList.value = points
-    await loadComments()
-    await initMiniMap(points)
-  }catch(e){
-    ElMessage.info("后端接口未就绪，加载模拟数据演示")
-    const data = mockDetailData
-    routeInfo.value = data
-    pointList.value = data.points
-    await loadComments()
-    await initMiniMap(data.points)
+const loadDetail = async () => {
+  try {
+    const res = await getRouteDetailFullAPI(routeId.value)
+    if (res.code !== 200 || !res.data) throw new Error(res.msg || '路线不存在')
+    const d = res.data
+    routeInfo.value = { ...d.route, tags: d.tags || [], authorName: d.authorName || '城市漫步用户' }
+    pointList.value = d.points || []
+    likeCount.value = d.route.likeCount || 0
+    liked.value = !!d.liked
+    loadComments()
+    if (pointList.value.length) await initMiniMap(pointList.value)
+  } catch (e) {
+    ElMessage.info('路线加载失败，展示示例数据')
+    routeInfo.value = mockDetailData
+    pointList.value = mockDetailData.points
+    likeCount.value = 0
+    liked.value = false
+    commentList.value = []
+    await initMiniMap(mockDetailData.points)
   }
 }
 //初始化内嵌预览小地图
@@ -203,30 +197,38 @@ const handleCheckIn = (point)=>{
 const handleCollect = ()=>{
   ElMessage.success("收藏操作")
 }
-//点赞
-const handleLike = ()=>{
-  ElMessage.success("点赞操作")
-}
-//提交评论
-const submitComment = async ()=>{
-  const text = commentText.value.trim()
-  if(!text) return
-  if(!userStore.isLoggedIn){
-    ElMessage.warning("请先登录后再发表评论")
-    router.push("/login")
-    return
-  }
+//点赞 / 取消点赞（写入 route_like，我的点赞页可查到）
+const handleLike = async ()=>{
   try{
-    const res = await request.post('/route/comment/add',{routeId:routeId.value,content:text})
-    if(res && res.code === 200){
-      ElMessage.success("评论已发表")
-      commentText.value = ""
-      await loadComments()
+    if(liked.value){
+      await unlikeRouteAPI(routeId.value)
+      liked.value = false
+      likeCount.value = Math.max(0, likeCount.value - 1)
+      ElMessage.success("已取消点赞")
     }else{
-      ElMessage.error(res?.msg || "评论失败")
+      await likeRouteAPI(routeId.value)
+      liked.value = true
+      likeCount.value += 1
+      ElMessage.success("点赞成功")
     }
   }catch(e){
-    ElMessage.error("评论失败，请稍后重试")
+    ElMessage.warning("请先登录后再点赞")
+  }
+}
+//提交评论
+const submitComment = async () => {
+  if (!commentText.value.trim()) {
+    ElMessage.warning('请先写点内容')
+    return
+  }
+  try {
+    const res = await addRouteCommentAPI({ routeId: routeId.value, content: commentText.value.trim() })
+    if (res.code !== 200) throw new Error(res.msg || '评论失败')
+    ElMessage.success('评论成功')
+    commentText.value = ''
+    loadComments()
+  } catch (e) {
+    ElMessage.warning('评论失败，请确认已登录')
   }
 }
 onMounted(()=>{
@@ -291,6 +293,30 @@ onUnmounted(()=>{
   font-size:13px;
   color:#888;
   margin:6px 0;
+}
+/* 点赞条 */
+.like-bar{
+  display:flex;
+  justify-content:flex-end;
+  margin:8px 0 4px;
+}
+.like-btn{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 16px;
+  border-radius:999px;
+  border:1px solid #ffd2a8;
+  background:#fff7ed;
+  color:#e85d3a;
+  font-size:13px;
+}
+.like-btn.liked{
+  background:#ffe4c7;
+  border-color:#e85d3a;
+}
+.like-icon{
+  font-size:15px;
 }
 .sub-title{
   font-weight:bold;

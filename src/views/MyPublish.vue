@@ -17,10 +17,7 @@
             <img :src="item.cover || defaultImg" alt="">
           </div>
           <div class="route-info">
-            <div class="route-name">
-              {{ item.title }}
-              <span class="status-tag" :class="statusClass(item.auditStatus)">{{ statusText(item.auditStatus) }}</span>
-            </div>
+            <div class="route-name">{{ item.title }}</div>
             <div class="route-desc">{{ item.content }}</div>
             <div class="route-time">{{ item.createTime }}</div>
           </div>
@@ -38,7 +35,7 @@
 import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getUserPublishRouteAPI } from '@/api/route'
+import { getUserPublishRouteAPI } from '@/api/route' // 查询用户发布路线接口
 const router = useRouter()
 
 const list = ref([])
@@ -50,24 +47,27 @@ const goDetail = (id) => {
   router.push(`/detail/${id}`)
 }
 
-// 获取我的发布列表（后端返回 /route/list 同款 Route 字段，这里统一成页面字段）
+// 获取我的发布列表：优先后端，接口不可用时退回本地暂存
 const getList = async () => {
-  const res = await getUserPublishRouteAPI()
-  if (res.code === 200 && Array.isArray(res.data)) {
-    list.value = res.data.map(r => ({
-      id: r.id,
-      title: r.routeName,
-      content: r.description || '',
-      cover: r.coverImage && r.coverImage !== 'xxx' ? r.coverImage : defaultImg.value,
-      createTime: r.createTime ? String(r.createTime).replace('T', ' ').substring(0, 16) : '',
-      auditStatus: r.auditStatus
-    }))
+  try {
+    const res = await getUserPublishRouteAPI()
+    const data = res && res.data
+    if (Array.isArray(data)) {
+      list.value = data
+      return
+    }
+    list.value = []
+  } catch (e) {
+    console.warn('我的发布接口不可用，改用本地暂存', e)
+    try {
+      const raw = localStorage.getItem('citywalk_published_list')
+      const local = raw ? JSON.parse(raw) : []
+      list.value = Array.isArray(local) ? local : []
+    } catch (err) {
+      list.value = []
+    }
   }
 }
-
-// 审核状态：0=待审核 1=已通过 2=已下架
-const statusText = (s) => (s === 1 ? '已通过' : s === 2 ? '已下架' : '待审核')
-const statusClass = (s) => (s === 1 ? 'is-pass' : s === 2 ? 'is-off' : 'is-wait')
 
 onMounted(() => {
   getList()
@@ -76,19 +76,6 @@ onMounted(() => {
 
 
 <style scoped>
-.status-tag {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 8px;
-  font-size: 11px;
-  border-radius: 10px;
-  font-weight: normal;
-  vertical-align: middle;
-}
-.status-tag.is-wait { background: #fff1d6; color: #b26a00; }
-.status-tag.is-pass { background: #e6f7e9; color: #1f9d55; }
-.status-tag.is-off { background: #f1f1f1; color: #8a8a8a; }
-
 .page-my-publish {
   min-height: 100vh;
   background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);

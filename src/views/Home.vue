@@ -92,9 +92,16 @@
     </div>
     <!-- 轮播Banner -->
     <div class="banner-wrap">
-      <div class="banner-item" v-for="(banner,idx) in bannerList" :key="idx" v-show="currentBannerIndex === idx">
+      <div
+        class="banner-item"
+        v-for="(banner,idx) in bannerList"
+        :key="idx"
+        v-show="currentBannerIndex === idx"
+        @click="goDetail(banner.routeId)"
+      >
         <img :src="banner.img" alt="">
         <div class="banner-text">{{banner.title}}</div>
+        <div class="banner-enter">查看路线 ›</div>
       </div>
       <div class="banner-dots">
         <span v-for="(item,idx) in bannerList" :key="idx" :class="{active:currentBannerIndex===idx}" @click="currentBannerIndex=idx"></span>
@@ -142,32 +149,39 @@
           <span class="tag-small" v-for="t in route.tags" :key="t">{{ t }}</span>
         </div>
         <div class="card-stat">
-          <span class="like-btn-card" :class="{active:route.isLiked}" @click.stop="routeStore.toggleLike(route)">
+          <span class="like-btn-card" :class="{active:route.isLiked}" @click.stop="toggleLike(route)">
             {{ route.isLiked ? '❤️' : '🤍' }} {{ route.likeNum }}
           </span>
-          <span class="collect-btn-card" :class="{active:route.isCollected}" @click.stop="routeStore.toggleCollect(route)">
+          <span class="collect-btn-card" :class="{active:route.isCollected}" @click.stop="toggleCollect(route)">
             {{ route.isCollected ? '⭐' : '☆' }} {{ route.starNum }}
           </span>
         </div>
       </div>
+      <div class="list-tip" v-if="loading">加载中…</div>
+      <div class="list-tip" v-else-if="!filterList.length">这个分类下暂时没有路线</div>
+      <div class="list-tip" v-else-if="!hasMore && filterList.length">没有更多了</div>
     </div>
-    <!-- 底部导航栏 -->
+    <!-- 底部导航栏：与 Map.vue 完全一致的 5 个入口 -->
     <div class="tab-bar">
-      <div class="tab-item" @click="$router.push('/home')" :class="{active:$route.path==='/home'}">
-        <div>🏠</div>
-        <div>首页</div>
+      <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
+        <div class="tab-icon">🏠</div>
+        <div class="tab-text">首页</div>
       </div>
-      <div class="tab-item" @click="$router.push('/map')" :class="{active:$route.path==='/map'}">
-        <div>🗺️</div>
-        <div>探索地图</div>
+      <div class="tab-item" :class="{active: $route.path === '/map'}" @click="$router.push('/map')">
+        <div class="tab-icon">🗺</div>
+        <div class="tab-text">探索地图</div>
       </div>
-      <div class="tab-item" @click="$router.push('/publish')" :class="{active:$route.path==='/publish'}">
-        <div>✏️</div>
-        <div>发布路线</div>
+      <div class="tab-item" :class="{active: $route.path === '/publish'}" @click="$router.push('/publish')">
+        <div class="tab-icon">✏️</div>
+        <div class="tab-text">发布路线</div>
       </div>
-      <div class="tab-item" @click="$router.push('/my')" :class="{active:$route.path==='/my'}">
-        <div>👤</div>
-        <div>我的</div>
+      <div class="tab-item" :class="{active: $route.path === '/record'}" @click="$router.push('/record')">
+        <div class="tab-icon">📝</div>
+        <div class="tab-text">打卡记录</div>
+      </div>
+      <div class="tab-item" :class="{active: $route.path === '/my'}" @click="$router.push('/my')">
+        <div class="tab-icon">👤</div>
+        <div class="tab-text">我的</div>
       </div>
     </div>
   </div>
@@ -177,11 +191,9 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useRouteStore } from '@/store/routeStore'
-import request from '@/utils/request'
+import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
 const router = useRouter()
 const route = useRoute()
-const routeStore = useRouteStore()
 
 const searchInputRef = ref(null)
 const cityListRef = ref(null)
@@ -298,9 +310,9 @@ const scrollToLetter = (letter)=>{
 
 // 轮播
 const bannerList = ref([
-  { img:'/pictures/11.jpg', title:'老城区一日漫步' },
-  { img:'/pictures/22.jpg', title:'江边夜景路线' },
-  { img:'/pictures/33.jpg', title:'文艺街巷打卡之旅' }
+  { img:'/pictures/11.jpg', title:'老城区一日漫步', routeId: 1 },
+  { img:'/pictures/22.jpg', title:'江边夜景路线', routeId: 10 },
+  { img:'/pictures/33.jpg', title:'文艺街巷打卡之旅', routeId: 7 }
 ])
 const currentBannerIndex = ref(0)
 let bannerTimer = null
@@ -312,45 +324,6 @@ const autoBanner = ()=>{
 onMounted(()=>autoBanner())
 onUnmounted(()=>clearInterval(bannerTimer))
 
-// ========== 真实路线数据：来自后端 /route/list（只含已公开 + 审核通过的路线） ==========
-const apiRoutes = ref([])
-const loadingRoutes = ref(false)
-
-const toCardItem = (r) => ({
-  id: r.id,
-  name: r.routeName,
-  city: r.city,
-  duration: r.duration || '',
-  cover: r.coverImage && r.coverImage !== 'xxx'
-    ? r.coverImage
-    : `https://picsum.photos/seed/cw${r.id}/600/400`,
-  tags: (r.tags || []).map(t => t.tagName),
-  likeNum: r.likeCount || 0,
-  starNum: r.collectCount || 0,
-  isLiked: false,
-  isCollected: false,
-  hot: (r.likeCount || 0) * 3 + (r.collectCount || 0),
-  onlyCityPage: false
-})
-
-const loadRouteList = async () => {
-  loadingRoutes.value = true
-  try {
-    const res = await request.get('/route/list')
-    const arr = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
-    apiRoutes.value = arr.map(toCardItem)
-  } catch (e) {
-    apiRoutes.value = []
-    ElMessage.error('路线加载失败，请确认后端已启动')
-  } finally {
-    loadingRoutes.value = false
-  }
-}
-onMounted(() => {
-  loadRouteList()
-  loadTagList()
-})
-
 // 跳转详情
 const goDetail = (id) => {
   router.push({
@@ -359,44 +332,104 @@ const goDetail = (id) => {
   })
 }
 
-// ✅排行榜：用后端真实数据，按热度排序取前 5
-const rankList = computed(() => {
-  return [...apiRoutes.value]
-    .filter(item => !item.onlyCityPage)
-    .sort((a, b) => b.hot - a.hot).slice(0, 5)
-})
+// ✅ 首页路线改为读数据库：分页接口 /route/list，滚动到底自动加载下一页
+const PAGE_SIZE = 10
+const routeRows = ref([])     // 已加载的路线
+const page = ref(0)           // 已加载页数
+const hasMore = ref(true)
+const loading = ref(false)
 const activeTag = ref('全部')
+const tagList = ['全部', '老街', '美食', '博物馆', '公园', '夜景', '短途徒步']
 
-// 标签来自后端 tag 表，管理员在后台可增删改，首页自动同步
-const tagOptions = ref([])
-const tagList = computed(() => ['全部', ...tagOptions.value])
+// 后端字段 → 页面字段
+const mapRoute = (r) => ({
+  id: r.id,
+  name: r.routeName,
+  city: r.city,
+  duration: r.duration,
+  cover: r.coverImage || '/pictures/Myback.jpg',
+  tags: [],
+  likeNum: r.likeCount || 0,
+  starNum: r.collectCount || 0,
+  isLiked: false,
+  isCollected: false
+})
 
-const loadTagList = async () => {
+const loadRoutes = async (reset = false) => {
+  if (loading.value) return
+  if (!reset && !hasMore.value) return
+  if (reset) {
+    routeRows.value = []
+    page.value = 0
+    hasMore.value = true
+  }
+  loading.value = true
   try {
-    const res = await request.get('/tag/list')
-    if (res && res.code === 200 && Array.isArray(res.data)) {
-      tagOptions.value = res.data.map(t => t.tagName)
-    }
+    const res = await getRouteListAPI({
+      page: page.value + 1,
+      size: PAGE_SIZE,
+      tag: activeTag.value === '全部' ? undefined : activeTag.value
+    })
+    const list = res.code === 200 && Array.isArray(res.data) ? res.data : []
+    routeRows.value = routeRows.value.concat(list.map(mapRoute))
+    page.value += 1
+    hasMore.value = list.length === PAGE_SIZE
   } catch (e) {
-    tagOptions.value = []
+    hasMore.value = false
+    if (page.value === 0) ElMessage.warning('路线加载失败，请确认后端已启动')
+  } finally {
+    loading.value = false
   }
 }
 
-// ✅【全部标签展示全部路线，其他标签按路线真实标签过滤】
+// 触底加载
+const onScrollLoad = () => {
+  const gap = document.body.scrollHeight - window.scrollY - window.innerHeight
+  if (gap < 200) loadRoutes()
+}
+
+// ✅排行榜：按点赞数取前 5
+const rankList = computed(() =>
+  [...routeRows.value]
+    .sort((a, b) => b.likeNum - a.likeNum)
+    .slice(0, 5)
+    .map(i => ({ name: i.name, city: i.city, hot: i.likeNum }))
+)
+
+// ✅分类标签：标签由后端筛选，关键词在前端兜底过滤
 const filterList = computed(() => {
-  let arr = [...apiRoutes.value]
-  if (activeTag.value !== '全部') {
-    arr = arr.filter(i => i.tags.includes(activeTag.value))
-  }
-  // 搜索过滤
   const kw = searchText.value.trim().toLowerCase()
-  if (kw) {
-    arr = arr.filter(i =>
-      i.name.toLowerCase().includes(kw) || i.tags.some(t => t.includes(kw))
-    )
-  }
-  return arr
+  if (!kw) return routeRows.value
+  return routeRows.value.filter(i =>
+    (i.name || '').toLowerCase().includes(kw) || (i.city || '').toLowerCase().includes(kw)
+  )
 })
+
+// 点赞 / 取消点赞（真实接口）
+const toggleLike = async (item) => {
+  try {
+    const res = item.isLiked ? await unlikeRouteAPI(item.id) : await likeRouteAPI(item.id)
+    if (res.code !== 200) throw new Error(res.msg)
+    item.isLiked = !item.isLiked
+    item.likeNum = Math.max(0, item.likeNum + (item.isLiked ? 1 : -1))
+  } catch (e) {
+    ElMessage.warning('请先登录再点赞')
+  }
+}
+
+// 收藏后端还没做接口，先在前端切换
+const toggleCollect = (item) => {
+  item.isCollected = !item.isCollected
+  item.starNum += item.isCollected ? 1 : -1
+  if (item.starNum < 0) item.starNum = 0
+}
+
+watch(activeTag, () => loadRoutes(true))
+onMounted(() => {
+  loadRoutes(true)
+  window.addEventListener('scroll', onScrollLoad)
+})
+onUnmounted(() => window.removeEventListener('scroll', onScrollLoad))
 
 // 监听query参数：只有fromSearch=true才自动打开搜索弹窗
 watch(()=>route.query.fromSearch, (val)=>{
@@ -649,6 +682,16 @@ watch(()=>route.query.fromSearch, (val)=>{
 .banner-dots span.active{
   background:#fff;
 }
+.banner-enter{
+  position:absolute;
+  right:12px;
+  bottom:12px;
+  padding:3px 10px;
+  border-radius:12px;
+  background:rgba(0,0,0,0.35);
+  color:#fff;
+  font-size:12px;
+}
 .rank-title {
   font-size:16px;
   font-weight:bold;
@@ -713,6 +756,13 @@ watch(()=>route.query.fromSearch, (val)=>{
   grid-template-columns: 1fr 1fr;
   gap:12px;
 }
+.list-tip {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 13px;
+  color: #999;
+  padding: 10px 0 4px;
+}
 .route-card {
   background:#fff;
   border-radius:12px;
@@ -761,27 +811,37 @@ watch(()=>route.query.fromSearch, (val)=>{
 .collect-btn-card.active{
   color:#e6a23c;
 }
+/* 底部导航栏：样式与 Map.vue 保持一致，选择器限定在 .tab-bar 内，避免影响搜索面板的 tab */
 .tab-bar{
   position:fixed;
-  left:0;
   bottom:0;
+  left:0;
   width:100%;
   height:60px;
   background:#fff;
   display:flex;
-  border-top:1px solid #f3d7c6;
+  border-top:1px solid #eee;
+  z-index:99;
 }
-.tab-item{
+.tab-bar .tab-item{
   flex:1;
   display:flex;
   flex-direction:column;
-  align-items:center;
   justify-content:center;
-  font-size:12px;
-  color:#888;
+  align-items:center;
+  font-size:14px;
+  color:#666;
+  gap:3px;
   cursor:pointer;
 }
-.tab-item.active{
-  color:#ff9b6a;
+.tab-bar .tab-item.active{
+  color:#409eff;
+}
+.tab-bar .tab-icon{
+  font-size:20px;
+}
+.tab-bar .tab-text{
+  font-size:14px;
+  line-height:1;
 }
 </style>

@@ -56,6 +56,18 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/my-follow',
+    name: 'MyFollow',
+    component: () => import('@/views/MyFollow.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/recycle',
+    name: 'Recycle',
+    component: () => import('@/views/Recycle.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/message',
     name: 'Message',
     component: () => import('@/views/Message.vue'),

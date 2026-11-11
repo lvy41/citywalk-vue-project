@@ -19,10 +19,6 @@
         </div>
       </div>
     </div>
-
-    <div class="tab-bottom">
-      <TabBar />
-    </div>
   </div>
 </template>
 
@@ -30,7 +26,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import TabBar from '@/components/TabBar.vue'
 
 const router = useRouter()
 const msgList = ref([])
@@ -52,7 +47,7 @@ onMounted(() => {
   /* 只改这里，和我的发布一致渐变背景，其他全部保留 */
   background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
   min-height: 100vh;
-  padding-bottom: 70px;
+  padding-bottom: 24px;
 }
 .page-header {
   background: linear-gradient(140deg, #e65b38, #ff9048);
@@ -103,11 +98,5 @@ onMounted(() => {
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-}
-.tab-bottom {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 100%;
 }
 </style>
