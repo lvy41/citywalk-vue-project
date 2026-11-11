@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+
 /**
  * 获取路线详情+有序点位
  * @param {number} routeId

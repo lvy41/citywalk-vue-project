@@ -97,6 +97,20 @@ const routes = [
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: false }
   },
+  // ✅【新增城市路线页面】点击城市跳转到此页面，无需登录
+  {
+    path: '/city/:cityName',
+    name: 'CityRoute',
+    component: () => import('@/views/CityRoute.vue'),
+    meta: { requiresAuth: false }
+  },
+  // ✅【新增：城市选择页面】首页点击定位文字跳转
+  {
+    path: '/city-select',
+    name: 'CitySelect',
+    component: () => import('@/views/CitySelect.vue'),
+    meta: { requiresAuth: false }
+  },
   // ============后台管理路由============
   {
     path: '/adminlogin',
@@ -155,7 +169,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
 // ✅ 官方正确写法：只在守卫内部调用 useUserStore()
 router.beforeEach((to) => {
   const userStore = useUserStore()

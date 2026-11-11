@@ -1,16 +1,9 @@
-<!-- src/views/Detail.vue 路线详情页｜适配params路由 /detail/:id -->
 <template>
   <div class="detail-page">
-    <!-- 顶部封面栏 -->
-    <div class="detail-cover">
-      <img v-if="routeInfo.cover" :src="routeInfo.cover" alt="路线封面" />
-      <div class="cover-op">
-        <el-button circle size="small" @click="$router.back()">←</el-button>
-        <div class="op-right">
-          <el-button circle size="small" @click="handleCollect">⭐</el-button>
-          <el-button circle size="small" @click="handleLike">❤️</el-button>
-        </div>
-      </div>
+    <!-- 返回按钮：统一样式 ＜ 返回，回退上一页 -->
+    <div class="back-btn" @click="$router.back()">＜ 返回</div>
+    <div class="img-box">
+      <img class="route-img" :src="info.cover" alt="" />
     </div>
     <div class="detail-content">
       <!-- 路线基础信息 -->
@@ -365,7 +358,9 @@ onUnmounted(()=>{
 .tab-icon{
   font-size:20px;
 }
-.tab-item.active{
-  color:#409eff;
+.desc h4{
+  font-size:17px;
+  margin-bottom:8px;
+  color:#222;
 }
 </style>
