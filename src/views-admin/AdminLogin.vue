@@ -130,7 +130,7 @@ const handleLogin = async () => {
       localStorage.setItem('adminToken', res.data.token)
       
       // 跳转到后台首页
-      router.push('/admin/dashboard')
+      router.push('/dashboard')
     } else {
       ElMessage.error(res?.msg || res?.message || '账号或密码错误')
     }

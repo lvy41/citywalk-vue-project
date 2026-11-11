@@ -324,7 +324,7 @@ const toCardItem = (r) => ({
   cover: r.coverImage && r.coverImage !== 'xxx'
     ? r.coverImage
     : `https://picsum.photos/seed/cw${r.id}/600/400`,
-  tags: [],
+  tags: (r.tags || []).map(t => t.tagName),
   likeNum: r.likeCount || 0,
   starNum: r.collectCount || 0,
   isLiked: false,
@@ -346,7 +346,10 @@ const loadRouteList = async () => {
     loadingRoutes.value = false
   }
 }
-onMounted(() => loadRouteList())
+onMounted(() => {
+  loadRouteList()
+  loadTagList()
+})
 
 // 跳转详情
 const goDetail = (id) => {
@@ -363,15 +366,27 @@ const rankList = computed(() => {
     .sort((a, b) => b.hot - a.hot).slice(0, 5)
 })
 const activeTag = ref('全部')
-const tagList = ['全部', '老街', '美食', '博物馆', '公园', '夜景', '短途徒步']
 
-// ✅【全部标签展示全部路线，其他标签按tags分类过滤】
+// 标签来自后端 tag 表，管理员在后台可增删改，首页自动同步
+const tagOptions = ref([])
+const tagList = computed(() => ['全部', ...tagOptions.value])
+
+const loadTagList = async () => {
+  try {
+    const res = await request.get('/tag/list')
+    if (res && res.code === 200 && Array.isArray(res.data)) {
+      tagOptions.value = res.data.map(t => t.tagName)
+    }
+  } catch (e) {
+    tagOptions.value = []
+  }
+}
+
+// ✅【全部标签展示全部路线，其他标签按路线真实标签过滤】
 const filterList = computed(() => {
   let arr = [...apiRoutes.value]
-  // 后端路线暂时没有标签字段，标签筛选命中不到时退化为展示全部，避免空白页
   if (activeTag.value !== '全部') {
-    const tagged = arr.filter(i => i.tags.includes(activeTag.value))
-    if (tagged.length) arr = tagged
+    arr = arr.filter(i => i.tags.includes(activeTag.value))
   }
   // 搜索过滤
   const kw = searchText.value.trim().toLowerCase()

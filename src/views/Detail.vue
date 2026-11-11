@@ -3,7 +3,7 @@
     <!-- 返回按钮：统一样式 ＜ 返回，回退上一页 -->
     <div class="back-btn" @click="$router.back()">＜ 返回</div>
     <div class="img-box">
-      <img class="route-img" :src="info.cover" alt="" />
+      <img class="route-img" :src="routeInfo.cover" alt="" />
     </div>
     <div class="detail-content">
       <!-- 路线基础信息 -->
@@ -134,7 +134,7 @@ const loadDetail = async ()=>{
       cover: r.coverImage && r.coverImage !== 'xxx'
         ? r.coverImage
         : `https://picsum.photos/seed/cw${r.id}/750/320`,
-      tags: [],
+      tags: ((payload && payload.tags) || []).map(t => t.tagName),
       authorName: (payload && payload.authorName) || '匿名用户'
     }
     pointList.value = points

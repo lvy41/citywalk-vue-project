@@ -43,9 +43,15 @@ const dialogVisible = ref(false)
 const form = ref({id:null,tagName:""})
 
 async function loadData(){
-  const res = await request.get("/api/admin/tag/list")
-  if(res.code===200){
-    tableData.value = res.data
+  try {
+    const res = await request.get("/tag/list")
+    if(res.code===200){
+      tableData.value = res.data || []
+    } else {
+      ElMessage.error(res.msg || "加载标签失败")
+    }
+  } catch(e){
+    ElMessage.error("加载标签失败，请确认后端已启动")
   }
 }
 
@@ -60,25 +66,33 @@ const openEdit = (row)=>{
 }
 
 const submitSave = async()=>{
+  if(!form.value.tagName || !form.value.tagName.trim()){
+    ElMessage.warning("请输入标签名称")
+    return
+  }
   let res
   if(form.value.id){
-    res = await request.put("/api/admin/tag",form.value)
+    res = await request.put("/tag/update",form.value)
   }else{
-    res = await request.post("/api/admin/tag",form.value)
+    res = await request.post("/tag/add",form.value)
   }
   if(res.code===200){
     ElMessage.success("保存成功")
     dialogVisible.value=false
     loadData()
+  }else{
+    ElMessage.error(res.msg || "保存失败")
   }
 }
 
 const delTag = async(row)=>{
-  await ElMessageBox.confirm("确认删除标签")
-  const res = await request.delete(`/api/admin/tag/${row.id}`)
+  await ElMessageBox.confirm("确认删除标签「"+row.tagName+"」？")
+  const res = await request.delete(`/tag/delete/${row.id}`)
   if(res.code===200){
     ElMessage.success("已删除")
     loadData()
+  }else{
+    ElMessage.error(res.msg || "删除失败")
   }
 }
 

@@ -17,7 +17,11 @@ request.interceptors.request.use(
 
     // 后台接口才用管理员 Token，其余接口一律用普通用户 Token
     // （否则管理员登录后，普通用户接口会带上管理员 token，导致"请先登录"）
-    const isAdminApi = (config.url || '').startsWith('/admin/')
+    // 标签/城市管理的增删改由后台发起，同样要走管理员 Token
+    const url = config.url || ''
+    const isAdminApi = url.startsWith('/admin/')
+      || url.startsWith('/tag/add') || url.startsWith('/tag/update') || url.startsWith('/tag/delete')
+      || url.startsWith('/city/add') || url.startsWith('/city/update') || url.startsWith('/city/delete')
     const token = isAdminApi
       ? (localStorage.getItem('adminToken') || userStore.token)
       : userStore.token
@@ -61,8 +65,9 @@ request.interceptors.response.use(
     const { code, data, msg, message } = resBody
     const text = msg || message
 
-    // 后台接口报错不弹窗、不踢人，交给管理页按空数据处理
-    if ((response.config.url || '').includes('/admin/')) {
+    // 后台接口报错不弹窗、不踢人，交给管理页自己按 code/msg 处理
+    const reqUrl = response.config.url || ''
+    if (reqUrl.includes('/admin/') || reqUrl.startsWith('/tag/') || reqUrl.startsWith('/city/')) {
       if (code === 200 || code === 0) {
         return resBody
       }

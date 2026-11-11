@@ -47,6 +47,16 @@
           <el-form-item label="路线简介 / 游玩提示">
             <el-input type="textarea" v-model="publishForm.description" placeholder="写一点走心推荐吧..."></el-input>
           </el-form-item>
+          <el-form-item label="路线标签（可多选）">
+            <el-select
+              v-model="publishForm.tagIds"
+              multiple
+              placeholder="选择标签，首页就能按分类筛到它"
+              style="width: 100%;"
+            >
+              <el-option v-for="t in tagOptions" :key="t.id" :label="t.tagName" :value="t.id" />
+            </el-select>
+          </el-form-item>
         </el-form>
       </div>
 
@@ -118,12 +128,27 @@ const publishForm = ref({
   city: '',
   coverImage: '',
   description: '',
+  tagIds: [],
   points: [
     { name: '', time: '09:00', transport: '', image: '', longitude: '', latitude: '' }
   ]
 })
 
+// 可选标签（来自后端 /tag/list，后台标签管理改了这里会同步）
+const tagOptions = ref([])
+const loadTagOptions = async () => {
+  try {
+    const res = await request.get('/tag/list')
+    if (res && res.code === 200 && Array.isArray(res.data)) {
+      tagOptions.value = res.data
+    }
+  } catch (e) {
+    tagOptions.value = []
+  }
+}
+
 onMounted(() => {
+  loadTagOptions()
   // 每次进入发布页，都从浏览器缓存里读取最新鲜的“我的打卡”数据
   const localData = localStorage.getItem('citywalk_checkin_list')
   
@@ -188,6 +213,7 @@ const submitPublish = async () => {
       city: publishForm.value.city,
       coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
       description: publishForm.value.description || '这个作者很懒，什么都没写~',
+      tagIds: publishForm.value.tagIds || [],
       points: publishForm.value.points.map(p => ({
         name: p.name,
         time: p.time,
