@@ -62,8 +62,8 @@ const stat = ref({
 const loadDashboard = async () => {
   try {
     const res = await request.get('/admin/dashboard/stats')
-    if (res) {
-      stat.value = res
+    if (res && res.code === 200 && res.data) {
+      stat.value = res.data
       // 数据拉取成功后，渲染图表
       renderChart() 
     }

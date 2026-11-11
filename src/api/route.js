@@ -11,6 +11,7 @@ export function getRouteDetailAPI(routeId) {
     params: { routeId }
   })
 }
+
 // 查询用户发布路线接口
 export function getUserPublishRouteAPI(){
   return request({

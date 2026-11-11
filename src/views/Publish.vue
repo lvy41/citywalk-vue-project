@@ -199,9 +199,10 @@ const submitPublish = async () => {
     }
 
     // 2. 发送请求给后端（后端会把路线置为“待审核”，并写入点位）
-    const data = await request.post('/route/add', postData)
+    const res = await request.post('/route/add', postData)
+    const data = res && res.data
 
-    if (data && data.id) {
+    if (res && res.code === 200 && data && data.id) {
       let tip = '🎉 路线已提交，等待管理员审核通过后就会出现在首页'
       if (data.skippedPoints > 0) {
         tip += `（有 ${data.skippedPoints} 个点位没填经纬度，已跳过）`

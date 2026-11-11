@@ -61,8 +61,8 @@ const tableData = ref([])
 const loadData = async () => {
   try {
     const res = await request.get('/admin/user/list')
-    if (res) {
-      tableData.value = res
+    if (res && res.code === 200) {
+      tableData.value = Array.isArray(res.data) ? res.data : []
     }
   } catch (error) {
     ElMessage.error('获取用户列表失败')

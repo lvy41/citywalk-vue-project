@@ -1,10 +1,12 @@
 <template>
   <div class="page-my-publish">
     <div class="page-header">
-      <div class="back-icon" @click="$router.back()">
+      <div class="back" @click="$router.back()">
         <el-icon><ArrowLeft /></el-icon>
+        <span>返回</span>
       </div>
-      <div class="page-title">我的发布</div>
+      <h2>我的发布</h2>
+      <div class="placeholder"></div>
     </div>
 
     <div class="content-wrap">
@@ -12,15 +14,15 @@
       <div v-if="list.length > 0" class="route-list">
         <div class="route-item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
           <div class="route-img">
-            <img :src="item.coverImage || defaultImg" alt="">
+            <img :src="item.cover || defaultImg" alt="">
           </div>
           <div class="route-info">
             <div class="route-name">
-              {{ item.routeName }}
-              <el-tag size="small" :type="statusTag(item.auditStatus).type">{{ statusTag(item.auditStatus).text }}</el-tag>
+              {{ item.title }}
+              <span class="status-tag" :class="statusClass(item.auditStatus)">{{ statusText(item.auditStatus) }}</span>
             </div>
-            <div class="route-desc">{{ item.description }}</div>
-            <div class="route-time">{{ item.city }} · {{ formatTime(item.createTime) }}</div>
+            <div class="route-desc">{{ item.content }}</div>
+            <div class="route-time">{{ item.createTime }}</div>
           </div>
         </div>
       </div>
@@ -42,65 +44,87 @@ const router = useRouter()
 const list = ref([])
 const defaultImg = ref('https://picsum.photos/id/1039/300/200')
 
-// 审核状态 -> 标签
-const statusTag = (status) => {
-  if (status === 0) return { type: 'info', text: '待审核' }
-  if (status === 1) return { type: 'success', text: '已上线' }
-  if (status === 2) return { type: 'danger', text: '已下架' }
-  return { type: 'info', text: '未知' }
-}
-
-const formatTime = (t) => (t ? String(t).replace('T', ' ').substring(0, 16) : '')
-
 // 跳转到路线详情
 const goDetail = (id) => {
+  console.log('点击路线id：', id)
   router.push(`/detail/${id}`)
 }
 
-// 获取我的发布列表（后端直接返回数组）
+// 获取我的发布列表（后端返回 /route/list 同款 Route 字段，这里统一成页面字段）
 const getList = async () => {
-  try {
-    const res = await getUserPublishRouteAPI()
-    list.value = Array.isArray(res) ? res : []
-  } catch (e) {
-    list.value = []
+  const res = await getUserPublishRouteAPI()
+  if (res.code === 200 && Array.isArray(res.data)) {
+    list.value = res.data.map(r => ({
+      id: r.id,
+      title: r.routeName,
+      content: r.description || '',
+      cover: r.coverImage && r.coverImage !== 'xxx' ? r.coverImage : defaultImg.value,
+      createTime: r.createTime ? String(r.createTime).replace('T', ' ').substring(0, 16) : '',
+      auditStatus: r.auditStatus
+    }))
   }
 }
+
+// 审核状态：0=待审核 1=已通过 2=已下架
+const statusText = (s) => (s === 1 ? '已通过' : s === 2 ? '已下架' : '待审核')
+const statusClass = (s) => (s === 1 ? 'is-pass' : s === 2 ? 'is-off' : 'is-wait')
 
 onMounted(() => {
   getList()
 })
 </script>
 
+
 <style scoped>
+.status-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  font-weight: normal;
+  vertical-align: middle;
+}
+.status-tag.is-wait { background: #fff1d6; color: #b26a00; }
+.status-tag.is-pass { background: #e6f7e9; color: #1f9d55; }
+.status-tag.is-off { background: #f1f1f1; color: #8a8a8a; }
+
 .page-my-publish {
   min-height: 100vh;
   background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
 }
 
 .page-header {
+  background: linear-gradient(140deg, #e65b38, #ff9048);
+  color: #fff;
+  padding: 18px 20px;
+  position: relative;
   display: flex;
   align-items: center;
-  height: 48px;
-  background: #ffffff;
-  border-bottom: 1px solid #f5e7d3;
-  padding: 0 16px;
-  position: relative;
+  justify-content: space-between;
 }
-
-.back-icon {
-  font-size: 20px;
-  color: #333;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #FF7A45;
+  font-weight: bold;
   cursor: pointer;
+  background: #FFF0F3;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
-
-.page-title {
+.page-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 600;
-  color: #222;
+}
+.placeholder {
+  width: 70px;
 }
 
 .content-wrap {

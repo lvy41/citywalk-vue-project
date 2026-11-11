@@ -1,9 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
-
-// 👇 引入后台的全局布局外壳
-import Layout from '@/views-admin/Layout.vue'
-
 const routes = [
   {
     path: '/',
@@ -77,6 +73,24 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/my-follow',
+    name: 'MyFollow',
+    component: () => import('@/views/MyFollow.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/recycle-route',
+    name: 'RecycleRoute',
+    component: () => import('@/views/RecycleRoute.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/shop',
+    name: 'Shop',
+    component: () => import('@/views/Shop.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),
@@ -86,6 +100,12 @@ const routes = [
     path: '/change-pwd',
     name: 'ChangePwd',
     component: () => import('@/views/ChangePwd.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/title-list',
+    name: 'TitleList',
+    component: () => import('@/views/TitleList.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -101,83 +121,83 @@ const routes = [
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: false }
   },
-
+  // ✅【新增城市路线页面】点击城市跳转到此页面，无需登录
+  {
+    path: '/city/:cityName',
+    name: 'CityRoute',
+    component: () => import('@/views/CityRoute.vue'),
+    meta: { requiresAuth: false }
+  },
+  // ✅【新增：城市选择页面】首页点击定位文字跳转
+  {
+    path: '/city-select',
+    name: 'CitySelect',
+    component: () => import('@/views/CitySelect.vue'),
+    meta: { requiresAuth: false }
+  },
   // ============后台管理路由============
-  // 1. 管理员登录页（独立页面，不套外壳）
   {
     path: '/adminlogin',
     name: 'AdminLogin',
     component: () => import('@/views-admin/AdminLogin.vue'),
     meta: { public: true }
   },
-  
-  // 2. 后台管理主框架（所有后台页面都套在这个 Layout 里）
   {
-    path: '/admin',
-    component: Layout,
-    redirect: '/admin/dashboard',
-    children: [
-      {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views-admin/Dashboard.vue'),
-        meta: { adminAuth: true, title: '仪表盘' }
-      },
-      {
-        path: 'user',
-        name: 'UserManage',
-        component: () => import('@/views-admin/UserManage.vue'),
-        meta: { adminAuth: true, title: '用户管理' }
-      },
-      {
-        path: 'route',
-        name: 'RouteManage',
-        component: () => import('@/views-admin/RouteManage.vue'),
-        meta: { adminAuth: true, title: '路线管理' }
-      },
-      {
-        path: 'comment',
-        name: 'CommentManage',
-        component: () => import('@/views-admin/CommentManage.vue'),
-        meta: { adminAuth: true, title: '评论管理' }
-      },
-      // 如果你还有其它后台页面，继续往里加
-      {
-        path: 'tag',
-        name: 'TagManage',
-        component: () => import('@/views-admin/TagManage.vue'),
-        meta: { adminAuth: true, title: '标签管理' }
-      },
-      {
-        path: 'city',
-        name: 'CityManage',
-        component: () => import('@/views-admin/CityManage.vue'),
-        meta: { adminAuth: true, title: '城市管理' }
-      }
-    ]
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views-admin/Dashboard.vue'),
+    meta: { adminAuth: true }
   },
-
   {
-    path: '/privacy',
-    name: 'Privacy',
-    component: () => import('@/views/PrivacyAgreement.vue'),
-    meta: { public: true }
+    path: '/routeManage',
+    name: 'RouteManage',
+    component: () => import('@/views-admin/RouteManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/userManage',
+    name: 'UserManage',
+    component: () => import('@/views-admin/UserManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/commentManage',
+    name: 'CommentManage',
+    component: () => import('@/views-admin/CommentManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/tagManage',
+    name: 'TagManage',
+    component: () => import('@/views-admin/TagManage.vue'),
+    meta: { adminAuth: true }
+  },
+  {
+    path: '/cityManage',
+    name: 'CityManage',
+    component: () => import('@/views-admin/CityManage.vue'),
+    meta: { adminAuth: true }
   },
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/PrivacyAgreement.vue'),
+    meta:{public:true}
   }
 ]
-
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
-
+// ✅ 官方正确写法：只在守卫内部调用 useUserStore()
 router.beforeEach((to) => {
   const userStore = useUserStore()
+  // 每次路由切换先读取本地存储
   userStore.init()
-  
   if (to.meta.adminAuth) {
     if (!userStore.adminToken) {
       return '/adminlogin'
@@ -192,5 +212,4 @@ router.beforeEach((to) => {
   }
   return true
 })
-
 export default router

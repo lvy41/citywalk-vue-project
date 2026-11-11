@@ -50,8 +50,8 @@ const commentList = ref([])
 const loadData = async () => {
   try {
     const res = await request.get('/admin/comment/list')
-    if (res) {
-      commentList.value = res // 后端返回的是数组，直接赋值
+    if (res && res.code === 200) {
+      commentList.value = Array.isArray(res.data) ? res.data : []
     }
   } catch (error) {
     ElMessage.error('获取评论列表失败')

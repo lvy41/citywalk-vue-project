@@ -3,7 +3,6 @@
     <!-- 背景层 -->
     <div class="bg-layer"></div>
     <div class="overlay"></div>
-
     <!-- 内容层 -->
     <div class="content-layer">
       <!-- 顶部品牌区 -->
@@ -14,7 +13,6 @@
         <h1 class="title">CityWalk</h1>
         <p class="slogan">{{ currentSlogan }}</p>
       </div>
-
       <!-- 表单卡片 -->
       <div class="form-container">
         <!-- Tab 切换 -->
@@ -34,7 +32,6 @@
             @click="switchTab('register')"
           >注册</span>
         </div>
-
         <!-- 登录表单 -->
         <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="form">
           <div class="input-group">
@@ -69,7 +66,6 @@
             </span>
           </button>
         </form>
-
         <!-- 注册表单 -->
         <form v-else @submit.prevent="handleRegister" class="form">
           <div class="input-group">
@@ -129,7 +125,6 @@
             </span>
           </button>
         </form>
-
         <!-- 协议区 -->
         <div class="agreement-section">
           <label class="checkbox-label" @click.prevent>
@@ -148,13 +143,11 @@
           </div>
         </div>
       </div>
-
       <!-- 底部 -->
       <div class="footer">
         <p>© 2026 CityWalk · 用脚步阅读城市</p>
       </div>
     </div>
-
     <!-- 隐私协议弹窗 -->
     <div v-if="showPrivacy" class="modal-mask" @click.self="showPrivacy = false">
       <div class="privacy-modal">
@@ -164,27 +157,20 @@
         </div>
         <div class="privacy-body">
           <p class="privacy-date">更新日期：2026年10月19日</p>
-
           <h4>一、引言</h4>
           <p>欢迎使用 CityWalk 城市漫步打卡系统。我们深知个人信息对您的重要性，并会尽全力保护您的个人信息安全可靠。请您在使用本应用前，仔细阅读并充分理解本协议全部内容。您勾选同意即表示接受本协议全部条款。</p>
-
           <h4>二、我们收集的信息</h4>
           <p><strong>您主动提供的：</strong>用户名、密码、手机号、昵称——用于注册登录和身份识别。</p>
           <p><strong>自动收集的：</strong>地理位置信息——用于打卡校验（到达打卡点50米内）和附近路线推荐；设备信息——用于页面适配和安全保障。</p>
           <p><strong>您发布的内容：</strong>创建的路线信息、上传的图片、发表的评论、打卡记录和收藏记录。</p>
-
           <h4>三、信息的使用</h4>
           <p>我们收集的信息仅用于：提供登录注册、路线浏览、打卡、收藏、评论等核心功能；基于您的位置实现打卡校验和附近路线推荐；将您发布的内容展示给其他用户浏览。</p>
-
           <h4>四、信息的共享</h4>
           <p>我们不会向任何第三方出售您的个人信息。使用地图功能时，您的位置信息会发送给地图服务商以完成地图渲染和定位。</p>
-
           <h4>五、信息的保护</h4>
           <p>您的密码经过加密处理存储，我们采取技术措施防止数据泄露。本应用为校园毕业设计项目，不用于商业用途。</p>
-
           <h4>六、您的权利</h4>
           <p>您可以在个人中心修改昵称、删除自己发布的内容、退出登录。如需注销账号，请联系管理员处理。</p>
-
           <h4>七、权限说明</h4>
           <p>地理位置权限仅用于打卡和附近路线推荐，关闭后不影响浏览路线，但无法打卡。</p>
         </div>
@@ -195,24 +181,20 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { loginAPI, registerAPI } from '@/api/user'
 import { ElMessage } from 'element-plus'
-
 const router = useRouter()
 const userStore = useUserStore()
-
 const activeTab = ref('login')
 const loading = ref(false)
 const agree = ref(false)
 const showPwd = ref(false)
 const showRegPwd = ref(false)
 const showPrivacy = ref(false)
-
 // ========== 随机Slogan ==========
 const slogans = [
   '穿梭街巷 · 发现城市小众惊喜',
@@ -226,10 +208,8 @@ const currentSlogan = ref(slogans[0])
 const randomSlogan = () => {
   currentSlogan.value = slogans[Math.floor(Math.random() * slogans.length)]
 }
-
 const loginForm = reactive({ username: '', password: '' })
 const registerForm = reactive({ username: '', password: '', phone: '', captcha: '' })
-
 // ========== 图形验证码 ==========
 const captchaChars = ref([])
 const captchaRots = ref([])
@@ -248,7 +228,6 @@ onMounted(() => {
   generateCaptcha()
   randomSlogan()
 })
-
 const switchTab = (tab) => {
   activeTab.value = tab
   loginForm.username = ''
@@ -261,11 +240,9 @@ const switchTab = (tab) => {
   showRegPwd.value = false
   if (tab === 'register') generateCaptcha()
 }
-
 const showAgreement = () => {
   showPrivacy.value = true
 }
-
 // ========== 登录 ==========
 const handleLogin = async () => {
   if (loading.value) return // 防重复提交
@@ -279,29 +256,27 @@ const handleLogin = async () => {
   }
   loading.value = true
   try {
-    const response = await loginAPI({
+    const res = await loginAPI({
       username: loginForm.username,
       password: loginForm.password
     })
-    // 防御：拦截器已解构返回 { data }，这里再判断一次
-    const resData = response?.data || response
-    const { token, userInfo } = resData || {}
+    // 适配我们修改后的request拦截器：拦截器返回 {data}
+    const resData = res.data
+    const { token, userInfo } = resData
     if (!token) {
       ElMessage.error('登录响应异常，未获取到token')
       return
     }
     userStore.setToken(token)
-    userStore.setUserInfo(userInfo || {})
+    userStore.setUserInfo(userInfo)
     ElMessage.success('登录成功，开始漫步吧！')
     router.push('/home')
   } catch (error) {
-    // 拦截器已统一弹错，这里只打日志
     console.error('登录失败:', error)
   } finally {
     loading.value = false
   }
 }
-
 // ========== 注册 ==========
 const handleRegister = async () => {
   if (loading.value) return
@@ -332,19 +307,19 @@ const handleRegister = async () => {
   }
   loading.value = true
   try {
-    const response = await registerAPI({
+    const res = await registerAPI({
       username: registerForm.username,
       password: registerForm.password,
       phone: registerForm.phone
     })
-    const resData = response?.data || response
-    const { token, userInfo } = resData || {}
+    const resData = res.data
+    const { token, userInfo } = resData
     if (!token) {
       ElMessage.error('注册响应异常，未获取到token')
       return
     }
     userStore.setToken(token)
-    userStore.setUserInfo(userInfo || {})
+    userStore.setUserInfo(userInfo)
     ElMessage.success('注册成功，欢迎加入城市漫步！')
     router.push('/home')
   } catch (error) {
@@ -354,18 +329,15 @@ const handleRegister = async () => {
   }
 }
 </script>
-
 <style scoped>
 /* 引入手写花体字体 */
 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
-
 /* ========== 主题色变量 ========== */
 .login-page {
   --primary: #e85d3a;
   --primary-light: #f2704a;
   --primary-lighter: #ff8c42;
   --primary-shadow: rgba(232, 93, 58, 0.35);
-
   position: relative;
   width: 100vw;
   min-height: 100vh;
@@ -373,7 +345,6 @@ const handleRegister = async () => {
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
-
 /* ========== 背景 ========== */
 .bg-layer {
   position: absolute;
@@ -391,7 +362,6 @@ const handleRegister = async () => {
     rgba(0, 0, 0, 0.3) 100%);
   z-index: 1;
 }
-
 /* ========== 内容层 ========== */
 .content-layer {
   position: relative;
@@ -407,7 +377,6 @@ const handleRegister = async () => {
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
-
 /* ========== 顶部品牌区 ========== */
 .header {
   text-align: center;
@@ -433,7 +402,6 @@ const handleRegister = async () => {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
-
 /* 手写花体标题 */
 .title {
   font-family: 'Dancing Script', cursive;
@@ -465,7 +433,6 @@ const handleRegister = async () => {
 }
 .slogan::before { left: 0; }
 .slogan::after { right: 0; }
-
 /* ========== 表单卡片 ========== */
 .form-container {
   background: rgba(255, 255, 255, 0.97);
@@ -481,7 +448,6 @@ const handleRegister = async () => {
   color: #1a1a2e;
   box-sizing: border-box;
 }
-
 /* ========== Tab ========== */
 .tabs {
   display: flex;
@@ -517,7 +483,6 @@ const handleRegister = async () => {
 .tab-item.active {
   color: var(--primary);
 }
-
 /* ========== 输入框 ========== */
 .form {
   display: flex;
@@ -557,7 +522,6 @@ const handleRegister = async () => {
   background: #fff;
   box-shadow: 0 0 0 4px rgba(232, 93, 58, 0.08);
 }
-
 /* 眼睛图标 */
 .eye-icon {
   position: absolute;
@@ -569,7 +533,6 @@ const handleRegister = async () => {
   user-select: none;
 }
 .eye-icon:active { opacity: 0.8; }
-
 /* 验证码 */
 .captcha-input { padding-right: 100px; }
 .captcha-code {
@@ -597,7 +560,6 @@ const handleRegister = async () => {
   font-family: 'Courier New', monospace;
   display: inline-block;
 }
-
 /* ========== 按钮 ========== */
 .submit-btn {
   width: 100%;
@@ -645,7 +607,6 @@ const handleRegister = async () => {
   margin-right: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 /* ========== 协议区 ========== */
 .agreement-section {
   margin-top: 18px;
@@ -677,7 +638,6 @@ const handleRegister = async () => {
   margin-left: 2px;
 }
 .agree-link:active { text-decoration: underline; }
-
 .location-tip {
   display: flex;
   align-items: center;
@@ -690,7 +650,6 @@ const handleRegister = async () => {
   line-height: 1.5;
 }
 .tip-icon { font-size: 14px; flex-shrink: 0; }
-
 /* ========== 底部 ========== */
 .footer {
   text-align: center;
@@ -700,7 +659,6 @@ const handleRegister = async () => {
   letter-spacing: 1px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
-
 /* ========== 隐私协议弹窗 ========== */
 .modal-mask {
   position: fixed;
@@ -777,7 +735,6 @@ const handleRegister = async () => {
   font-weight: 600;
   cursor: pointer;
 }
-
 /* ========== 手机适配 ========== */
 @media (max-width: 400px) {
   .content-layer {

@@ -123,18 +123,16 @@ const handleLogin = async () => {
   try {
     const res = await request.post('/admin/login', loginForm.value)
     console.log('后端返回的完整数据：', res)
-        // 只要 res 有数据，就说明请求成功了
-    if (res) { 
+    if (res && res.code === 200 && res.data && res.data.token) {
       ElMessage.success('登录成功')
-      
-      // 注意：数据现在在 res 里面
-      localStorage.setItem('adminToken', res.token) 
-      localStorage.setItem('token', res.token)
+
+      // 管理员 JWT 存在 adminToken 里，request.js 只对 /admin/* 使用它
+      localStorage.setItem('adminToken', res.data.token)
       
       // 跳转到后台首页
       router.push('/admin/dashboard')
     } else {
-      ElMessage.error('账号或密码错误')
+      ElMessage.error(res?.msg || res?.message || '账号或密码错误')
     }
   } catch (error) {
     ElMessage.error('网络请求失败，请检查后端是否启动')

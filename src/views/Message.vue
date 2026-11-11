@@ -1,10 +1,12 @@
 <template>
   <div class="page-message">
     <div class="page-header">
-      <div class="back-icon" @click="goBack">
+      <div class="back" @click="goBack">
         <el-icon><ArrowLeft /></el-icon>
+        <span>返回</span>
       </div>
       <div class="page-title">消息通知</div>
+      <div class="placeholder"></div>
     </div>
 
     <div class="content-wrap">
@@ -47,30 +49,42 @@ onMounted(() => {
 
 <style scoped>
 .page-message {
-  background-color: #f8f8f8;
+  /* 只改这里，和我的发布一致渐变背景，其他全部保留 */
+  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
   min-height: 100vh;
   padding-bottom: 70px;
 }
 .page-header {
+  background: linear-gradient(140deg, #e65b38, #ff9048);
+  color: #fff;
+  padding: 18px 20px;
+  position: relative;
   display: flex;
   align-items: center;
-  height: 52px;
-  background: #fff;
-  padding: 0 16px;
-  position: relative;
-  border-bottom: 1px solid #eee;
+  justify-content: space-between;
 }
-.back-icon {
-  font-size: 20px;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #FF7A45;
+  font-weight: bold;
   cursor: pointer;
-  z-index: 2;
+  background: #FFF0F3;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
 .page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 600;
+}
+.placeholder {
+  width: 70px;
 }
 .content-wrap {
   padding-top: 40px;

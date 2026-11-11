@@ -1,18 +1,10 @@
-<!-- src/views/Detail.vue 路线详情页｜适配params路由 /detail/:id -->
 <template>
   <div class="detail-page">
-    <!-- 顶部封面栏 -->
-    <div class="detail-cover">
-      <img v-if="routeInfo.cover" :src="routeInfo.cover" alt="路线封面" />
-      <div class="cover-op">
-        <el-button circle size="small" @click="$router.back()">←</el-button>
-        <div class="op-right">
-          <el-button circle size="small" @click="handleCollect">⭐</el-button>
-          <el-button circle size="small" @click="handleLike">❤️</el-button>
-        </div>
-      </div>
+    <!-- 返回按钮：统一样式 ＜ 返回，回退上一页 -->
+    <div class="back-btn" @click="$router.back()">＜ 返回</div>
+    <div class="img-box">
+      <img class="route-img" :src="info.cover" alt="" />
     </div>
-
     <div class="detail-content">
       <!-- 路线基础信息 -->
       <div class="info-block">
@@ -31,13 +23,11 @@
           <p>{{ routeInfo.description }}</p>
         </div>
       </div>
-
       <!-- 内嵌预览小地图 -->
       <div class="map-preview-block">
         <div class="sub-title">路线轨迹预览</div>
         <div id="mini-map" class="mini-map"></div>
       </div>
-
       <!-- 打卡点有序列表 -->
       <div class="point-block">
         <div class="sub-title">打卡点位（行走顺序）</div>
@@ -54,7 +44,6 @@
           </div>
         </div>
       </div>
-
       <!-- 评论区 -->
       <div class="comment-block">
         <div class="sub-title">用户评论</div>
@@ -66,10 +55,8 @@
         </div>
       </div>
     </div>
-
     <!-- 底部留白，避开tab -->
     <div class="bottom-space"></div>
-
     <!-- 全局底部Tab导航，和Home、Map完全统一 -->
     <div class="tab-bar">
       <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
@@ -95,7 +82,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -104,18 +90,15 @@ import { useRouter, useRoute } from "vue-router"
 import { getRouteDetailAPI } from '@/api/route'
 const router = useRouter()
 const route = useRoute()
-
 //【重点：从params拿id，适配 /detail/:id】
 const routeId = ref(Number(route.params.id))
 let miniMap = null
 let miniPolyline = null
-
 // 路线详情数据
 const routeInfo = ref({})
 const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
-
 // mock模拟数据（后端接口未就绪演示用）
 const mockDetailData = {
   id:1001,
@@ -137,14 +120,14 @@ const mockComment = [
   {id:1,userName:"游客A",content:"这条路线很不错，周末已经去过！"},
   {id:2,userName:"游客B",content:"推荐大家下午过去，风景很好"}
 ]
-
 // 加载详情
 const loadDetail = async ()=>{
   try{
-    // 后端返回 { route: {...}, points: [...], authorName: 'xxx' }
-    const res = await getRouteDetailAPI(routeId.value)
-    const r = res && res.route ? res.route : res
-    const points = (res && res.points) || []
+    // 后端返回 { code, data: { route: {...}, points: [...], authorName: 'xxx' } }
+    const resBody = await getRouteDetailAPI(routeId.value)
+    const payload = (resBody && resBody.data) ? resBody.data : resBody
+    const r = payload && payload.route ? payload.route : payload
+    const points = (payload && payload.points) || []
 
     routeInfo.value = {
       ...r,
@@ -152,7 +135,7 @@ const loadDetail = async ()=>{
         ? r.coverImage
         : `https://picsum.photos/seed/cw${r.id}/750/320`,
       tags: [],
-      authorName: (res && res.authorName) || '匿名用户'
+      authorName: (payload && payload.authorName) || '匿名用户'
     }
     pointList.value = points
     commentList.value = mockComment
@@ -166,7 +149,6 @@ const loadDetail = async ()=>{
     await initMiniMap(data.points)
   }
 }
-
 //初始化内嵌预览小地图
 const initMiniMap = async (points)=>{
   const AMap = await load({
@@ -188,7 +170,6 @@ const initMiniMap = async (points)=>{
   miniMap.add(miniPolyline)
   miniMap.setFitView(miniPolyline)
 }
-
 //跳转到地图页面，并定位到该打卡点位（query传经纬度）
 const goToMap = (lng,lat)=>{
   router.push({
@@ -199,12 +180,10 @@ const goToMap = (lng,lat)=>{
     }
   })
 }
-
 //打卡业务（核心，距离校验逻辑）
 const handleCheckIn = (point)=>{
   ElMessage.info(`打卡点位：${point.pointName}，实际项目这里调用GPS，判断用户和该点距离小于阈值允许打卡`)
 }
-
 //收藏
 const handleCollect = ()=>{
   ElMessage.success("收藏操作")
@@ -219,7 +198,6 @@ const submitComment = ()=>{
   ElMessage.success("发表评论："+commentText.value)
   commentText.value=""
 }
-
 onMounted(()=>{
   if(!routeId.value){
     ElMessage.warning("路线id不存在，返回首页")
@@ -228,12 +206,10 @@ onMounted(()=>{
   }
   loadDetail()
 })
-
 onUnmounted(()=>{
   if(miniMap) miniMap.destroy()
 })
 </script>
-
 <style scoped>
 .detail-page{
   background:#f7f8fa;
@@ -392,7 +368,9 @@ onUnmounted(()=>{
 .tab-icon{
   font-size:20px;
 }
-.tab-item.active{
-  color:#409eff;
+.desc h4{
+  font-size:17px;
+  margin-bottom:8px;
+  color:#222;
 }
 </style>

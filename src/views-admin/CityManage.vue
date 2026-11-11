@@ -71,7 +71,7 @@ const rules = ref({
 async function loadData() {
   loading.value = true
   try {
-    const res = await request.get('/api/city/list')
+    const res = await request.get('/city/list')
     if(res.code === 200) {
       tableData.value = res.data
     }
@@ -104,11 +104,11 @@ async function submit(){
   try {
     if(form.value.id){
       //编辑
-      await request.put('/api/city/update', form.value)
+      await request.put('/city/update', form.value)
       ElMessage.success("编辑成功")
     }else{
       //新增
-      await request.post('/api/city/add', form.value)
+      await request.post('/city/add', form.value)
       ElMessage.success("新增成功")
     }
     dialogVisible.value = false

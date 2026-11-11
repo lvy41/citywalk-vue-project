@@ -1,74 +1,95 @@
 <template>
   <div class="map-page">
-    <!-- 顶部筛选栏 -->
-    <div class="map-filter">
+    <!-- 地图容器 -->
+    <div id="amap-container" class="amap-container"></div>
+    <!-- 移动端筛选面板 -->
+    <div class="map-filter-panel">
+      <!-- 地区选择按钮，点击唤起底部级联弹窗 -->
+      <div class="area-btn" @click="openAreaDrawer">
+        {{ selectedAreaLabel || '选择地区' }}
+        <el-icon><ArrowDown /></el-icon>
+      </div>
       <el-select
-        v-model="selectedCityId"
-        placeholder="选择城市"
+        v-model="selectedTag"
+        placeholder="标签"
+        @change="fetchNearRoute"
         clearable
-        size="small"
-        style="width:140px"
-        @change="handleCityChange"
+        size="default"
       >
-        <el-option
-          v-for="c in cityList"
-          :key="c.id"
-          :label="c.cityName"
-          :value="c.id"
-        ></el-option>
+        <el-option v-for="tag in tagList" :key="tag.id" :label="tag.tagName" :value="tag.tagName" />
       </el-select>
-
-      <el-select v-model="selectTag" placeholder="标签筛选" size="small" clearable @change="handleTagChange">
-        <el-option label="全部" value="" />
-        <el-option label="老街" value="老街" />
-        <el-option label="美食" value="美食" />
-        <el-option label="人文" value="人文" />
-        <el-option label="夜景" value="夜景" />
-      </el-select>
-      <!-- 距离筛选 -->
-      <el-select v-model="searchRadius" size="small">
+      <el-select
+        v-model="radius"
+        size="default"
+        :disabled="!!selectedCityId"
+        @change="fetchNearRoute"
+      >
         <el-option label="1km" :value="1000"></el-option>
         <el-option label="3km" :value="3000"></el-option>
         <el-option label="5km" :value="5000"></el-option>
       </el-select>
-      <el-input v-model.number="mockLng" placeholder="模拟经度" size="small" v-if="openMockLoc"></el-input>
-      <el-input v-model.number="mockLat" placeholder="模拟纬度" size="small" v-if="openMockLoc"></el-input>
-      <el-switch v-model="openMockLoc" active-text="模拟定位" @change="handleMockLocToggle"></el-switch>
     </div>
-    <!-- 地图容器：高度改成 calc(100vh - 64px)，让出底部tab -->
-    <div id="container" class="map-container"></div>
-    <!-- 加载遮罩 -->
-    <div class="map-loading" v-if="isLoading">
-      <div>地图加载中...</div>
-    </div>
-    <!-- 悬浮按钮组：定位按钮 + 重置视图 + 清除轨迹按钮 -->
-    <div class="map-btn-group">
-      <div class="map-locate-btn" @click="getCurrentLocation" title="回到我的位置">
-        <el-icon><Location /></el-icon>
+    <!-- 底部弹出：省市区三级级联（美团风格） -->
+    <el-drawer
+      v-model="areaDrawerVisible"
+      direction="btt"
+      size="85%"
+      :close-on-click-modal="true"
+      destroy-on-close
+    >
+      <template #header>
+        <div class="drawer-header">
+          <span @click="cancelArea">取消</span>
+          <span class="title">选择地区</span>
+          <span @click="confirmArea">确定</span>
+        </div>
+      </template>
+      <el-cascader-panel
+        v-model="tempSelectedArea"
+        :options="areaOptions"
+        :props="cascaderProps"
+      />
+    </el-drawer>
+    <!-- 路线推荐浮层 -->
+    <div class="route-list-panel" v-if="nearRouteList.length > 0">
+      <div class="panel-title">
+        {{ panelTitle }}
+        <span class="panel-count">{{ nearRouteList.length }} 条</span>
       </div>
-      <div class="map-reset-btn" @click="resetMapView" title="重置地图视图">
-        <el-icon><Refresh /></el-icon>
+      <div class="panel-hint" v-if="panelHint">{{ panelHint }}</div>
+      <div class="panel-hint" v-if="listTruncated">
+        共 {{ nearRouteList.length }} 条，仅展示前 {{ visibleRoutes.length }} 条；选择地区可精确查看
       </div>
-      <div class="map-clear-btn" v-if="polyline" @click="clearTrace" title="清除路线轨迹">
-        <el-icon><Delete /></el-icon>
-      </div>
-    </div>
-    <!-- 附近路线浮窗 -->
-    <div class="near-panel" v-if="showNearPanel">
-      <div class="panel-title">附近{{searchRadius/1000}}km路线</div>
-      <div v-if="nearRouteList.length === 0" class="empty-tip">当前范围内暂无路线</div>
       <div
         class="route-item"
-        v-for="item in nearRouteList"
+        :class="{ active: selectedRouteId === item.id }"
+        v-for="item in visibleRoutes"
         :key="item.id"
         @click="selectRoute(item)"
-        :class="{active: activeRouteId === item.id}"
       >
-        <div class="route-name">{{item.routeName}}</div>
-        <div class="tip">{{item.city}} · {{item.duration}}</div>
+        <div class="route-head">
+          <div class="route-name">{{ item.routeName }}</div>
+          <span class="route-link" @click.stop="goRouteDetail(item.id)">详情 ›</span>
+        </div>
+        <div class="route-meta">
+          {{ item.city }} · {{ item.duration }} · {{ item.distance }}
+        </div>
+      </div>
+      <div class="panel-foot" v-if="selectedRouteId">
+        已在地图展开该路线，点击地图上的数字地标可进入详情
       </div>
     </div>
-    <!-- ========== 底部Tab导航 ========== -->
+    <div class="route-list-panel empty-panel" v-else>
+      <div class="empty-tip">{{ emptyTip }}</div>
+    </div>
+    <!-- 定位、刷新按钮 -->
+    <div class="location-btn" :class="{ locating }" @click="getCurrentLocation">
+      <el-icon><Location /></el-icon>
+    </div>
+    <div class="refresh-btn" @click="refreshNearRoute">
+      <el-icon><Refresh /></el-icon>
+    </div>
+    <!-- ========== 底部Tab ========== -->
     <div class="tab-bar">
       <div class="tab-item" :class="{active: $route.path === '/home'}" @click="$router.push('/home')">
         <div class="tab-icon">🏠</div>
@@ -91,473 +112,707 @@
         <div class="tab-text">我的</div>
       </div>
     </div>
+    <div class="blank-bottom"></div>
   </div>
 </template>
+
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from "vue"
-import { Location, Delete, Refresh } from "@element-plus/icons-vue"
-import { ElMessage } from "element-plus"
-import { load } from "@amap/amap-jsapi-loader"
-import { getMapPoints } from "@/api/map"
-import request from "@/utils/request"
-import { useRouter, useRoute } from "vue-router"
-const router = useRouter()
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Location, Refresh, ArrowDown } from '@element-plus/icons-vue'
+import { load } from '@amap/amap-jsapi-loader'
+import request from '@/utils/request'
+
 const route = useRoute()
+const router = useRouter()
 let map = null
-let markerUser = null // 用户当前定位标记
-let polyline = null //路线轨迹线
-let geolocation = null //定位实例
-let allMarkers = [] // 保存所有点位marker，用于筛选显隐
-let infoWin = null //点位弹窗实例
-const selectTag = ref("")
-const openMockLoc = ref(true)
-const mockLng = ref(113.2644)
-const mockLat = ref(23.1291)
+let geocoder = null
+let AMap = null
+let routeOverlays = []
+let myLocationMarker = null
+// 路线点位缓存：routeId -> points[]，避免反复请求 /map/routePath
+const routePointsCache = {}
+
+// 弹窗控制
+const areaDrawerVisible = ref(false)
+// 临时选中（弹窗里）
+const tempSelectedArea = ref(null)
+// 最终选中，格式：[provinceId] 或 [provinceId, cityId] 或 [provinceId, cityId, districtId]
+const selectedArea = ref(null)
+const areaOptions = ref([])
+const selectedTag = ref(null)
+const tagList = ref([])
 const nearRouteList = ref([])
-const showNearPanel = ref(true)
-const searchRadius = ref(3000)
-const isLoading = ref(true)
-const activeRouteId = ref(null)
-const originCenter = ref([113.2644, 23.1291]) // 记录当前基准中心点（用户定位/选择城市）
+const radius = ref(3000)
+const currentLng = ref(null)
+const currentLat = ref(null)
+// 当前在地图上展开的路线
+const selectedRouteId = ref(null)
+// 是否已经拿到真实定位
+const located = ref(false)
+const locating = ref(false)
+// 区县没有专属路线时，是否回退成城市全部路线
+const districtFallback = ref(false)
 
-// 城市下拉列表
-const cityList = ref([])
-const selectedCityId = ref(null)
+// 级联面板配置
+const cascaderProps = {
+  value: 'id',
+  label: 'label',
+  children: 'children',
+  expandTrigger: 'click'
+}
 
-// mock点位（扩充深圳点位，适配多城市）
-const mockPoints = [
-  { id:1, pointName:"陈家祠", longitude:113.2401, latitude:23.1375, tag:"人文", description:"岭南古建筑群，雕梁画栋极具特色", imageUrl:"https://picsum.photos/id/24/240/140", routeId:1001, city:"广州" },
-  { id:2, pointName:"北京路", longitude:113.2704, latitude:23.1234, tag:"老街", description:"广州千年古道，老牌步行街", imageUrl:"https://picsum.photos/id/25/240/140", routeId:1001, city:"广州" },
-  { id:3, pointName:"上下九", longitude:113.2362, latitude:23.1176, tag:"美食", description:"广式小吃聚集地，老字号云集", imageUrl:"https://picsum.photos/id/26/240/140", routeId:1002, city:"广州" },
-  { id:4, pointName:"沙面岛", longitude:113.2408, latitude:23.1147, tag:"人文", description:"欧式风情小岛，适合散步拍照", imageUrl:"https://picsum.photos/id/27/240/140", routeId:1001, city:"广州" },
-  { id:5, pointName:"深圳东门老街", longitude:114.0716, latitude:22.5431, tag:"老街", description:"深圳老牌商业老街", imageUrl:"https://picsum.photos/id/28/240/140", routeId:2001, city:"深圳" },
-  { id:6, pointName:"深圳欢乐海岸", longitude:114.0233, latitude:22.5245, tag:"夜景", description:"滨海夜景，水秀表演", imageUrl:"https://picsum.photos/id/29/240/140", routeId:2002, city:"深圳" },
-  { id:7, pointName:"深圳蛇口海上世界", longitude:113.9110, latitude:22.4820, tag:"人文", description:"明华轮地标，滨海文艺街区", imageUrl:"https://picsum.photos/id/30/240/140", routeId:2003, city:"深圳" },
-]
-// mock路线增加cityId字段，匹配后端
-const mockNearRoute = [
-  { id:1001, routeName:"老城人文漫步", city:"广州", cityId:1, duration:"2小时", tag:"人文" },
-  { id:1002, routeName:"西关美食路线", city:"广州", cityId:1, duration:"1.5小时", tag:"美食" },
-  { id:1003, routeName:"北京路老街路线", city:"广州", cityId:1, duration:"2.5小时", tag:"老街" },
-  { id:1004, routeName:"珠江夜景路线", city:"广州", cityId:1, duration:"2小时", tag:"夜景" },
-  { id:2001, routeName:"深圳东门老街漫游", city:"深圳", cityId:2, duration:"1.5小时", tag:"老街" },
-  { id:2002, routeName:"深圳滨海夜景线", city:"深圳", cityId:2, duration:"2小时", tag:"夜景" },
-  { id:2003, routeName:"蛇口文艺海岸线", city:"深圳", cityId:2, duration:"2小时", tag:"人文" },
-]
-// 根据标签获取marker颜色
-const getMarkerColor = (tag) => {
-  const colorMap = {
-    "老街": "#9c27b0",
-    "美食": "#ffc107",
-    "人文": "#4caf50",
-    "夜景": "#ff5722"
-  }
-  return colorMap[tag] || "#f44336"
-}
-// 创建自定义圆点Marker
-const createCircleMarker = (tag, AMap) => {
-  const color = getMarkerColor(tag)
-  return new AMap.Marker({
-    content: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 4px ${color}"></div>`,
-    offset: new AMap.Pixel(-7, -7)
-  })
-}
-//【修改！适配params路由 /detail/:id】跳转路线详情
-const goDetail = (routeId) => {
-  router.push({ name: "Detail", params: { id: routeId } })
-  if(infoWin) infoWin.close()
-}
-//选中附近路线，绘制轨迹
-const selectRoute = async (routeItem) => {
-  activeRouteId.value = routeItem.id
-  showNearPanel.value = false
-  await drawRouteTrace(routeItem)
-  setMarkerHighlight(routeItem.id)
-}
-// 设置点位高亮：属于当前routeId高亮，其他置灰
-const setMarkerHighlight = (routeId)=>{
-  allMarkers.forEach(m=>{
-    const p = m.pointData
-    if(p.routeId === routeId){
-      m.setzIndex(200)
-      m.show()
-    }else{
-      m.setzIndex(10)
+// 回显：拼接省 / 市 / 区县名称
+const selectedAreaLabel = computed(() => {
+  if (!selectedArea.value?.length || !areaOptions.value.length) return ''
+  const ids = selectedArea.value
+  const nameArr = []
+  const findName = (list, targetIds, depth = 0) => {
+    for (const item of list) {
+      if (item.id === targetIds[depth]) {
+        nameArr.push(item.label)
+        if (targetIds[depth + 1] && item.children) {
+          findName(item.children, targetIds, depth + 1)
+        }
+        break
+      }
     }
-  })
-}
-//清除绘制轨迹
-const clearTrace = () => {
-  if(polyline){
-    polyline.remove()
-    polyline = null
   }
-  activeRouteId.value = null
-  allMarkers.forEach(m=>{
-    m.setzIndex(100)
-  })
-  showNearPanel.value = true
-  ElMessage.info("已清除路线轨迹")
-}
-//重置地图视图：回到当前基准中心点
-const resetMapView = () => {
-  map.setCenter(originCenter.value)
-  map.setZoom(13)
-  ElMessage.info("已重置地图至当前位置")
-}
-//切换模拟定位开关立刻更新定位
-const handleMockLocToggle = ()=>{
-  getCurrentLocation()
+  findName(areaOptions.value, ids)
+  return nameArr.join(' / ')
+})
+
+// 选中的城市 id / 区县 id，来自级联的层级位置，而不是“数组最后一项”
+const selectedCityId = computed(() => {
+  const ids = selectedArea.value
+  return ids && ids.length >= 2 ? Number(ids[1]) : null
+})
+const selectedDistrictId = computed(() => {
+  const ids = selectedArea.value
+  return ids && ids.length >= 3 ? Number(ids[2]) : null
+})
+const areaNameParts = computed(() => selectedAreaLabel.value.split(' / '))
+const selectedCityLabel = computed(() => {
+  const parts = areaNameParts.value
+  return parts.length >= 2 ? parts[1] : (parts[0] || '')
+})
+const selectedDistrictLabel = computed(() => {
+  const parts = areaNameParts.value
+  return parts.length >= 3 ? parts[2] : ''
+})
+
+const isCityMode = computed(() => !!selectedCityId.value)
+
+// 库里现在 244 条路线，无定位无选区时一次性拉全量点位太重，列表和绘图都做限流
+const LIST_LIMIT = 20
+const DRAW_LIMIT = 12
+const visibleRoutes = computed(() => nearRouteList.value.slice(0, LIST_LIMIT))
+const listTruncated = computed(() => nearRouteList.value.length > LIST_LIMIT)
+
+const panelTitle = computed(() => {
+  if (selectedDistrictId.value) return `${selectedDistrictLabel.value || '该区县'} · 路线推荐`
+  if (selectedCityId.value) return `${selectedCityLabel.value || '该城市'} · 路线推荐`
+  if (located.value) return `我附近 ${radius.value / 1000}km 路线`
+  return '全部路线'
+})
+
+const panelHint = computed(() => {
+  if (districtFallback.value) {
+    return `${selectedDistrictLabel.value}暂无专属路线，已展示${selectedCityLabel.value}全部路线`
+  }
+  if (isCityMode.value) {
+    return '点任意路线可在地图上展开轨迹与地标'
+  }
+  if (located.value) {
+    return '已定位到你的位置，也可点“选择地区”切换城市'
+  }
+  return '未获取到定位，当前展示全部路线，可点右下角定位或选择地区'
+})
+
+const emptyTip = computed(() => {
+  if (selectedDistrictId.value) return `${selectedDistrictLabel.value}暂无路线数据`
+  if (selectedCityId.value) return `${selectedCityLabel.value}暂无路线数据，换个城市或叠加标签试试`
+  if (located.value) return `附近 ${radius.value / 1000}km 内暂无路线，试试放大半径`
+  return '暂无路线数据'
+})
+
+// 打开地区弹窗时，先用当前选中值回填
+const openAreaDrawer = () => {
+  tempSelectedArea.value = selectedArea.value ? [...selectedArea.value] : null
+  areaDrawerVisible.value = true
 }
 
-// 加载城市列表
-const loadCityList = async () => {
+// 取消地区选择
+const cancelArea = () => {
+  tempSelectedArea.value = selectedArea.value
+  areaDrawerVisible.value = false
+}
+
+// 确认地区选择：选地区就走城市/区县维度，不再用定位半径
+const confirmArea = () => {
+  selectedArea.value = tempSelectedArea.value
+  areaDrawerVisible.value = false
+  currentLng.value = null
+  currentLat.value = null
+  fetchNearRoute()
+}
+
+// 跳转路线详情
+const goRouteDetail = (routeId) => {
+  router.push(`/detail/${routeId}`)
+}
+
+// 加载省市区树形数据 /area/tree
+const loadAreaTree = async () => {
   try {
-    const res = await request.get("/api/city/list")
-    if(res.code === 200){
-      cityList.value = res.data
+    const res = await request.get('/area/tree')
+    if (res && res.code === 200) {
+      const handlerTree = (list) => {
+        if (!list || list.length === 0) return
+        list.forEach(item => {
+          if (item.provinceName) item.label = item.provinceName
+          else if (item.cityName) item.label = item.cityName
+          else if (item.districtName) item.label = item.districtName
+          else item.label = '未知地区'
+          if (item.children && item.children.length > 0) {
+            handlerTree(item.children)
+          }
+        })
+      }
+      handlerTree(res.data)
+      areaOptions.value = res.data
     }
-  } catch (e) {
-    ElMessage.warning("城市列表加载失败")
+  } catch (err) {
+    console.error('地区树形加载异常', err)
+    ElMessage.error('地区数据加载失败')
   }
 }
 
-// 城市下拉切换
-const handleCityChange = (cid) => {
-  if(!cid){
-    // 清空选择，回到定位附近查询
-    if(markerUser){
-      const pos = markerUser.getPosition()
-      fetchNearRoute(pos.lng, pos.lat, null)
+// 加载标签
+const loadTagList = async () => {
+  try {
+    const res = await request.get('/tag/list')
+    if (res && res.code === 200) {
+      tagList.value = res.data
     }
+  } catch (err) {
+    console.error('标签加载异常', err)
+  }
+}
+
+/**
+ * 获取路线推荐
+ * - 选了城市/区县：只传 cityId，区县筛选在前端做（没有专属路线时可回退城市全部路线）
+ * - 没选地区：按定位 + 半径，没定位就不带经纬度（返回全部路线）
+ */
+const fetchNearRoute = async () => {
+  const params = {}
+  if (selectedCityId.value) {
+    params.cityId = selectedCityId.value
+  } else {
+    params.radius = radius.value
+    if (currentLng.value != null && currentLat.value != null) {
+      params.lng = currentLng.value
+      params.lat = currentLat.value
+    }
+  }
+  if (selectedTag.value) {
+    params.tag = selectedTag.value
+  }
+
+  let list = []
+  try {
+    const res = await request.get('/map/nearRoute', { params })
+    if (res.code === 200) {
+      list = res.data || []
+    }
+  } catch (err) {
+    console.error('附近路线接口异常', err)
+    list = []
+  }
+
+  // 区县优先：该区县有专属路线就只显示它；没有就回退为该城市的全部路线
+  if (selectedDistrictId.value) {
+    const matched = list.filter(r => Number(r.districtId) === selectedDistrictId.value)
+    if (matched.length) {
+      nearRouteList.value = matched
+      districtFallback.value = false
+    } else {
+      nearRouteList.value = list
+      districtFallback.value = list.length > 0
+    }
+  } else {
+    nearRouteList.value = list
+    districtFallback.value = false
+  }
+
+  // 选中态校正：列表只剩一条时自动展开
+  if (!nearRouteList.value.some(r => r.id === selectedRouteId.value)) {
+    selectedRouteId.value = null
+  }
+  if (nearRouteList.value.length === 1) {
+    selectedRouteId.value = nearRouteList.value[0].id
+  }
+
+  await renderRoutesOnMap()
+}
+
+// 清空地图上所有路线覆盖物（“我的位置”标记单独管理，不受影响）
+const clearMapOverlays = () => {
+  routeOverlays.forEach(o => {
+    try {
+      if (o.remove) o.remove()
+      else if (o.setMap) o.setMap(null)
+    } catch (e) {
+      /* ignore */
+    }
+  })
+  routeOverlays = []
+}
+
+// 定位失败/城市无数据时，把地图挪到城市中心
+const focusCityOnMap = () => {
+  if (!map || !AMap) return
+  const name = selectedCityLabel.value
+  if (!name) return
+  try {
+    if (!geocoder) geocoder = new AMap.Geocoder({ city: '全国' })
+    geocoder.getLocation(name, (status, result) => {
+      if (status === 'complete' && result.geocodes && result.geocodes.length) {
+        const lnglat = result.geocodes[0].location
+        map.setZoomAndCenter(11, [lnglat.lng, lnglat.lat])
+      }
+    })
+  } catch (e) {
+    console.warn('城市定位失败', e)
+  }
+}
+
+// 批量拿路线点位（带缓存）
+const loadPointsForRoutes = async (routes) => {
+  const missing = routes.filter(r => !routePointsCache[r.id])
+  if (!missing.length) return
+  await Promise.all(missing.map(async r => {
+    try {
+      const res = await request.get('/map/routePath', { params: { routeId: r.id } })
+      routePointsCache[r.id] = (res && res.code === 200 && Array.isArray(res.data)) ? res.data : []
+    } catch (e) {
+      routePointsCache[r.id] = []
+    }
+  }))
+}
+
+const toPath = (points) => points
+  .filter(p => p.longitude != null && p.latitude != null)
+  .map(p => [Number(p.longitude), Number(p.latitude)])
+
+// 画路线：未选中的路线只画淡色轨迹，选中的路线高亮 + 编号地标 + 名称气泡
+const renderRoutesOnMap = async ({ fit = true } = {}) => {
+  if (!map || !AMap) return
+  clearMapOverlays()
+
+  const list = nearRouteList.value
+  if (!list.length) {
+    focusCityOnMap()
     return
   }
-  const cityItem = cityList.value.find(item=>item.id === cid)
-  if(!cityItem) return
-  const pos = [cityItem.centerLng, cityItem.centerLat]
-  originCenter.value = pos
-  map.setCenter(pos)
-  map.setZoom(11)
-  setUserMarker(pos)
-  fetchNearRoute(pos[0], pos[1], cid)
-  ElMessage.success(`已定位到：${cityItem.cityName}`)
+  const selId = selectedRouteId.value
+  // 路线太多时只画当前选中那条，避免一次请求上百个 routePath
+  const drawList = list.length <= DRAW_LIMIT ? list : list.filter(r => r.id === selId)
+  await loadPointsForRoutes(drawList)
+
+  const selectedOverlays = []
+
+  drawList.forEach(r => {
+    const points = routePointsCache[r.id] || []
+    const path = toPath(points)
+    const isSel = r.id === selId
+
+    if (path.length >= 2) {
+      const line = new AMap.Polyline({
+        path,
+        strokeColor: isSel ? '#1677ff' : '#aebccd',
+        strokeWeight: isSel ? 6 : 3,
+        strokeOpacity: isSel ? 0.95 : 0.55,
+        lineJoin: 'round',
+        map,
+        zIndex: isSel ? 70 : 55,
+        cursor: 'pointer'
+      })
+      line.on('click', () => selectRoute(r))
+      routeOverlays.push(line)
+      if (isSel) selectedOverlays.push(line)
+    } else if (r.startLongitude != null && r.startLatitude != null) {
+      const dot = new AMap.Marker({
+        position: [Number(r.startLongitude), Number(r.startLatitude)],
+        map,
+        zIndex: isSel ? 90 : 60,
+        offset: new AMap.Pixel(-6, -6),
+        content: `<div style="width:12px;height:12px;border-radius:50%;background:${isSel ? '#1677ff' : '#aebccd'};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25)"></div>`
+      })
+      dot.on('click', () => selectRoute(r))
+      routeOverlays.push(dot)
+      if (isSel) selectedOverlays.push(dot)
+    }
+  })
+
+  // 选中路线的编号地标：点击地标进详情页
+  const sel = list.find(r => r.id === selId)
+  if (sel) {
+    const points = routePointsCache[sel.id] || []
+    points.forEach((p, idx) => {
+      if (p.longitude == null || p.latitude == null) return
+      const marker = new AMap.Marker({
+        position: [Number(p.longitude), Number(p.latitude)],
+        map,
+        zIndex: 95,
+        offset: new AMap.Pixel(-13, -13),
+        title: p.pointName,
+        cursor: 'pointer',
+        content: `<div style="width:26px;height:26px;line-height:22px;text-align:center;border-radius:50%;background:#1677ff;color:#fff;font-size:12px;border:2px solid #fff;box-shadow:0 2px 8px rgba(22,119,255,.45)">${idx + 1}</div>`
+      })
+      marker.on('click', () => goRouteDetail(sel.id))
+      routeOverlays.push(marker)
+      selectedOverlays.push(marker)
+    })
+
+    const path = toPath(points)
+    const anchor = path[0] || (sel.startLongitude != null ? [Number(sel.startLongitude), Number(sel.startLatitude)] : null)
+    if (anchor) {
+      const bubble = new AMap.Text({
+        text: sel.routeName,
+        position: anchor,
+        map,
+        zIndex: 120,
+        offset: new AMap.Pixel(0, -36),
+        style: {
+          'padding': '3px 10px',
+          'background-color': '#ffffff',
+          'border': '1px solid #bcd9ff',
+          'border-radius': '12px',
+          'font-size': '12px',
+          'color': '#1677ff',
+          'font-weight': 'bold',
+          'box-shadow': '0 2px 6px rgba(0,0,0,0.18)'
+        }
+      })
+      bubble.on('click', () => goRouteDetail(sel.id))
+      routeOverlays.push(bubble)
+      selectedOverlays.push(bubble)
+    }
+  }
+
+  if (!fit) return
+  if (selectedOverlays.length) {
+    map.setFitView(selectedOverlays, false, [80, 40, 300, 40])
+  } else if (routeOverlays.length) {
+    map.setFitView(routeOverlays, false, [80, 40, 300, 40])
+  }
 }
 
-//初始化地图【✅已完全删除Toolbar相关代码】
+// 点击列表里的路线：展开该路线（不再直接跳详情）
+const selectRoute = (item) => {
+  selectedRouteId.value = item.id
+  renderRoutesOnMap({ fit: true })
+}
+
+// 标签切换
+const onTagChange = () => {
+  fetchNearRoute()
+}
+
+// 手动刷新
+const refreshNearRoute = () => {
+  fetchNearRoute()
+}
+
+// 画“我的位置”蓝点
+const drawMyLocation = (pos) => {
+  if (!map || !AMap) return
+  if (myLocationMarker) {
+    myLocationMarker.setPosition(pos)
+    return
+  }
+  myLocationMarker = new AMap.Marker({
+    position: pos,
+    map,
+    zIndex: 200,
+    offset: new AMap.Pixel(-10, -10),
+    title: '我的位置',
+    content: '<div style="width:14px;height:14px;border-radius:50%;background:#1677ff;border:3px solid #fff;box-shadow:0 0 0 4px rgba(22,119,255,.22)"></div>'
+  })
+}
+
+/**
+ * 定位
+ * auto = true 表示进页面自动定位，失败时不弹提示，静默退回“全部路线”
+ * 高德 Geolocation 会先试浏览器精确定位，失败再走 IP 城市定位
+ */
+const locateUser = async (auto = false) => {
+  if (!map || !AMap) return false
+  locating.value = true
+  try {
+    const geolocation = new AMap.Geolocation({
+      enableHighAccuracy: true,
+      timeout: 8000,
+      GeoLocationFirst: true,
+      showButton: false,
+      showMarker: false,
+      showCircle: false,
+      panToLocation: false,
+      zoomToAccuracy: false
+    })
+    const { status, result } = await new Promise(resolve => {
+      geolocation.getCurrentPosition((s, r) => resolve({ status: s, result: r }))
+    })
+    if (status !== 'complete' || !result || !result.position) {
+      if (!auto) ElMessage.warning('定位失败，请手动选择地区')
+      return false
+    }
+    const pos = [result.position.getLng(), result.position.getLat()]
+    currentLng.value = pos[0]
+    currentLat.value = pos[1]
+    located.value = true
+    // 定位后清掉地区选择，切到“附近”模式
+    selectedArea.value = null
+    tempSelectedArea.value = null
+    selectedRouteId.value = null
+    drawMyLocation(pos)
+    map.setZoomAndCenter(14, pos)
+    await fetchNearRoute()
+    return true
+  } catch (e) {
+    console.error('定位失败', e)
+    if (!auto) ElMessage.warning('定位失败，请手动选择地区')
+    return false
+  } finally {
+    locating.value = false
+  }
+}
+
+// 点击定位按钮：清空地区选择，重新定位
+const getCurrentLocation = () => {
+  if (route.query.targetLng && route.query.targetLat) {
+    currentLng.value = Number(route.query.targetLng)
+    currentLat.value = Number(route.query.targetLat)
+    located.value = true
+    selectedArea.value = null
+    tempSelectedArea.value = null
+    drawMyLocation([currentLng.value, currentLat.value])
+    map.setZoomAndCenter(14, [currentLng.value, currentLat.value])
+    fetchNearRoute()
+    return
+  }
+  locateUser(false)
+}
+
+// 初始化高德地图
 const initMap = async () => {
   try {
     window._AMapSecurityConfig = {
-      securityJsCode: import.meta.env.VITE_AMAP_SECRET,
+      securityJsCode: import.meta.env.VITE_AMAP_SECRET
     }
-    const AMap = await load({
+    AMap = await load({
       key: import.meta.env.VITE_AMAP_KEY,
-      version: "2.0",
-      plugins: ['AMap.Geolocation']
+      version: '2.0',
+      plugins: ['AMap.Geolocation', 'AMap.Geocoder']
     })
-    map = new AMap.Map("container", {
-      zoom: 13,
-      center: [mockLng.value, mockLat.value],
-      showCompass: false,
-      showZoomBar: false
+    map = new AMap.Map('amap-container', {
+      zoom: 12,
+      center: [113.24, 23.13]
     })
-    geolocation = new AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 6000
-    })
-    // 地图点击空白关闭弹窗
-    map.on("click",()=>{
-      if(infoWin) infoWin.close()
-    })
-    getCurrentLocation()
-    await loadAllPointMark(AMap)
-    // ========== 新增：读取从Detail传过来的经纬度，自动定位点位 ==========
-    const targetLng = Number(route.query.targetLng)
-    const targetLat = Number(route.query.targetLat)
-    if(targetLng && targetLat){
-      const targetPos = [targetLng, targetLat]
-      map.setCenter(targetPos)
-      map.setZoom(15)
-      ElMessage.info("已定位到选中打卡点位")
-    }
-  } catch (err) {
-    console.error("高德加载错误详情：", err)
-    ElMessage.error("地图初始化失败，请检查高德Key/安全密钥")
-  } finally {
-    isLoading.value = false
-  }
-}
-// 获取当前定位
-const getCurrentLocation = () => {
-  if (openMockLoc.value) {
-    const mockPos = [mockLng.value, mockLat.value]
-    originCenter.value = mockPos
-    setUserMarker(mockPos)
-    map.setCenter(mockPos)
-    fetchNearRoute(mockPos[0], mockLat.value, selectedCityId.value)
-    return
-  }
-  geolocation.getCurrentPosition((status, result) => {
-    if (status === 'complete') {
-      const pos = [result.position.lng, result.position.lat]
-      originCenter.value = pos
-      setUserMarker(pos)
-      map.setCenter(pos)
-      fetchNearRoute(pos[0], pos[1], selectedCityId.value)
-    } else {
-      ElMessage.warning("获取GPS失败，使用默认广州位置演示")
-      const fallbackPos = [113.2644,23.1291]
-      originCenter.value = fallbackPos
-      setUserMarker(fallbackPos)
-      map.setCenter(fallbackPos)
-      fetchNearRoute(fallbackPos[0], fallbackPos[1], selectedCityId.value)
-    }
-  })
-}
-// 设置用户蓝色定位标记
-const setUserMarker = (pos) => {
-  if (markerUser) markerUser.remove()
-  const AMap = window.AMap
-  markerUser = new AMap.Marker({
-    position: pos,
-    content: `<div style="width:16px;height:16px;border-radius:50%;background:#0099ff;border:2px solid #fff;box-shadow:0 0 4px #0099ff"></div>`,
-    offset: new AMap.Pixel(-8, -8),
-    map: map
-  })
-}
-//加载全部打卡点位标记
-const loadAllPointMark = async (AMap) => {
-  let pointList = []
-  try {
-    const res = await getMapPoints()
-    pointList = res.data
   } catch (e) {
-    ElMessage.info("后端点位接口未就绪，使用模拟数据演示")
-    pointList = mockPoints
-  }
-  allMarkers.forEach(m => m.remove())
-  allMarkers = []
-  pointList.forEach(p => {
-    const markerContent = createCircleMarker(p.tag, AMap)
-    const m = new window.AMap.Marker({
-      position: [p.longitude, p.latitude],
-      title: p.pointName,
-      content: markerContent.getContent(),
-      offset: markerContent.getOffset(),
-      map: map
-    })
-    m.pointData = p
-    allMarkers.push(m)
-    m.on("click", (e) => {
-      if(infoWin) infoWin.close()
-      const imgSrc = p.imageUrl || "https://picsum.photos/id/24/240/140"
-      const infoContent = `
-      <div style="padding:4px;max-width:260px;">
-        <img src="${imgSrc}" style="width:100%;height:130px;object-fit:cover;border-radius:4px;">
-        <h4 style="margin:6px 0;font-size:15px;">${p.pointName}</h4>
-        <div style="font-size:12px;color:#888;margin-bottom:4px;">标签：${p.tag}</div>
-        <p style="font-size:13px;color:#555;min-height:40px;">${p.description || "暂无简介"}</p>
-        <div style="display:flex;gap:6px;margin-top:8px;">
-          <button id="goDetailBtn_${p.routeId}" style="flex:1;padding:5px 4px;background:#0099ff;color:#fff;border:none;border-radius:4px;font-size:12px;">跳转路线详情</button>
-          <button id="drawTraceBtn_${p.routeId}" style="flex:1;padding:5px 4px;background:#67c23a;color:#fff;border:none;border-radius:4px;font-size:12px;">绘制轨迹</button>
-        </div>
-      </div>`
-      infoWin = new window.AMap.InfoWindow({ content: infoContent })
-      infoWin.open(map, m.getPosition())
-      setTimeout(() => {
-        document.getElementById(`goDetailBtn_${p.routeId}`)?.addEventListener("click", () => {
-          goDetail(p.routeId)
-        })
-        document.getElementById(`drawTraceBtn_${p.routeId}`)?.addEventListener("click", async () => {
-          const targetRoute = mockNearRoute.find(r=>r.id === p.routeId)
-          if(!targetRoute) {
-            ElMessage.warning("找不到该路线信息")
-            return
-          }
-          await selectRoute(targetRoute)
-          if(infoWin) infoWin.close()
-        })
-      }, 100)
-    })
-  })
-}
-//标签筛选切换【修复：点位过滤 + 同步刷新附近路线列表】
-const handleTagChange = () => {
-  allMarkers.forEach(marker => {
-    const point = marker.pointData
-    if (!selectTag.value || point.tag === selectTag.value) {
-      marker.show()
-    } else {
-      marker.hide()
-    }
-  })
-  if(markerUser){
-    const pos = markerUser.getPosition()
-    fetchNearRoute(pos[0], pos[1], selectedCityId.value)
+    console.error('高德地图初始化失败：', e)
+    ElMessage.error('地图加载失败，请检查高德key、安全密钥')
   }
 }
-// 查询附近路线，支持cityId过滤
-const fetchNearRoute = async (lng, lat, cityId = null) => {
-  if(lng === undefined || lat === undefined) return
-  if(openMockLoc.value){
-    let list = [...mockNearRoute]
-    if(cityId){
-      list = list.filter(item => item.cityId === cityId)
-    }
-    if(selectTag.value){
-      list = list.filter(item => item.tag === selectTag.value)
-    }
-    nearRouteList.value = list
-    return
-  }
-  try {
-    const res = await request({
-      url:"/map/nearRoute",
-      method:"get",
-      params:{
-        lng,
-        lat,
-        radius:searchRadius.value,
-        tag: selectTag.value,
-        cityId: cityId
-      }
-    })
-    nearRouteList.value = res.data
-  } catch (e) {
-    ElMessage.info("附近路线接口未就绪，加载模拟路线")
-    let list = [...mockNearRoute]
-    if(cityId) list = list.filter(item => item.cityId === cityId)
-    if(selectTag.value) list = list.filter(item => item.tag === selectTag.value)
-    nearRouteList.value = list
-  }
-}
-//选中某条路线，绘制轨迹折线【修复mock模式：自动根据routeId查找对应点位】
-const drawRouteTrace = async (routeItem) => {
-  if(openMockLoc.value){
-    if (polyline) polyline.remove()
-    // 根据routeId匹配点位
-    const pathPoints = mockPoints.filter(p => p.routeId === routeItem.id)
-    if(pathPoints.length === 0){
-      ElMessage.warning("该路线暂无点位")
-      polyline = null
-      return
-    }
-    const pathArr = pathPoints.map(i=>[i.longitude,i.latitude])
-    polyline = new window.AMap.Polyline({
-      path: pathArr,
-      strokeColor: "#0099ff",
-      strokeWeight: 5,
-      map: map
-    })
-    map.setFitView(polyline)
-    ElMessage.success(`已加载【${routeItem.routeName}】轨迹`)
-    return
-  }
-  try {
-    if (polyline) polyline.remove()
-    const res = await request({
-      url:"/map/routePath",
-      method:"get",
-      params:{routeId:routeItem.id}
-    })
-    const pointArr = res.data
-    if(!pointArr || pointArr.length === 0){
-      ElMessage.warning("该路线暂无打卡点位，无法绘制轨迹")
-      polyline = null
-      return
-    }
-    const pathArr = pointArr.map(item => [item.longitude, item.latitude])
-    polyline = new window.AMap.Polyline({
-      path: pathArr,
-      strokeColor: "#0099ff",
-      strokeWeight: 5,
-      map: map
-    })
-    map.setFitView(polyline)
-    ElMessage.success(`已加载【${routeItem.routeName}】轨迹`)
-  } catch (err) {
-    ElMessage.info("轨迹接口未就绪，加载模拟行走轨迹")
-    if (polyline) polyline.remove()
-    const pathPoints = mockPoints.filter(p => p.routeId === routeItem.id)
-    if(pathPoints.length === 0){
-      ElMessage.warning("该路线暂无点位")
-      polyline = null
-      return
-    }
-    const pathArr = pathPoints.map(i=>[i.longitude,i.latitude])
-    polyline = new window.AMap.Polyline({
-      path: pathArr,
-      strokeColor: "#0099ff",
-      strokeWeight: 5,
-      map: map
-    })
-    map.setFitView(polyline)
-  }
-}
-//监听搜索半径改变自动刷新附近路线
-watch(searchRadius, () => {
-  if(markerUser){
-    const pos = markerUser.getPosition()
-    fetchNearRoute(pos[0], pos[1], selectedCityId.value)
+
+onMounted(async () => {
+  await nextTick()
+  await initMap()
+  await loadAreaTree()
+  await loadTagList()
+  // 进页面先自动定位；定位失败也只是退回全部路线，不打扰用户
+  const ok = await locateUser(true)
+  if (!ok) {
+    await fetchNearRoute()
   }
 })
-onMounted(() => {
-  loadCityList()
-  initMap()
-})
+
 onUnmounted(() => {
+  clearMapOverlays()
+  if (myLocationMarker) {
+    try { myLocationMarker.setMap(null) } catch (e) { /* ignore */ }
+  }
   if (map) map.destroy()
 })
 </script>
+
 <style scoped>
 .map-page {
   width: 100%;
   height: 100vh;
   position: relative;
+  overflow: hidden;
 }
-.map-filter {
+.amap-container {
+  width: 100%;
+  height: 100%;
+}
+.map-filter-panel {
   position: absolute;
-  z-index: 99;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  background: #fff;
-  padding: 8px;
-  border-radius: 8px;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-}
-.map-container {
-  width: 100%;
-  height: calc(100vh - 64px);
-}
-.map-loading {
-  position: absolute;
-  z-index: 100;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: calc(100vh - 64px);
-  background: rgba(255,255,255,0.7);
-  display: flex;
-  flex-direction: column;
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: center;
-  gap:10px;
-  font-size:16px;
+  box-sizing: border-box;
 }
-/*悬浮按钮组 */
-.map-btn-group{
-  position:absolute;
-  bottom:80px;
-  right:14px;
-  z-index:99;
+.area-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 40px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #333;
+  white-space: nowrap;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-filter-panel :deep(.el-select) {
+  flex: 1;
+  min-width: 90px;
+}
+.map-filter-panel :deep(.el-input__inner) {
+  height: 40px !important;
+  font-size: 14px;
+}
+/* 抽屉头部 */
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  padding:12px 16px;
+}
+.drawer-header span:first-child,
+.drawer-header span:last-child {
+  color: #409eff;
+}
+.drawer-header .title {
+  color: #333;
+  font-weight: bold;
+}
+/* 级联面板样式，适配APP，加大行高、字体 */
+:deep(.el-cascader-panel) {
+  font-size: 16px;
+}
+:deep(.el-cascader-node) {
+  height: 48px !important;
+  line-height: 48px !important;
+  padding:0 16px !important;
+}
+.route-list-panel {
+  position: absolute;
+  top: 75px;
+  left: 12px;
+  right: 12px;
+  max-height: 38vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  z-index: 10;
+}
+.empty-panel {
+  max-height:120px;
   display:flex;
-  flex-direction:column;
-  gap:10px;
+  align-items:center;
+  justify-content:center;
 }
-.map-locate-btn, .map-reset-btn, .map-clear-btn {
+.empty-tip{
+  color:#999;
+  font-size:13px;
+}
+.panel-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-count {
+  font-size: 12px;
+  color: #909399;
+  font-weight: normal;
+}
+.panel-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.panel-foot {
+  font-size: 12px;
+  color: #1677ff;
+  padding-top: 8px;
+  border-top: 1px dashed #e4e7ed;
+  margin-top: 4px;
+}
+.route-item {
+  padding: 8px 8px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.route-item:last-child {
+  border-bottom: none;
+}
+.route-item.active {
+  background: #f0f7ff;
+}
+.route-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.route-name {
+  font-size: 15px;
+}
+.route-item.active .route-name {
+  color: #1677ff;
+  font-weight: bold;
+}
+.route-link {
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
+}
+.route-link:hover {
+  color: #1677ff;
+}
+.route-meta {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+.location-btn,
+.refresh-btn {
+  position: absolute;
+  right: 16px;
   width: 44px;
   height: 44px;
   background: #fff;
@@ -565,80 +820,53 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
   box-shadow: 0 2px 8px #00000022;
+  z-index: 10;
   cursor: pointer;
 }
-.near-panel {
-  position: absolute;
-  z-index: 99;
-  bottom: 140px;
-  left: 10px;
-  width: 260px;
+.location-btn {
+  bottom: 120px;
+}
+.refresh-btn {
+  bottom: 170px;
+}
+.location-btn.locating {
+  color: #1677ff;
+  animation: locating-pulse 1.2s ease-in-out infinite;
+}
+@keyframes locating-pulse {
+  0%, 100% { box-shadow: 0 2px 8px #00000022; }
+  50% { box-shadow: 0 0 0 6px rgba(22,119,255,.18); }
+}
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
   background: #fff;
-  border-radius: 8px;
-  padding: 12px;
-  max-height: 260px;
-  overflow-y: auto;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  display: flex;
+  border-top: 1px solid #eee;
+  z-index: 99;
 }
-.panel-title {
-  font-weight: bold;
-  margin-bottom: 8px;
-  font-size:15px;
-}
-.empty-tip{
-  color:#999;
-  font-size:13px;
-  padding:8px 0;
-}
-.route-item {
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-}
-.route-name{
-  font-size:14px;
-}
-.route-item:hover {
-  color:#0099ff;
-}
-.route-item.active{
-  background-color:#ecf5ff;
-}
-.tip {
-  font-size: 12px;
-  color: #666;
-  margin-top:2px;
-}
-/* ==========底部Tab栏，和Home完全一致========== */
-.tab-bar{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  height:64px;
-  background:#ffffff;
-  display:flex;
-  border-top:1px solid #e8e8e8;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-  z-index: 999;
-}
-.tab-item{
-  flex:1;
-  display:flex;
+.tab-item {
+  flex: 1;
+  display: flex;
   flex-direction: column;
-  justify-content:center;
-  align-items:center;
-  gap:3px;
-  font-size:12px;
-  color:#868686;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  gap: 3px;
   cursor: pointer;
 }
-.tab-icon{
-  font-size:20px;
+.tab-item.active {
+  color: #409eff;
 }
-.tab-item.active{
-  color:#409eff;
+.tab-icon {
+  font-size: 20px;
+}
+.blank-bottom {
+  height: 70px;
 }
 </style>

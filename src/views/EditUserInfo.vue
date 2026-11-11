@@ -1,14 +1,31 @@
 <template>
   <div class="page-edit-user">
+    <!-- 修改这里头部，和其他页面统一 -->
     <div class="page-header">
-      <div class="back-icon" @click="$router.back()">
+      <div class="back" @click="$router.back()">
         <el-icon><ArrowLeft /></el-icon>
+        <span>返回</span>
       </div>
-      <div class="page-title">编辑资料</div>
+      <h2>编辑资料</h2>
+      <div class="placeholder"></div>
     </div>
 
     <div class="content-wrap">
       <div class="info-card">
+        <!-- 新增：背景封面 -->
+        <div class="form-row">
+          <span class="label">个人背景封面</span>
+          <div class="bg-box" @click="triggerBgUpload">
+            <div class="bg-preview" v-if="formData.bgImage">
+              <img :src="formData.bgImage" alt="背景预览" />
+            </div>
+            <div class="bg-empty" v-else>点击上传封面</div>
+            <input ref="bgFileRef" type="file" accept="image/*" hidden @change="onBgFileChange" />
+          </div>
+        </div>
+
+        <div class="line"></div>
+
         <div class="form-row">
           <span class="label">头像</span>
           <div class="avatar-box" @click="triggerUpload">
@@ -62,18 +79,19 @@ import { useUserStore } from '@/store/user'
 const router = useRouter()
 const userStore = useUserStore()
 const fileRef = ref(null)
+const bgFileRef = ref(null) // 背景封面input
 
 const formData = ref({
   avatar: '',
   nickname: '',
-  userId: ''
+  userId: '',
+  bgImage: '' // 新增背景封面
 })
 
+// 头像上传
 const triggerUpload = () => {
   fileRef.value.click()
 }
-
-// 图片转base64
 const onFileChange = (e) => {
   const file = e.target.files[0]
   if (!file) return
@@ -84,25 +102,40 @@ const onFileChange = (e) => {
   reader.readAsDataURL(file)
 }
 
+// 背景封面上传
+const triggerBgUpload = () => {
+  bgFileRef.value.click()
+}
+const onBgFileChange = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    formData.value.bgImage = ev.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
 // 加载：从pinia拿本地信息
 const loadInfo = () => {
   const info = userStore.userInfo
   formData.value.avatar = info.avatar || ''
   formData.value.nickname = info.nickname || '匿名用户'
   formData.value.userId = info.userId || ''
+  formData.value.bgImage = info.bgImage || ''
 }
 
-// ✅ 纯前端保存，不请求后端！
+// 保存，把bgImage一起存入pinia
 const submit = () => {
   if (!formData.value.userId) {
     ElMessage.warning('用户ID不能为空')
     return
   }
-  // 存入pinia + localStorage
   userStore.setUserInfo({
     avatar: formData.value.avatar,
     nickname: formData.value.nickname,
-    userId: formData.value.userId
+    userId: formData.value.userId,
+    bgImage: formData.value.bgImage
   })
   ElMessage.success('修改成功！')
   router.back()
@@ -120,28 +153,36 @@ onMounted(() => {
 }
 
 .page-header {
+  background: linear-gradient(140deg, #e65b38, #ff9048);
+  color: #fff;
+  padding: 18px 20px;
+  position: relative;
   display: flex;
   align-items: center;
-  height: 48px;
-  background: #ffffff;
-  border-bottom: 1px solid #f5e7d3;
-  padding: 0 16px;
-  position: relative;
+  justify-content: space-between;
 }
-
-.back-icon {
-  font-size: 20px;
-  color: #333;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #FF7A45;
+  font-weight: bold;
   cursor: pointer;
+  background: #FFF0F3;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
-
-.page-title {
+.page-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 600;
-  color: #222;
+}
+.placeholder {
+  width: 70px;
 }
 
 .content-wrap {
@@ -165,6 +206,30 @@ onMounted(() => {
   font-size: 16px;
   color: #333;
   font-weight: 500;
+}
+
+/* 背景封面预览 */
+.bg-box {
+  width: 52%;
+  height: 80px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px dashed #ffb16b;
+}
+.bg-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bg-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff8833;
+  font-size:13px;
 }
 
 .avatar-box {
@@ -203,7 +268,7 @@ onMounted(() => {
 }
 
 .form-input {
-  width: 56%;
+  width: 52%;
 }
 
 :deep(.form-input .el-input__wrapper) {

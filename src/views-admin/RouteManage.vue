@@ -84,7 +84,7 @@ const loadData = async () => {
   try {
     // ✅ 正确路径：request.js 里已经配了 /api 前缀
     const res = await request.get('/admin/route/list')
-    tableData.value = Array.isArray(res) ? res : []
+    tableData.value = res && Array.isArray(res.data) ? res.data : []
   } catch (error) {
     ElMessage.error('获取路线列表失败')
   }
@@ -109,7 +109,7 @@ const openDetail = (row) => {
 const auditRoute = async (id, status) => {
   try {
     const res = await request.put(`/admin/route/audit/${id}/${status}`)
-    ElMessage.success(res || (status === 1 ? '已通过' : '已下架'))
+    ElMessage.success(res?.data || res?.msg || (status === 1 ? '已通过' : '已下架'))
     loadData()
   } catch (error) {
     ElMessage.error('审核失败')
