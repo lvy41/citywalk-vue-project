@@ -6,7 +6,9 @@ export const useUserStore = defineStore('user', () => {
 // ========== 状态 ==========
 const token = ref('')          // 普通移动端用户token
 const adminToken = ref('')     // 管理员后台token【新增】
-const userInfo = ref({})
+const userInfo = ref({
+  bgImage: '' // 新增：个人背景封面
+})
 
 // 计算属性
 const isLoggedIn = computed(() => !!token.value)
@@ -39,7 +41,9 @@ const getAdminToken = () => adminToken.value
 const clearUser = () => {
 token.value = ''
 adminToken.value = ''
-userInfo.value = {}
+userInfo.value = {
+  bgImage: ''
+}
 localStorage.removeItem('token')
 localStorage.removeItem('adminToken')
 localStorage.removeItem('userInfo')

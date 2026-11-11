@@ -1,10 +1,12 @@
 <template>
   <div class="page-my-publish">
     <div class="page-header">
-      <div class="back-icon" @click="$router.back()">
+      <div class="back" @click="$router.back()">
         <el-icon><ArrowLeft /></el-icon>
+        <span>返回</span>
       </div>
-      <div class="page-title">我的发布</div>
+      <h2>我的发布</h2>
+      <div class="placeholder"></div>
     </div>
 
     <div class="content-wrap">
@@ -41,6 +43,7 @@ const defaultImg = ref('https://picsum.photos/id/1039/300/200')
 
 // 跳转到路线详情
 const goDetail = (id) => {
+  console.log('点击路线id：', id)
   router.push(`/detail/${id}`)
 }
 
@@ -71,6 +74,7 @@ onMounted(() => {
 })
 </script>
 
+
 <style scoped>
 .page-my-publish {
   min-height: 100vh;
@@ -78,28 +82,36 @@ onMounted(() => {
 }
 
 .page-header {
+  background: linear-gradient(140deg, #e65b38, #ff9048);
+  color: #fff;
+  padding: 18px 20px;
+  position: relative;
   display: flex;
   align-items: center;
-  height: 48px;
-  background: #ffffff;
-  border-bottom: 1px solid #f5e7d3;
-  padding: 0 16px;
-  position: relative;
+  justify-content: space-between;
 }
-
-.back-icon {
-  font-size: 20px;
-  color: #333;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  color: #FF7A45;
+  font-weight: bold;
   cursor: pointer;
+  background: #FFF0F3;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
-
-.page-title {
+.page-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 600;
-  color: #222;
+}
+.placeholder {
+  width: 70px;
 }
 
 .content-wrap {

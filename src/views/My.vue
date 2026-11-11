@@ -276,6 +276,12 @@ const handleLogout = () => {
   gap: 10px;
   flex-wrap: wrap;
 }
+.nickname-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .user-meta .nickname {
   font-size: 22px;
   font-weight: 600;
