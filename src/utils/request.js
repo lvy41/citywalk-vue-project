@@ -92,8 +92,8 @@ request.interceptors.response.use(
       if (code === 200 || code === 0) {
         return resBody
       }
-      if (code === 401) {
-        handleAdminExpired(text)
+      if (code === 401 || code === 403) {
+        handleAdminExpired(text || '管理员权限校验失败，请重新登录后台')
         return { code, msg: text, data: [] }
       }
       console.warn('后台接口报错:', text)
@@ -112,10 +112,10 @@ request.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
       const reqUrl = error.config?.url || ''
-      // 后台接口 401：管理员 token 失效/是旧版假 token，清掉并要求重新登录后台
-      if (isAdminRequest(reqUrl) && status === 401) {
-        handleAdminExpired('未登录或登录已过期')
-        return { code: 401, msg: '未登录', data: [] }
+      // 后台接口 401/403：管理员 token 失效、旧版无 role 的 token、或不是管理员账号，清掉并要求重新登录后台
+      if (isAdminRequest(reqUrl) && (status === 401 || status === 403)) {
+        handleAdminExpired(status === 403 ? '当前登录没有后台管理权限，请用管理员账号重新登录' : '未登录或登录已过期')
+        return { code: status, msg: '未登录或无权访问', data: [] }
       }
 
       switch (status) {

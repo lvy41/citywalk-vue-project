@@ -9,14 +9,14 @@
     <div class="dopa-card">
       <el-table :data="commentList" style="width: 100%" stripe>
         <el-table-column prop="id" label="评论ID" width="80" align="center" />
-        <el-table-column prop="routeId" label="所属路线ID" align="center">
+        <el-table-column prop="routeId" label="所属路线" align="center" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag type="warning" round>路线 {{ scope.row.routeId }}</el-tag>
+            <el-tag type="warning" round>{{ scope.row.routeName || ('路线 ' + scope.row.routeId) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="userId" label="评论人ID" align="center">
+        <el-table-column prop="userId" label="评论人" align="center">
           <template #default="scope">
-            <el-tag type="info" round>用户 {{ scope.row.userId }}</el-tag>
+            <el-tag type="info" round>{{ scope.row.userName || ('用户 ' + scope.row.userId) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="content" label="评论内容" show-overflow-tooltip />

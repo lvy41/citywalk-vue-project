@@ -5,6 +5,19 @@
       <span class="sub-title">查看并管理所有用户发布的 CityWalk 路线</span>
     </div>
 
+    <!-- 状态筛选 -->
+    <div class="filter-tabs">
+      <span
+        v-for="t in tabs"
+        :key="t.value"
+        class="tab"
+        :class="{ active: activeStatus === t.value }"
+        @click="switchTab(t.value)"
+      >
+        {{ t.label }}<em>{{ t.count }}</em>
+      </span>
+    </div>
+
     <!-- 搜索栏 -->
     <div class="search-bar">
       <el-input v-model="searchKey" placeholder="搜索路线名称或城市..." clearable style="width: 300px;" />
@@ -13,7 +26,7 @@
 
     <!-- 表格卡片 -->
     <div class="dopa-card">
-      <el-table :data="filteredData" style="width: 100%" stripe>
+      <el-table :data="filteredData" style="width: 100%" stripe empty-text="这个分类下还没有路线">
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="routeName" label="路线名称" align="center">
           <template #default="scope">
@@ -71,13 +84,30 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
+const route = useRoute()
 const searchKey = ref('')
 const tableData = ref([])
 const detailVisible = ref(false)
 const curRow = ref({})
+// all / 0 待审核 / 1 已上线 / 2 已下架
+const activeStatus = ref('all')
+
+const tabs = computed(() => {
+  const list = tableData.value
+  const count = (s) => list.filter(i => String(i.auditStatus) === String(s)).length
+  return [
+    { label: '全部', value: 'all', count: list.length },
+    { label: '待审核', value: '0', count: count(0) },
+    { label: '已上线', value: '1', count: count(1) },
+    { label: '已下架', value: '2', count: count(2) }
+  ]
+})
+
+const switchTab = (v) => { activeStatus.value = v }
 
 // 加载数据 (核心修正：路径去掉了 /api，直接匹配你的后端接口)
 const loadData = async () => {
@@ -90,14 +120,27 @@ const loadData = async () => {
   }
 }
 
-// 前端本地搜索过滤（因为后端接口比较简单，直接前端过滤）
+// 前端本地过滤：先按状态分类，再按关键词；"全部"里待审核排最前
 const filteredData = computed(() => {
-  if (!searchKey.value) return tableData.value
-  return tableData.value.filter(item =>
-    (item.routeName || '').includes(searchKey.value) ||
-    (item.city || '').includes(searchKey.value) ||
-    (item.publisherName || '').includes(searchKey.value)
-  )
+  let list = tableData.value
+  if (activeStatus.value !== 'all') {
+    list = list.filter(item => String(item.auditStatus) === activeStatus.value)
+  }
+  if (searchKey.value) {
+    const k = searchKey.value
+    list = list.filter(item =>
+      (item.routeName || '').includes(k) ||
+      (item.city || '').includes(k) ||
+      (item.publisherName || '').includes(k)
+    )
+  }
+  // 待审核优先展示，其余按 id 倒序（新发布在前）
+  return [...list].sort((a, b) => {
+    const pa = a.auditStatus === 0 ? 0 : 1
+    const pb = b.auditStatus === 0 ? 0 : 1
+    if (pa !== pb) return pa - pb
+    return (b.id || 0) - (a.id || 0)
+  })
 })
 
 const openDetail = (row) => {
@@ -128,6 +171,8 @@ const delRoute = async (id) => {
 }
 
 onMounted(() => {
+  const qs = route.query.status
+  if (qs !== undefined && qs !== null && qs !== '') activeStatus.value = String(qs)
   loadData()
 })
 </script>
@@ -140,6 +185,36 @@ onMounted(() => {
 .sub-title { font-size: 14px; color: #909399; }
 
 .search-bar { margin-bottom: 20px; display: flex; gap: 10px; }
+
+.filter-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.filter-tabs .tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #FFE0E6;
+  color: #606266;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.filter-tabs .tab em {
+  font-style: normal;
+  margin-left: 6px;
+  color: #909399;
+  font-weight: 700;
+}
+.filter-tabs .tab.active {
+  background: linear-gradient(to right, #FF9A44, #FC6076);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(252, 96, 118, 0.25);
+}
+.filter-tabs .tab.active em { color: #fff; }
 .dopa-btn {
   background: linear-gradient(to right, #FF9A44, #FC6076);
   border: none;

@@ -53,6 +53,7 @@
           <div class="c-user">{{c.userName}}</div>
           <div class="c-content">{{c.content}}</div>
         </div>
+        <div v-if="!commentList.length" class="c-empty">还没有评论，来做第一条吧～</div>
       </div>
     </div>
     <!-- 底部留白，避开tab -->
@@ -88,6 +89,9 @@ import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
 import { getRouteDetailAPI } from '@/api/route'
+import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
+const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
 //【重点：从params拿id，适配 /detail/:id】
@@ -120,6 +124,17 @@ const mockComment = [
   {id:1,userName:"游客A",content:"这条路线很不错，周末已经去过！"},
   {id:2,userName:"游客B",content:"推荐大家下午过去，风景很好"}
 ]
+// 加载真实评论（公开接口，未登录也能看）
+const loadComments = async ()=>{
+  try{
+    const res = await request.get('/route/comments',{params:{routeId:routeId.value}})
+    if(res && res.code === 200){
+      commentList.value = Array.isArray(res.data) ? res.data : []
+    }
+  }catch(e){
+    commentList.value = []
+  }
+}
 // 加载详情
 const loadDetail = async ()=>{
   try{
@@ -138,14 +153,14 @@ const loadDetail = async ()=>{
       authorName: (payload && payload.authorName) || '匿名用户'
     }
     pointList.value = points
-    commentList.value = mockComment
+    await loadComments()
     await initMiniMap(points)
   }catch(e){
     ElMessage.info("后端接口未就绪，加载模拟数据演示")
     const data = mockDetailData
     routeInfo.value = data
     pointList.value = data.points
-    commentList.value = mockComment
+    await loadComments()
     await initMiniMap(data.points)
   }
 }
@@ -193,10 +208,26 @@ const handleLike = ()=>{
   ElMessage.success("点赞操作")
 }
 //提交评论
-const submitComment = ()=>{
-  if(!commentText.value.trim()) return
-  ElMessage.success("发表评论："+commentText.value)
-  commentText.value=""
+const submitComment = async ()=>{
+  const text = commentText.value.trim()
+  if(!text) return
+  if(!userStore.isLoggedIn){
+    ElMessage.warning("请先登录后再发表评论")
+    router.push("/login")
+    return
+  }
+  try{
+    const res = await request.post('/route/comment/add',{routeId:routeId.value,content:text})
+    if(res && res.code === 200){
+      ElMessage.success("评论已发表")
+      commentText.value = ""
+      await loadComments()
+    }else{
+      ElMessage.error(res?.msg || "评论失败")
+    }
+  }catch(e){
+    ElMessage.error("评论失败，请稍后重试")
+  }
 }
 onMounted(()=>{
   if(!routeId.value){
@@ -337,6 +368,11 @@ onUnmounted(()=>{
 .c-content{
   font-size:14px;
   margin-top:2px;
+}
+.c-empty{
+  font-size:13px;
+  color:#999;
+  padding:10px 0;
 }
 .bottom-space{
   height:70px;

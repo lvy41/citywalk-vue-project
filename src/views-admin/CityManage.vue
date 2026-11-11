@@ -11,6 +11,9 @@
     <el-table :data="tableData" border stripe v-loading="loading">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="cityName" label="城市名称" />
+      <el-table-column label="所属省份">
+        <template #default="{ row }">{{ provinceName(row.provinceId) }}</template>
+      </el-table-column>
       <el-table-column prop="centerLng" label="中心点经度" />
       <el-table-column prop="centerLat" label="中心点纬度" />
       <el-table-column prop="createTime" label="创建时间" />
@@ -25,6 +28,11 @@
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+        <el-form-item label="所属省份" prop="provinceId">
+          <el-select v-model="form.provinceId" placeholder="请选择省份" style="width:100%">
+            <el-option v-for="p in provinces" :key="p.id" :label="p.provinceName" :value="p.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="城市名称" prop="cityName">
           <el-input v-model="form.cityName" placeholder="如：广州" />
         </el-form-item>
@@ -56,12 +64,30 @@ const formRef = ref(null)
 
 const form = ref({
   id: null,
+  provinceId: null,
   cityName: '',
   centerLng: null,
   centerLat: null
 })
 
+const provinces = ref([])
+
+const provinceName = (provinceId) => {
+  const hit = provinces.value.find(p => p.id === provinceId)
+  return hit ? hit.provinceName : ('省份#' + provinceId)
+}
+
+const loadProvinces = async () => {
+  try {
+    const res = await request.get('/area/provinceList')
+    if (res.code === 200) provinces.value = res.data || []
+  } catch (e) {
+    provinces.value = []
+  }
+}
+
 const rules = ref({
+  provinceId: [{ required: true, message: '请选择所属省份', trigger: 'change' }],
   cityName: [{ required: true, message: '请填写城市名称', trigger: 'blur' }],
   centerLng: [{ required: true, message: '请填写中心点经度', trigger: 'blur' }],
   centerLat: [{ required: true, message: '请填写中心点纬度', trigger: 'blur' }]
@@ -85,7 +111,7 @@ async function loadData() {
 //打开新增弹窗
 function openAddDialog(){
   dialogTitle.value = '新增城市'
-  form.value = { id:null, cityName:'', centerLng:null, centerLat:null }
+  form.value = { id:null, provinceId:null, cityName:'', centerLng:null, centerLat:null }
   dialogVisible.value = true
   formRef.value?.clearValidate()
 }
@@ -102,17 +128,16 @@ function openEditDialog(row){
 async function submit(){
   await formRef.value.validate()
   try {
-    if(form.value.id){
-      //编辑
-      await request.put('/city/update', form.value)
-      ElMessage.success("编辑成功")
-    }else{
-      //新增
-      await request.post('/city/add', form.value)
-      ElMessage.success("新增成功")
+    const res = form.value.id
+      ? await request.put('/city/update', form.value)
+      : await request.post('/city/add', form.value)
+    if (res && res.code === 200) {
+      ElMessage.success(form.value.id ? "编辑成功" : "新增成功")
+      dialogVisible.value = false
+      loadData()
+    } else {
+      ElMessage.error(res?.msg || "保存失败")
     }
-    dialogVisible.value = false
-    loadData()
   }catch(e){
     ElMessage.error("保存失败")
   }
@@ -120,17 +145,22 @@ async function submit(){
 
 //删除
 async function handleDelete(row){
-  await ElMessageBox.confirm(`确认删除【${row.cityName}】，注意：如果有路线关联该城市，删除会造成数据异常！`, "警告", {type:'warning'})
+  await ElMessageBox.confirm(`确认删除【${row.cityName}】？该城市下仍有路线时会被拒绝。`, "警告", {type:'warning'})
   try {
-    await request.delete(`/api/city/delete/${row.id}`)
-    ElMessage.success("删除成功")
-    loadData()
+    const res = await request.delete(`/city/delete/${row.id}`)
+    if (res && res.code === 200) {
+      ElMessage.success("删除成功")
+      loadData()
+    } else {
+      ElMessage.error(res?.msg || "删除失败")
+    }
   }catch(e){
     ElMessage.error("删除失败")
   }
 }
 
 onMounted(()=>{
+  loadProvinces()
   loadData()
 })
 </script>

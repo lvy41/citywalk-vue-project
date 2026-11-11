@@ -23,6 +23,15 @@
           <div class="card-num">{{ stat.routeCount }}</div>
         </div>
       </div>
+
+      <div class="stat-card border-purple clickable" @click="goPendingRoutes">
+        <div class="card-icon">🕓</div>
+        <div class="card-info">
+          <div class="card-title">待审核路线</div>
+          <div class="card-num">{{ stat.pendingCount }}</div>
+        </div>
+        <div class="card-link">去审核 ›</div>
+      </div>
       
       <div class="stat-card border-green">
         <div class="card-icon">💬</div>
@@ -33,10 +42,17 @@
       </div>
     </div>
 
+    <!-- 审核状态概览（真实统计） -->
+    <div class="status-row">
+      <span class="status-pill">已上线 {{ stat.onlineCount }}</span>
+      <span class="status-pill warning clickable" @click="goPendingRoutes">待审核 {{ stat.pendingCount }}</span>
+      <span class="status-pill muted">已下架 {{ stat.offlineCount }}</span>
+    </div>
+
     <!-- 图表区域 -->
     <div class="chart-card">
       <div class="chart-header">
-        <h3>平台数据趋势</h3>
+        <h3>各城市路线数量 Top 8</h3>
       </div>
       <div ref="chartRef" style="width: 100%; height: 400px;"></div>
     </div>
@@ -45,8 +61,16 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import request from '@/utils/request'
+
+const router = useRouter()
+
+// 跳到路线管理并只看待审核
+const goPendingRoutes = () => {
+  router.push({ path: '/admin/routeManage', query: { status: '0' } })
+}
 
 const chartRef = ref(null)
 let myChart = null
@@ -55,7 +79,11 @@ let myChart = null
 const stat = ref({
   userCount: 0,
   routeCount: 0,
-  commentCount: 0
+  commentCount: 0,
+  pendingCount: 0,
+  onlineCount: 0,
+  offlineCount: 0,
+  cityTop: []
 })
 
 // 加载数据
@@ -72,41 +100,54 @@ const loadDashboard = async () => {
   }
 }
 
-// 渲染多巴胺风格图表
+// 渲染真实数据的柱状图：各城市路线数量 Top 8
 const renderChart = () => {
   if (!chartRef.value) return
   if (myChart) myChart.dispose()
   myChart = echarts.init(chartRef.value)
 
+  const cityTop = Array.isArray(stat.value.cityTop) ? stat.value.cityTop : []
+  const cities = cityTop.map(i => i.city)
+  const counts = cityTop.map(i => Number(i.cnt) || 0)
+
+  if (!cities.length) {
+    myChart.setOption({
+      title: {
+        text: '暂无城市路线数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#909399', fontSize: 14, fontWeight: 'normal' }
+      }
+    })
+    return
+  }
+
   const option = {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' }
-    },
-    legend: {
-      data: ['新增用户', '新增路线'],
-      bottom: 0,
-      textStyle: { color: '#666', fontWeight: 'bold' }
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => `${params[0].name}：${params[0].value} 条路线`
     },
     grid: {
-      left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true
+      left: '3%', right: '4%', bottom: '8%', top: '12%', containLabel: true
     },
     xAxis: {
       type: 'category',
-      data: ['第1周', '第2周', '第3周', '第4周'],
-      axisLabel: { color: '#909399', fontWeight: 'bold' },
+      data: cities,
+      axisLabel: { color: '#909399', fontWeight: 'bold', interval: 0 },
       axisLine: { lineStyle: { color: '#DCDFE6' } }
     },
     yAxis: {
       type: 'value',
+      name: '路线数',
       axisLabel: { color: '#909399' },
       splitLine: { lineStyle: { type: 'dashed', color: '#F2F6FC' } }
     },
     series: [
       {
-        name: '新增用户',
+        name: '路线数',
         type: 'bar',
-        barWidth: '20%',
+        barWidth: '45%',
         itemStyle: {
           // 渐变色：蜜桃粉到活力橙
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -115,21 +156,8 @@ const renderChart = () => {
           ]),
           borderRadius: [10, 10, 0, 0]
         },
-        data: [4, 1, 0, 2] // 暂时用假数据演示
-      },
-      {
-        name: '新增路线',
-        type: 'bar',
-        barWidth: '20%',
-        itemStyle: {
-          // 渐变色：柠檬黄到薄荷绿
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#67C23A' },
-            { offset: 1, color: '#E6A23C' }
-          ]),
-          borderRadius: [10, 10, 0, 0]
-        },
-        data: [3, 1, 2, 0]
+        label: { show: true, position: 'top', color: '#666' },
+        data: counts
       }
     ]
   }
@@ -177,6 +205,7 @@ onUnmounted(() => {
 /* ======= 标准后台数据卡片 ======= */
 .stats-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   margin-bottom: 24px;
 }
@@ -202,6 +231,29 @@ onUnmounted(() => {
 .border-pink { border-left-color: #FC6076; }
 .border-orange { border-left-color: #FFA04D; }
 .border-green { border-left-color: #56AB2F; }
+.border-purple { border-left-color: #9B6BFF; }
+
+.status-row {
+  display: flex;
+  gap: 12px;
+  margin: -8px 0 24px;
+}
+.status-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #F0F9EB;
+  color: #529B2E;
+  font-size: 13px;
+  font-weight: 600;
+}
+.status-pill.warning {
+  background: #FDF6EC;
+  color: #B88230;
+}
+.status-pill.muted {
+  background: #F4F4F5;
+  color: #909399;
+}
 
 .card-icon {
   font-size: 40px;
@@ -225,6 +277,7 @@ onUnmounted(() => {
   color: #909399;
   font-weight: 500;
   margin-bottom: 8px;
+  white-space: nowrap;
 }
 
 .card-num {
@@ -232,6 +285,16 @@ onUnmounted(() => {
   font-weight: 900;
   color: #303133;
   line-height: 1;
+}
+
+/* 待审核卡可点击 */
+.clickable { cursor: pointer; }
+.card-link {
+  margin-left: auto;
+  font-size: 13px;
+  color: #9B6BFF;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ======= 图表卡片 ======= */
