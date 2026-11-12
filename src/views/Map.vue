@@ -3,7 +3,7 @@
     <!-- 地图容器 -->
     <div id="amap-container" class="amap-container"></div>
     <!-- 移动端筛选面板 -->
-    <div class="map-filter-panel">
+    <div class="map-filter-panel" v-if="!detailMode">
       <!-- 地区选择按钮，点击唤起底部级联弹窗 -->
       <div class="area-btn" @click="openAreaDrawer">
         {{ selectedAreaLabel || '选择地区' }}
@@ -29,6 +29,11 @@
         <el-option label="5km" :value="5000"></el-option>
       </el-select>
     </div>
+	<!-- 仅从详情页进入时显示返回 -->
+	<div v-if="fromDetail" class="map-back" @click="goBackToDetail">
+	  <el-icon><ArrowLeft /></el-icon>
+	  <span>返回路线</span>
+	</div>
     <!-- 底部弹出：省市区三级级联（美团风格） -->
     <el-drawer
       v-model="areaDrawerVisible"
@@ -102,8 +107,13 @@
 
       </div>
     </el-drawer>
+    <!-- 详情模式：路线信息条 -->
+    <div class="detail-route-bar" v-if="detailMode">
+      <div class="drb-name">{{ detailRouteName || '路线点位' }}</div>
+      <div class="drb-meta">共 {{ detailPoints.length }} 个点位 · 当前第 {{ detailPointIndex + 1 }} 个</div>
+    </div>
     <!-- 路线推荐浮层 -->
-    <div class="route-list-panel" v-if="nearRouteList.length > 0">
+    <div class="route-list-panel" v-if="!detailMode && nearRouteList.length > 0">
       <div class="panel-title">
         {{ panelTitle }}
         <span class="panel-count">{{ nearRouteList.length }} 条</span>
@@ -131,14 +141,14 @@
         已在地图展开该路线，点击地图上的数字地标可进入详情
       </div>
     </div>
-    <div class="route-list-panel empty-panel" v-else>
+    <div class="route-list-panel empty-panel" v-else-if="!detailMode">
       <div class="empty-tip">{{ emptyTip }}</div>
     </div>
     <!-- 定位、刷新按钮 -->
-    <div class="location-btn" :class="{ locating }" @click="getCurrentLocation">
+    <div class="location-btn" :class="{ locating }" @click="getCurrentLocation" v-if="!detailMode">
       <el-icon><Location /></el-icon>
     </div>
-    <div class="refresh-btn" @click="refreshNearRoute">
+    <div class="refresh-btn" @click="refreshNearRoute" v-if="!detailMode">
       <el-icon><Refresh /></el-icon>
     </div>
     <!-- ========== 底部Tab ========== -->
@@ -186,6 +196,11 @@ let routeOverlays = []
 let myLocationMarker = null
 // 路线点位缓存：routeId -> points[]，避免反复请求 /map/routePath
 const routePointsCache = {}
+
+// 从详情页“前往该点位地图”进入时的状态
+const detailRouteName = ref('')
+const detailPoints = ref([])
+const detailPointIndex = ref(0)
 
 // 弹窗控制
 const areaDrawerVisible = ref(false)
@@ -574,6 +589,117 @@ const fetchNearRoute = async () => {
 }
 
 // 清空地图上所有路线覆盖物（“我的位置”标记单独管理，不受影响）
+// 详情模式：只画这一条路线，点位按顺序编号，当前点位高亮
+const renderDetailRoute = (points, activeIndex) => {
+  if (!map || !AMap) return
+  clearMapOverlays()
+  const valid = (points || []).filter(p => p.longitude != null && p.latitude != null)
+  if (!valid.length) return
+
+  detailPoints.value = valid
+  const path = toPath(valid)
+  const overlays = []
+
+  if (path.length >= 2) {
+    const line = new AMap.Polyline({
+      path,
+      strokeColor: '#1677ff',
+      strokeWeight: 6,
+      strokeOpacity: 0.92,
+      lineJoin: 'round',
+      map,
+      zIndex: 70
+    })
+    routeOverlays.push(line)
+    overlays.push(line)
+  }
+
+  valid.forEach((p, idx) => {
+    const isActive = idx === activeIndex
+    const pos = [Number(p.longitude), Number(p.latitude)]
+    const marker = new AMap.Marker({
+      position: pos,
+      map,
+      zIndex: isActive ? 130 : 100,
+      offset: new AMap.Pixel(isActive ? -16 : -13, isActive ? -16 : -13),
+      title: p.pointName,
+      content: `<div style="width:${isActive ? 32 : 26}px;height:${isActive ? 32 : 26}px;line-height:${isActive ? 28 : 22}px;text-align:center;border-radius:50%;background:${isActive ? '#ff6b35' : '#1677ff'};color:#fff;font-size:${isActive ? 14 : 12}px;font-weight:600;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)">${idx + 1}</div>`
+    })
+    marker.on('click', () => {
+      const bubble = new AMap.Text({
+        text: `${idx + 1}. ${p.pointName}`,
+        position: pos,
+        map,
+        zIndex: 150,
+        offset: new AMap.Pixel(0, -40),
+        style: {
+          padding: '4px 10px',
+          'background-color': '#ffffff',
+          border: '1px solid #ffd2bd',
+          'border-radius': '12px',
+          'font-size': '12px',
+          color: '#ff6b35',
+          'font-weight': 'bold',
+          'box-shadow': '0 2px 6px rgba(0,0,0,0.18)'
+        }
+      })
+      routeOverlays.push(bubble)
+    })
+    routeOverlays.push(marker)
+    overlays.push(marker)
+  })
+
+  // 当前点位的气泡标签
+  const active = valid[activeIndex]
+  if (active && active.pointName) {
+    const label = new AMap.Text({
+      text: active.pointName,
+      position: [Number(active.longitude), Number(active.latitude)],
+      map,
+      zIndex: 140,
+      offset: new AMap.Pixel(0, -42),
+      style: {
+        padding: '4px 12px',
+        'background-color': '#ff6b35',
+        border: 'none',
+        'border-radius': '14px',
+        'font-size': '12px',
+        color: '#ffffff',
+        'font-weight': 'bold',
+        'box-shadow': '0 2px 8px rgba(255,107,53,.45)'
+      }
+    })
+    routeOverlays.push(label)
+    overlays.push(label)
+  }
+
+  map.setFitView(overlays, false, [80, 40, 240, 70], 15)
+}
+
+// 从详情页进来：不按用户当前位置定位，直接展示该路线全部点位
+const enterDetailRoute = async () => {
+  const id = route.query.detailId
+  const idx = Number(route.query.pointIndex || 0)
+  detailRouteName.value = route.query.routeName || ''
+  detailPointIndex.value = idx
+  if (!id) return
+  try {
+    let points = routePointsCache[id]
+    if (!points || !points.length) {
+      const res = await request.get('/map/routePath', { params: { routeId: id } })
+      points = (res && res.code === 200 && Array.isArray(res.data)) ? res.data : []
+      routePointsCache[id] = points
+    }
+    renderDetailRoute(points, idx)
+  } catch (e) {
+    console.error('路线点位加载失败', e)
+    ElMessage.warning('该路线点位加载失败')
+  }
+}
+
+// 详情模式下不显示筛选面板与路线推荐列表，只展示这一条路线
+const detailMode = computed(() => route.query.from === 'detail' && !!route.query.detailId)
+
 const clearMapOverlays = () => {
   routeOverlays.forEach(o => {
     try {
@@ -853,9 +979,29 @@ const initMap = async () => {
   }
 }
 
+const fromDetail = computed(() => route.query.from === 'detail')
+
+const goBackToDetail = () => {
+  const id = route.query.detailId
+  // 有历史就 true back（保留详情页原状态），没有就直接跳到详情页
+  if (window.history.length > 1) {
+    router.back()
+  } else if (id) {
+    router.push({ name: 'Detail', params: { id } })
+  } else {
+    router.push('/home')
+  }
+}
+
+
 onMounted(async () => {
   await nextTick()
   await initMap()
+  // 来自详情页：只画该路线点位并定位到当前点位，不做用户定位
+  if (detailMode.value) {
+    await enterDetailRoute()
+    return
+  }
   await loadAreaTree()
   await loadTagList()
   // 进页面先自动定位；定位失败也只是退回全部路线，不打扰用户
@@ -1141,6 +1287,32 @@ onUnmounted(() => {
   color: #666;
   margin-top: 2px;
 }
+/* 详情模式：顶部路线信息条 */
+.detail-route-bar {
+  position: absolute;
+  top: 54px;
+  left: 12px;
+  right: 12px;
+  z-index: 30;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(6px);
+}
+.drb-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drb-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #888;
+}
 .location-btn,
 .refresh-btn {
   position: absolute;
@@ -1201,4 +1373,26 @@ onUnmounted(() => {
 .blank-bottom {
   height: 70px;
 }
+.map-back {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 30;                 /* 要高于地图容器和筛选面板 */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px 0 8px;
+  border-radius: 17px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  backdrop-filter: blur(6px);
+  color: #ff6b35;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform .15s ease;
+}
+.map-back:active { transform: scale(.96); }
+.map-back .el-icon { font-size: 16px; }
+
 </style>
