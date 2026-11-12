@@ -29,11 +29,6 @@
       <el-tabs v-model="activeTab" class="record-tabs">
         <!-- 我的路线 -->
         <el-tab-pane label="我的路线" name="checkin">
-          <div class="publish-action">
-            <el-button type="primary" round class="publish-btn" @click="currentView = 'create-record'">
-              + 创建我的新打卡路线
-            </el-button>
-          </div>
           <div class="card-list">
             <div v-for="item in checkinList" :key="item.id" class="record-card">
               <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
@@ -44,10 +39,16 @@
                   </h3>
                   <span class="delete-icon" @click.stop="deleteMyRoute(item.id, item.routeName)">🗑️</span>
                 </div>
-                <p class="card-desc"><span class="tag-icon">📍</span> 打卡点位：{{ item.pointCount }} 个</p>
-                <p class="card-time">完成时间：{{ item.createTime }}</p>
+                <p class="card-desc"><span class="tag-icon">📍</span> 打卡点位：{{ item.pointCount }} 个<template v-if="item.checkedPoints > 0">（已打卡 {{ item.checkedPoints }} 个）</template></p>
+                <p class="card-time">
+                  <span class="pub-flag" :class="{ 'pub-yes': item.isPublic }">{{ item.isPublic ? '公开记录' : '未公开记录' }}</span>
+                </p>
+                <p class="card-time">{{ item.status === 1 ? '完成时间：' + item.createTime : '创建时间：' + item.createTime }}</p>
               </div>
             </div>
+          </div>
+          <div v-if="checkinList.length === 0" style="text-align:center;color:#909399;padding:30px 0;">
+            还没有打卡记录，去「发布路线」页填写一条，保存后会出现在这里～
           </div>
         </el-tab-pane>
 
@@ -141,70 +142,6 @@
       </el-tabs>
     </div>
 
-    <!-- ================= 创建打卡路线页 ================= -->
-    <div v-else-if="currentView === 'create-record'" class="fade-in">
-      <div class="detail-header">
-        <div class="back-btn" @click="currentView = 'list'">
-          <el-icon><ArrowLeft /></el-icon> 返回
-        </div>
-        <h2 class="detail-title">记录新足迹</h2>
-        <div class="header-placeholder"></div>
-      </div>
-
-      <div class="create-form">
-        <div class="form-card">
-          <h3 class="section-title">📝 路线基础信息</h3>
-          <el-form label-position="top">
-            <el-form-item label="路线名称">
-              <el-input v-model="createForm.routeName" placeholder="例如：杭州·西湖漫步"></el-input>
-            </el-form-item>
-            <el-form-item label="所属城市">
-              <el-input v-model="createForm.city" placeholder="例如：杭州"></el-input>
-            </el-form-item>
-            <el-form-item label="路线封面图 (URL)">
-              <el-input v-model="createForm.coverImage" placeholder="输入图片链接 (可选)"></el-input>
-            </el-form-item>
-          </el-form>
-        </div>
-
-        <div class="form-card">
-          <h3 class="section-title">📍 途径打卡点</h3>
-          <div v-for="(point, index) in createForm.points" :key="index" class="point-edit-item">
-            <div class="point-edit-header">
-              <span>打卡点 {{ index + 1 }}</span>
-              <el-button type="danger" link @click="removePoint(index)" v-if="createForm.points.length > 1">删除</el-button>
-            </div>
-            
-            <el-form label-position="top">
-              <el-form-item label="具体地点名称">
-                <el-input v-model="point.name" placeholder="例如：断桥残雪"></el-input>
-              </el-form-item>
-              <el-form-item label="到达时间">
-                <el-time-picker v-model="point.time" placeholder="选择时间" format="HH:mm" value-format="HH:mm" style="width: 100%;" />
-              </el-form-item>
-              <el-form-item label="通勤方式">
-                <el-input v-model="point.transport" placeholder="例如：打车 15min / 步行"></el-input>
-              </el-form-item>
-              <el-form-item label="我的评价">
-                <el-input type="textarea" v-model="point.review" placeholder="记录一下你的游玩感受吧..."></el-input>
-              </el-form-item>
-              <el-form-item label="打卡照片 (URL)">
-                <el-input v-model="point.image" placeholder="输入照片链接 (可选)"></el-input>
-              </el-form-item>
-            </el-form>
-          </div>
-
-          <el-button class="add-point-btn" type="dashed" plain @click="addPoint">
-            + 添加新的打卡点
-          </el-button>
-        </div>
-
-        <div class="submit-bar">
-          <el-button type="primary" class="submit-btn" @click="submitCreateRoute">保存并生成足迹</el-button>
-        </div>
-      </div>
-    </div>
-
     <!-- ================= 我的打卡详情页（时间轴） ================= -->
     <div v-else-if="currentView === 'my-detail'" class="fade-in">
       <div class="detail-header">
@@ -215,23 +152,50 @@
         <div class="header-placeholder"></div>
       </div>
 
+      <!-- 路线基本信息：把创建时填的封面/城市/简介都露出来 -->
+      <div class="route-hero">
+        <img :src="currentRoute.coverImage" class="hero-cover" alt="路线封面">
+        <div class="hero-body">
+          <div class="hero-title-row">
+            <h3 class="hero-title">{{ currentRoute.routeName }}</h3>
+            <span class="pub-flag" :class="{ 'pub-yes': currentRoute.isPublic }">
+              {{ currentRoute.isPublic ? '公开记录' : '未公开记录' }}
+            </span>
+          </div>
+          <div class="hero-stats">
+            <span v-if="currentRoute.city">🏙 {{ currentRoute.city }}</span>
+            <span>📍 {{ currentRoute.pointCount }} 个点位</span>
+            <span v-if="currentRoute.checkedPoints > 0">✅ 已打卡 {{ currentRoute.checkedPoints }} 个</span>
+          </div>
+          <p class="hero-desc" v-if="currentRoute.description">{{ currentRoute.description }}</p>
+          <p class="hero-time">创建时间：{{ currentRoute.createTime }}</p>
+        </div>
+      </div>
+
+      <div class="section-subtitle">📍 路线点位（{{ currentRoute.pointCount }} 个）</div>
+
       <div class="detail-content">
         <div class="timeline-container">
           <div v-for="(point, index) in currentRoute.points" :key="index" class="point-item">
             <div class="timeline-left">
-              <div class="time">{{ point.time }}</div>
-              <div class="dot"></div>
+              <div class="time" v-if="point.planTime || point.time">{{ point.planTime || point.time }}</div>
+              <div class="dot" :class="{ 'dot-done': point.checked }"></div>
               <div class="line" v-if="index !== currentRoute.points.length - 1"></div>
             </div>
             <div class="point-card">
               <img :src="point.image || '/pictures/Myback.jpg'" class="point-img" alt="点位图" @error="onImgError($event)">
               <div class="point-info">
-                <h4 class="point-name">{{ point.name }}</h4>
-                <div class="point-meta">
-                  <span class="meta-tag transport">🚌 {{ point.transport }}</span>
-                  <span class="meta-tag location">📍 {{ point.location }}</span>
+                <div class="point-title-row">
+                  <h4 class="point-name">{{ point.name }}</h4>
+                  <span class="checkin-state done" v-if="point.checked">已打卡</span>
                 </div>
-                <p class="point-desc">{{ point.description }}</p>
+                <div class="point-meta">
+                  <span class="meta-tag transport">🚶 {{ point.transport || '步行' }}</span>
+                  <span class="meta-tag tip" v-if="point.tip">💡 {{ point.tip }}</span>
+                </div>
+                <p class="point-loc" v-if="point.location">📍 地址：{{ point.location }}</p>
+                <p class="point-desc" v-if="point.description">{{ point.description }}</p>
+                <p class="point-checktime" v-if="point.checked && point.checkTimeText">⏱ 实际打卡：{{ point.checkTimeText }}</p>
                 <div class="my-review" v-if="point.review">
                   <div class="review-label">💬 我的评价</div>
                   <div class="review-content">{{ point.review }}</div>
@@ -278,7 +242,7 @@
             </div>
             <div class="level-info" style="flex: 1;">
               <h4>{{ point.name }}</h4>
-              <p>{{ point.location }}</p>
+              <p v-if="point.location">{{ point.location }}</p>
             </div>
             <div class="level-status">
               <el-button v-if="!point.isChecked" type="primary" size="small" round @click.stop="doCheckin(point)">打卡</el-button>
@@ -381,6 +345,7 @@
       </span>
     </template>
   </el-dialog>
+
 </template>
 
 <script setup>
@@ -390,9 +355,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Search, Location } from '@element-plus/icons-vue'
 // 👇 引入刚才抽离的详情页组件
 import RouteDetail from '@/components/RouteDetail.vue'
+import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
 
 const goHome = () => {
   router.push('/home') 
@@ -409,28 +377,90 @@ const activeTab = ref('checkin')
 const currentRoute = ref({})
 const searchKeyword = ref('')
 
-// 我的打卡路线持久化：供「发布路线」页的一键导入使用
-const saveCheckinList = () => {
+// ======= 我的打卡路线：数据来自后端 /checkin/route/my =======
+const defaultCover = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=80'
+
+const fmtTime = (v) => {
+  if (!v) return ''
+  return String(v).replace('T', ' ').slice(0, 16)
+}
+
+const pickImage = (url) => (/^(http|data:image)/.test(String(url || '')) ? url : defaultCover)
+
+// 点位地址兼容两种来源：自建记录直接存地址；从首页路线复制的存的是「地址：xxx；建议到达…」
+const cleanLocation = (loc) => String(loc || '')
+  .replace(/^地址[:：]/, '')
+  .split('；')[0]
+  .trim()
+
+// 老数据的 location 里有时放的是看点文案而不是地址，靠行政区/道路字样区分，避免地址行和介绍行重复
+const looksLikeAddress = (text) => /(省|市|区|县|镇|村|路|街|巷|号|大道|广场|公园|岛)/.test(String(text || ''))
+
+const mapRoute = (r) => ({
+  id: r.id,
+  sourceRouteId: r.sourceRouteId,
+  routeName: r.routeName,
+  city: r.city,
+  coverImage: pickImage(r.coverImage),
+  pointCount: r.totalPoints || 0,
+  checkedPoints: r.checkedPoints || 0,
+  status: r.status,
+  isPublic: r.isPublic === 1,
+  tags: r.tags || '',
+  description: r.description || '',
+  createTime: fmtTime(r.finishTime || r.createTime),
+  points: (r.points || []).map((p, i) => {
+    const rawLoc = cleanLocation(p.location)
+    const locIsAddress = rawLoc && looksLikeAddress(rawLoc)
+    return {
+      id: p.pointId || `${r.id}-${i}`,
+      name: p.name,
+      location: locIsAddress ? rawLoc : '',
+      image: pickImage(p.image),
+      hasImage: /^(http|data:image)/.test(String(p.image || '')),
+      time: p.checked && p.checkTime ? fmtTime(p.checkTime).slice(11) : (p.planTime || ''),
+      planTime: p.planTime || '',
+      longitude: p.longitude,
+      latitude: p.latitude,
+      checked: !!p.checked,
+      isChecked: !!p.checked,
+      transport: p.transport || '步行',
+      tip: p.tag || '',
+      description: p.description || (!locIsAddress && rawLoc ? rawLoc : ''),
+      checkTimeText: p.checked && p.checkTime ? fmtTime(p.checkTime) : ''
+    }
+  })
+})
+
+const mapCompleted = (r) => ({
+  id: r.id,
+  routeName: r.routeName,
+  coverImage: pickImage(r.coverImage),
+  city: r.city,
+  createTime: fmtTime(r.finishTime || r.createTime),
+  points: (r.points || []).map((p, i) => ({
+    id: p.pointId || `${r.id}-${i}`,
+    name: p.name,
+    location: p.location || r.city,
+    image: pickImage(p.image),
+    time: p.checkTime ? fmtTime(p.checkTime) : ''
+  }))
+})
+
+const loadMyRoutes = async () => {
   try {
-    localStorage.setItem('citywalk_checkin_list', JSON.stringify(checkinList.value))
+    const res = await request.get('/checkin/route/my')
+    if (res && res.code === 200) {
+      const rows = res.data || []
+      checkinList.value = rows.map(mapRoute)
+      completedRoutes.value = rows.filter(r => r.status === 1).map(mapCompleted)
+    }
   } catch (err) {
-    console.error('打卡路线本地保存失败', err)
+    console.error('打卡路线加载失败', err)
   }
 }
 
-const loadCheckinList = () => {
-  try {
-    const raw = localStorage.getItem('citywalk_checkin_list')
-    if (raw) {
-      const saved = JSON.parse(raw)
-      if (Array.isArray(saved) && saved.length) {
-        checkinList.value = saved
-      }
-    }
-  } catch (err) {
-    console.error('打卡路线本地读取失败', err)
-  }
-}
+
 
 // ======= 奖杯与通关记录逻辑 =======
 const trophyCount = ref(0)
@@ -453,25 +483,7 @@ const loadTrophyCount = () => {
 }
 loadTrophyCount()
 
-// 假数据：已完成通关的路线集合
-const completedRoutes = ref([
-  {
-    id: 'route-1',
-    routeName: '成都·玉林路的小酒馆',
-    coverImage: 'https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?auto=format&fit=crop&w=600&q=80',
-    city: '成都',
-    createTime: '2026-11-05 21:00',
-    points: [
-      {
-        id: 'p1',
-        name: '玉林西路',
-        location: '武侯区玉林西路',
-        time: '2026-11-05 19:30',
-        image: 'https://images.unsplash.com/photo-1577717903315-1691ae25ab3f?auto=format&fit=crop&w=800&q=80'
-      }
-    ]
-  }
-])
+const completedRoutes = ref([])
 
 // 删除通关记录
 const deleteCompletedRoute = (id, routeName) => {
@@ -480,11 +492,13 @@ const deleteCompletedRoute = (id, routeName) => {
     cancelButtonText: '再想想',
     type: 'warning',
     confirmButtonClass: 'el-button--danger'
-  }).then(() => {
-    const index = completedRoutes.value.findIndex(item => item.id === id)
-    if (index > -1) {
-      completedRoutes.value.splice(index, 1)
+  }).then(async () => {
+    try {
+      await request.delete(`/checkin/route/${id}`)
+      await loadMyRoutes()
       ElMessage.success('通关记录已删除')
+    } catch (err) {
+      console.error(err)
     }
   }).catch(() => {})
 }
@@ -511,9 +525,9 @@ const startCheckin = (item) => {
     return
   }
   const playData = JSON.parse(JSON.stringify(item))
-  playData.points = playData.points.map(pt => ({ ...pt, isChecked: false }))
+  playData.points = playData.points.map(pt => ({ ...pt, isChecked: !!pt.checked }))
   currentPlayRoute.value = playData
-  checkedCount.value = 0
+  checkedCount.value = playData.points.filter(pt => pt.isChecked).length
   currentView.value = 'checkin-play'
 }
 
@@ -526,91 +540,40 @@ const handlePointClick = (point, index) => {
 const doCheckin = (point) => {
   ElMessageBox.confirm(`确认你已经到达「${point.name}」了吗？`, '打卡确认', {
     confirmButtonText: '确认打卡', cancelButtonText: '还没到', type: 'success'
-  }).then(() => {
-    point.isChecked = true
-    checkedCount.value += 1
-    ElMessage.success(`「${point.name}」打卡成功！`)
+  }).then(async () => {
+    const index = currentPlayRoute.value.points.findIndex(pt => pt.id === point.id)
+    if (index < -1) return
+    try {
+      const res = await request.post(`/checkin/route/${currentPlayRoute.value.id}/point`, { index })
+      if (res && res.code === 200) {
+        const data = res.data || {}
+        point.isChecked = true
+        checkedCount.value = data.checkedPoints ?? (checkedCount.value + 1)
+        currentPlayRoute.value.status = data.status
+        ElMessage.success(`「${point.name}」打卡成功！`)
+        loadMyRoutes()
+      }
+    } catch (err) {
+      console.error(err)
+    }
   }).catch(() => {})
 }
 
 const finishGame = () => {
-  const newCompletedRoute = {
-    id: `completed-${Date.now()}`,
-    routeName: currentPlayRoute.value.routeName,
-    coverImage: currentPlayRoute.value.coverImage,
-    city: currentPlayRoute.value.city || currentPlayRoute.value.routeName.split('·')[0],
-    createTime: new Date().toLocaleString(),
-    points: currentPlayRoute.value.points.map((pt, index) => ({
-      id: `pt-${Date.now()}-${index}`,
-      name: pt.name,
-      location: pt.location,
-      time: new Date().toLocaleTimeString(),
-      image: pt.image
-    }))
-  }
-  completedRoutes.value.unshift(newCompletedRoute)
-
-  // 奖杯记录
+  // 后端在最后一个点位打卡时已把 status 置为「已通关」，这里只负责庆祝和刷新
   trophyCount.value += 1
   localStorage.setItem('citywalk_trophies', trophyCount.value.toString())
   currentTitle.value = `获得第 ${trophyCount.value} 个奖杯`
   showTrophyDialog.value = true
-  
+
+  loadMyRoutes()
   currentView.value = 'list'
   activeTab.value = 'completed'
-  currentCompletedView.value = 'list' 
+  currentCompletedView.value = 'list'
 }
 
 const closeTrophyDialog = () => {
   showTrophyDialog.value = false
-}
-
-// ======= 创建打卡路线逻辑 =======
-const createForm = ref({
-  routeName: '', city: '', coverImage: '',
-  points: [{ name: '', time: '09:00', transport: '', review: '', image: '' }]
-})
-
-const addPoint = () => {
-  createForm.value.points.push({ name: '', time: '12:00', transport: '', review: '', image: '' })
-}
-
-const removePoint = (index) => {
-  createForm.value.points.splice(index, 1)
-}
-
-const submitCreateRoute = () => {
-  if (!createForm.value.routeName || !createForm.value.city) {
-    ElMessage.warning('请至少填写路线名称和城市！')
-    return
-  }
-
-  const newRoute = {
-    id: Date.now(),
-    routeName: `${createForm.value.city}·${createForm.value.routeName}`,
-    coverImage: createForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
-    pointCount: createForm.value.points.length,
-    createTime: new Date().toLocaleString(),
-    points: createForm.value.points.map(pt => ({
-      name: pt.name || '未知打卡点',
-      time: pt.time || '12:00',
-      location: createForm.value.city,
-      transport: pt.transport || '步行',
-      image: pt.image || 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
-      description: '这是我的打卡足迹。',
-      review: pt.review || '暂无评价'
-    }))
-  }
-
-  checkinList.value.unshift(newRoute)
-  saveCheckinList()
-  
-  createForm.value = {
-    routeName: '', city: '', coverImage: '',
-    points: [{ name: '', time: '09:00', transport: '', review: '', image: '' }]
-  }
-  currentView.value = 'list'
-  ElMessage.success('足迹记录成功！（仅自己可见）')
 }
 
 // ======= 删除我的打卡路线逻辑（删除后进「我的垃圾站」，可恢复） =======
@@ -626,104 +589,22 @@ const pushToRecycle = (item) => {
 }
 
 const deleteMyRoute = (id, routeName) => {
-  ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？删除后会放进「我的垃圾站」，可以随时恢复。`, '删除打卡足迹', {
+  ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？`, '删除打卡足迹', {
     confirmButtonText: '确定删除', cancelButtonText: '再想想', type: 'warning', confirmButtonClass: 'el-button--danger'
-  }).then(() => {
-    const index = checkinList.value.findIndex(item => item.id === id)
-    if (index > -1) {
-      const removed = checkinList.value[index]
-      checkinList.value.splice(index, 1)
-      saveCheckinList()
-      pushToRecycle(removed)
-      ElMessage.success('已移入「我的垃圾站」')
+  }).then(async () => {
+    try {
+      const res = await request.delete(`/checkin/route/${id}`)
+      if (res && res.code === 200) {
+        await loadMyRoutes()
+        ElMessage.success('打卡路线已删除')
+      }
+    } catch (err) {
+      console.error(err)
     }
   }).catch(() => {})
 }
 
-// ======= 假数据 =======
-const checkinList = ref([
-  {
-    id: 1,
-    routeName: '广州·珠江夜景漫步',
-    coverImage: 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
-    pointCount: 3,
-    createTime: '2026-11-01 20:30',
-    points: [
-      {
-        name: '珠江琶醍啤酒文化创意艺术区',
-        time: '19:30',
-        location: '海珠区阅江西路',
-        transport: '打车 15min',
-        image: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
-        description: '傍晚的江风吹着很舒服，很多有格调的酒吧和餐厅，适合拍照打卡。',
-        review: '人稍微有点多，但是江景绝美！随便找个清吧喝杯精酿，极度治愈。'
-      },
-      {
-        name: '广州塔（小蛮腰）',
-        time: '20:30',
-        location: '海珠区阅江西路222号',
-        transport: '步行 20min',
-        image: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
-        description: '广州地标建筑，夜景灯光非常绚丽，可以在下面找好角度拍全貌。',
-        review: '没上去，就在下面拍了照，灯光变色的瞬间很出片，旁边的海心沙公园也很适合散步。'
-      }
-    ]
-  },
-  {
-    id: 2,
-    routeName: '上海·武康路梧桐区漫游',
-    coverImage: 'https://images.unsplash.com/photo-1548625361-ec847ef18515?auto=format&fit=crop&w=600&q=80',
-    pointCount: 3,
-    createTime: '2026-10-15 14:00',
-    points: [
-      {
-        name: '武康大楼',
-        time: '14:00',
-        location: '徐汇区淮海中路1850号',
-        transport: '地铁10/11号线交通大学站',
-        image: 'https://images.unsplash.com/photo-1543169829-9ee2a2a0e7e9?auto=format&fit=crop&w=800&q=80',
-        description: '上海标志性的历史建筑，船型外观极具辨识度，路口永远不缺拍照的人。',
-        review: '人真的超级多！但是建筑确实好看，在对面买个冰淇淋合影是不错的体验。'
-      }
-    ]
-  },
-  {
-    id: 3,
-    routeName: '北京·胡同里的秋日北平',
-    coverImage: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80',
-    pointCount: 3,
-    createTime: '2026-10-02 09:00',
-    points: [
-      {
-        name: '南锣鼓巷',
-        time: '09:00',
-        location: '东城区南锣鼓巷胡同',
-        transport: '地铁6/8号线南锣鼓巷站',
-        image: 'https://images.unsplash.com/photo-1577717903315-1691ae25ab3f?auto=format&fit=crop&w=800&q=80',
-        description: '北京最古老的街区之一，现在商业化比较严重，但依然保留着胡同的肌理。',
-        review: '早上来人比较少，吃个老北京糖油饼，逛逛旁边的小店，感觉还不错。'
-      }
-    ]
-  },
-  {
-    id: 4,
-    routeName: '深圳·从海边到繁华的穿梭',
-    coverImage: 'https://images.unsplash.com/photo-1522040969966-403bdf379843?auto=format&fit=crop&w=600&q=80',
-    pointCount: 3,
-    createTime: '2026-09-20 15:00',
-    points: [
-      {
-        name: '深圳湾公园',
-        time: '15:00',
-        location: '南山区滨海大道',
-        transport: '地铁9号线深圳湾公园站',
-        image: 'https://images.unsplash.com/photo-1616422285623-13ff0162193c?auto=format&fit=crop&w=800&q=80',
-        description: '沿着海岸线骑行或散步，对面就是香港，海风很舒服。',
-        review: '租个共享单车沿着海边骑，傍晚还能看到绝美的晚霞，可以看到远处的深圳湾大桥。'
-      }
-    ]
-  }
-])
+const checkinList = ref([])
 
 const favoriteList = ref([
   {
@@ -793,15 +674,20 @@ const filteredCheckinPoints = computed(() => {
   )
 })
 
-// 从首页跳转过来自动触发打卡
-onMounted(() => {
-  loadCheckinList()
+// 从首页跳转过来自动触发打卡（playRouteId 是首页真实路线 id）
+onMounted(async () => {
+  await loadMyRoutes()
   if (route.query.playRouteId) {
-    const targetRoute = favoriteList.value.find(item => item.id == route.query.playRouteId)
-    if (targetRoute) {
-      startCheckin(targetRoute)
-    } else {
-      ElMessage.error('找不到该路线的详细数据')
+    const sourceRouteId = Number(route.query.playRouteId)
+    try {
+      const res = await request.post('/checkin/route/create', { sourceRouteId })
+      if (res && res.code === 200) {
+        await loadMyRoutes()
+        const target = checkinList.value.find(item => item.sourceRouteId === sourceRouteId)
+        if (target) startCheckin(target)
+      }
+    } catch (err) {
+      console.error('从首页路线创建打卡路线失败', err)
     }
   }
 })
@@ -862,10 +748,43 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .point-card { flex: 1; background: #fff; border-radius: 16px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 15px; }
 .point-img { width: 100%; height: 160px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; }
 .point-name { margin: 0 0 10px 0; font-size: 17px; color: #303133; }
-.point-meta { display: flex; gap: 10px; margin-bottom: 10px; }
+.point-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .meta-tag { font-size: 12px; padding: 4px 8px; border-radius: 6px; font-weight: 500; }
 .transport { background: #FFF0F3; color: #FC6076; }
+.tip { background: #F0F9EB; color: #529b2e; }
 .location { background: #F0F9EB; color: #67C23A; }
+.point-loc { font-size: 12px; color: #909399; margin: 0 0 8px 0; line-height: 1.5; }
+
+/* 路线详情顶部信息卡 */
+.route-hero {
+  margin: 4px 15px 14px;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+.hero-cover { width: 100%; height: 160px; object-fit: cover; display: block; }
+.hero-body { padding: 14px 16px 16px; }
+.hero-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hero-title { margin: 0; font-size: 18px; color: #303133; }
+.hero-stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 12px; color: #909399; }
+.hero-desc { margin: 10px 0 0; font-size: 13px; color: #606266; line-height: 1.6; }
+.hero-time { margin: 8px 0 0; font-size: 12px; color: #C0C4CC; }
+.section-subtitle {
+  margin: 0 15px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #303133;
+  padding-left: 10px;
+  border-left: 4px solid #FF7A45;
+  line-height: 1.2;
+}
+.point-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.checkin-state { font-size: 11px; padding: 2px 8px; border-radius: 10px; flex: none; }
+.checkin-state.done { background: #F0F9EB; color: #67C23A; }
+.checkin-state.todo { background: #F5F7FA; color: #A8ABB2; }
+.point-checktime { margin: 8px 0 0; font-size: 12px; color: #67C23A; }
+.dot-done { background: #67C23A !important; border-color: #E1F3D8 !important; }
 .point-desc { font-size: 13px; color: #606266; line-height: 1.6; margin: 0; }
 .my-review { margin-top: 15px; background: #FFF9F0; border: 1px dashed #FFD15C; padding: 10px; border-radius: 10px; }
 .review-label { font-size: 12px; font-weight: bold; color: #E6A23C; margin-bottom: 5px; }
@@ -890,15 +809,66 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .list-back-btn:hover { background: #FFE4D6; }
 
 /* 发布按钮 */
-.publish-action { margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: flex-end; }
-.publish-btn { background: linear-gradient(to right, #FF9A44, #FC6076); border: none; font-weight: bold; box-shadow: 0 4px 10px rgba(252, 96, 118, 0.3); }
+/* 创建打卡记录入口卡片 */
+.create-entry { margin: 14px 0 16px; }
+.create-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px dashed #FFC7A8;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(255, 122, 69, 0.06);
+  transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
+}
+.create-card:hover {
+  border-color: #FF9A44;
+  background: #FFFBF7;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 122, 69, 0.14);
+}
+.create-card:active { transform: translateY(0); }
+.create-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #FF9A44, #FC6076);
+  box-shadow: 0 4px 10px rgba(252, 96, 118, 0.28);
+}
+.create-text { flex: 1; min-width: 0; }
+.create-title { font-size: 15px; font-weight: 700; color: #303133; line-height: 1.3; }
+.create-sub { margin-top: 3px; font-size: 12px; color: #A8ABB2; }
+.create-arrow { flex: none; font-size: 22px; color: #FFB38A; line-height: 1; }
+.home-route-link {
+  display: block;
+  margin: 10px auto 0;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: #909399;
+  cursor: pointer;
+  transition: color .2s;
+}
+.home-route-link:hover { color: #FF7A45; }
+.pub-flag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #F2F3F5; color: #909399; }
+.pub-flag.pub-yes { background: #F0F9EB; color: #67C23A; }
 
 /* 创建打卡路线页 */
 .create-form { padding-bottom: 80px; }
 .form-card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
 .point-edit-item { background: #F9F9F9; border: 1px dashed #DCDFE6; border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative; }
 .point-edit-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #FF7A45; margin-bottom: 10px; }
-.add-point-btn { width: 100%; height: 44px; border-radius: 10px; border-color: #FF9A44; color: #FF7A45; background: #FFF9F0; font-weight: bold; }
+.add-point-btn { width: 100%; height: 44px; border-radius: 10px; border: 1px dashed #FF9A44; color: #FF7A45; background: #FFF9F0; font-weight: bold; }
 .add-point-btn:hover { background: #FFF0F3; }
 .submit-bar { position: fixed; bottom: 60px; left: 0; width: 100%; background: #fff; padding: 10px 15px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 98; box-sizing: border-box; }
 .submit-btn { width: 100%; border-radius: 20px; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; font-size: 16px; font-weight: bold; padding: 12px 0; }
@@ -950,4 +920,14 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .level-info p { margin: 0; font-size: 13px; color: #909399; }
 .action-footer { margin-top: 30px; padding: 0 10px; }
 .checkin-btn { width: 100%; border-radius: 20px; font-size: 16px; font-weight: bold; padding: 12px 0; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; }
+
+/* 从首页路线创建打卡路线的弹窗 */
+.pick-search { display: flex; gap: 10px; margin-bottom: 15px; }
+.pick-list { max-height: 55vh; overflow-y: auto; }
+.pick-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; background: #FFF9F0; margin-bottom: 10px; }
+.pick-cover { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: #F5F7FA; }
+.pick-info { flex: 1; overflow: hidden; }
+.pick-name { font-size: 15px; font-weight: bold; color: #303133; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-meta { font-size: 12px; color: #909399; }
+.pick-empty { text-align: center; color: #909399; padding: 30px 0; }
 </style>

@@ -48,19 +48,29 @@ const pageSize = ref(10)
 const total = ref(0)
 
 async function loadData(){
-  const res = await request.get("/api/admin/user/list",{
+  const res = await request.get("/admin/user/list",{
     params:{pageNum:pageNum.value,pageSize:pageSize.value,keyword:searchKey.value}
   })
   if(res.code===200){
-    tableData.value = res.data.records
-    total.value = res.data.total
+    // 兼容两种返回：分页对象 {records,total} 与纯数组
+    const d = res.data
+    if(Array.isArray(d)){
+      tableData.value = d
+      total.value = d.length
+    }else if(d && Array.isArray(d.records)){
+      tableData.value = d.records
+      total.value = d.total
+    }else{
+      tableData.value = []
+      total.value = 0
+    }
   }
 }
 
 //禁用用户
 const banUser = async(row)=>{
   await ElMessageBox.confirm("确认禁用该用户账号？")
-  const res = await request.put("/api/admin/user/status",{id:row.id,status:0})
+  const res = await request.put("/admin/user/status",{id:row.id,status:0})
   if(res.code===200){
     ElMessage.success("账号已禁用")
     loadData()
@@ -70,7 +80,7 @@ const banUser = async(row)=>{
 //启用用户
 const unBanUser = async(row)=>{
   await ElMessageBox.confirm("确认启用该用户账号？")
-  const res = await request.put("/api/admin/user/status",{id:row.id,status:1})
+  const res = await request.put("/admin/user/status",{id:row.id,status:1})
   if(res.code===200){
     ElMessage.success("账号已启用")
     loadData()

@@ -16,12 +16,12 @@
       <div v-else class="route-list">
         <div class="route-item" v-for="item in likeList" :key="item.id" @click="goDetail(item.id)">
           <div class="route-img">
-            <img :src="item.cover || defaultImg" alt="">
+            <img :src="item.coverImage || defaultImg" alt="">
           </div>
           <div class="route-info">
-            <div class="route-name">{{ item.title }}</div>
-            <div class="route-desc">{{ item.content }}</div>
-            <div class="route-time">{{ item.createTime }}</div>
+            <div class="route-name">{{ item.routeName || item.title }}</div>
+            <div class="route-desc">{{ item.description || item.content }}</div>
+            <div class="route-time">{{ item.city }} · {{ item.createTime }}</div>
           </div>
         </div>
       </div>
@@ -31,6 +31,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getUserLikeListAPI } from '@/api/route'
 const router = useRouter()

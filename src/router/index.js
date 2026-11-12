@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/user'
+import Layout from '@/views-admin/Layout.vue'
 const routes = [
   {
     path: '/',
@@ -154,7 +155,7 @@ const routes = [
     component: () => import('@/views/CitySelect.vue'),
     meta: { requiresAuth: false }
   },
-  // ============后台管理路由============
+  // ============后台管理路由（统一挂在 Layout 下，带左侧菜单 + 顶栏）============
   {
     path: '/adminlogin',
     name: 'AdminLogin',
@@ -162,40 +163,48 @@ const routes = [
     meta: { public: true }
   },
   {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/views-admin/Dashboard.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/routeManage',
-    name: 'RouteManage',
-    component: () => import('@/views-admin/RouteManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/userManage',
-    name: 'UserManage',
-    component: () => import('@/views-admin/UserManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/commentManage',
-    name: 'CommentManage',
-    component: () => import('@/views-admin/CommentManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/tagManage',
-    name: 'TagManage',
-    component: () => import('@/views-admin/TagManage.vue'),
-    meta: { adminAuth: true }
-  },
-  {
-    path: '/cityManage',
-    name: 'CityManage',
-    component: () => import('@/views-admin/CityManage.vue'),
-    meta: { adminAuth: true }
+    path: '/admin',
+    component: Layout,
+    redirect: '/admin/dashboard',
+    meta: { adminAuth: true },
+    children: [
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views-admin/Dashboard.vue'),
+        meta: { adminAuth: true, title: '数据仪表盘' }
+      },
+      {
+        path: 'routeManage',
+        name: 'RouteManage',
+        component: () => import('@/views-admin/RouteManage.vue'),
+        meta: { adminAuth: true, title: '路线管理' }
+      },
+      {
+        path: 'userManage',
+        name: 'UserManage',
+        component: () => import('@/views-admin/UserManage.vue'),
+        meta: { adminAuth: true, title: '用户管理' }
+      },
+      {
+        path: 'commentManage',
+        name: 'CommentManage',
+        component: () => import('@/views-admin/CommentManage.vue'),
+        meta: { adminAuth: true, title: '评论管理' }
+      },
+      {
+        path: 'tagManage',
+        name: 'TagManage',
+        component: () => import('@/views-admin/TagManage.vue'),
+        meta: { adminAuth: true, title: '标签管理' }
+      },
+      {
+        path: 'cityManage',
+        name: 'CityManage',
+        component: () => import('@/views-admin/CityManage.vue'),
+        meta: { adminAuth: true, title: '城市管理' }
+      }
+    ]
   },
   {
     path: '/:pathMatch(.*)*',
