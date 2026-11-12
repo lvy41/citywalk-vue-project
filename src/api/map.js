@@ -1,5 +1,14 @@
 import request from "@/utils/request"
 /**
+ * @description 省市区地区树（Home 搜索面板、Map 地区选择共用）
+ */
+export function getAreaTreeAPI() {
+  return request({
+    url: "/area/tree",
+    method: "get"
+  })
+}
+/**
  * @description 获取地图打卡点位，支持cityId城市筛选
  */
 export function getMapPoints(params) {

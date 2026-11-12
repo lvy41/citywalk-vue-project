@@ -133,6 +133,13 @@ const routes = [
     component: () => import('@/views/Detail.vue'),
     meta: { requiresAuth: false }
   },
+  // 路线打卡流程页：逐点位打卡，需登录（进度要落库）
+  {
+    path: '/checkin/:id',
+    name: 'Checkin',
+    component: () => import('@/views/Checkin.vue'),
+    meta: { requiresAuth: true }
+  },
   // ✅【新增城市路线页面】点击城市跳转到此页面，无需登录
   {
     path: '/city/:cityName',

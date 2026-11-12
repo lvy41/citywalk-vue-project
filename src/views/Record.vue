@@ -36,7 +36,7 @@
           </div>
           <div class="card-list">
             <div v-for="item in checkinList" :key="item.id" class="record-card">
-              <img :src="item.coverImage" class="card-cover" alt="封面">
+              <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
               <div class="card-info">
                 <div class="title-row">
                   <h3 class="card-title link-title" @click="openDetail(item, 'my-detail')">
@@ -55,7 +55,7 @@
         <el-tab-pane label="收藏路线" name="favorite">
           <div class="card-list">
             <div v-for="item in favoriteList" :key="item.id" class="record-card">
-              <img :src="item.coverImage" class="card-cover" alt="封面">
+              <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
               <div class="card-info">
                 <h3 class="card-title link-title" @click="openDetail(item, 'fav-detail')">
                   {{ item.routeName }} <span class="arrow">></span>
@@ -90,7 +90,7 @@
 
             <div class="card-list">
               <div v-for="item in filteredCompletedRoutes" :key="item.id" class="record-card">
-                <img :src="item.coverImage" class="card-cover" alt="封面">
+                <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
                 <div class="card-info">
                   <div class="title-row">
                     <h3 class="card-title link-title" @click="openCompletedRoute(item)">
@@ -126,7 +126,7 @@
                 :key="point.id" 
                 class="gallery-card"
               >
-                <img :src="point.image" class="gallery-img" alt="打卡图">
+                <img :src="point.image || '/pictures/Myback.jpg'" class="gallery-img" alt="打卡图" @error="onImgError($event)">
                 <div class="gallery-info">
                   <div class="gallery-header">
                     <h3 class="gallery-name">{{ point.name }}</h3>
@@ -224,7 +224,7 @@
               <div class="line" v-if="index !== currentRoute.points.length - 1"></div>
             </div>
             <div class="point-card">
-              <img :src="point.image" class="point-img" alt="点位图">
+              <img :src="point.image || '/pictures/Myback.jpg'" class="point-img" alt="点位图" @error="onImgError($event)">
               <div class="point-info">
                 <h4 class="point-name">{{ point.name }}</h4>
                 <div class="point-meta">
@@ -322,7 +322,7 @@
           :key="point.id"
           class="gallery-card"
         >
-          <img :src="point.image" class="gallery-img" alt="打卡图">
+          <img :src="point.image || '/pictures/Myback.jpg'" class="gallery-img" alt="打卡图" @error="onImgError($event)">
           <div class="gallery-info">
             <div class="gallery-header">
               <h3 class="gallery-name">{{ point.name }}</h3>
@@ -398,6 +398,12 @@ const goHome = () => {
   router.push('/home') 
 }
 
+// 图片地址为空或加载失败时退回默认图，避免出现破图图标
+const onImgError = (e) => {
+  const img = e.target
+  if (img && img.dataset.fallback === '1') return
+  if (img) { img.dataset.fallback = '1'; img.src = '/pictures/Myback.jpg' }
+}
 const currentView = ref('list')
 const activeTab = ref('checkin')
 const currentRoute = ref({})

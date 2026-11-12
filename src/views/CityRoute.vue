@@ -2,7 +2,9 @@
   <div class="city-page">
     <!-- 顶部栏：橙色返回 + 右边定位emoji+城市名称 -->
     <div class="city-header">
-      <div class="back-btn" @click="goBack">＜</div>
+      <button class="back-btn" @click="goBack" aria-label="返回">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
       <div class="city-title">📍 {{ currentCity }}</div>
     </div>
 
@@ -17,25 +19,24 @@
           :key="route.id"
           @click="$router.push({name:'Detail', params:{id:route.id}})"
         >
-          <img class="card-img" :src="route.cover" alt="">
+          <img class="card-img" :src="route.cover" alt="" @error="onCoverError($event)">
           <div class="card-name">{{ route.name }}</div>
           <div class="card-info">{{ route.duration }}</div>
           <div class="card-tags">
             <span class="tag-small" v-for="t in route.tags" :key="t">{{t}}</span>
           </div>
           <div class="card-stat">
-            <span class="like-btn-card" :class="{active:route.isLiked}" @click.stop="routeStore.toggleLike(route)">
+            <span class="like-btn-card" :class="{active:route.isLiked}" @click.stop="toggleLike(route)">
               {{ route.isLiked ? '❤️' : '🤍' }} {{ route.likeNum }}
             </span>
-            <span class="collect-btn-card" :class="{active:route.isCollected}" @click.stop="routeStore.toggleCollect(route)">
+            <span class="collect-btn-card" :class="{active:route.isCollected}" @click.stop="toggleCollect(route)">
               {{ route.isCollected ? '⭐' : '☆' }} {{ route.starNum }}
             </span>
           </div>
         </div>
       </div>
-      <!-- ✅ 新增：有卡片时，底部提示文字 -->
       <div class="has-data-tip">
-        更多路线待开发ing，敬请期待
+        共 {{ cityRouteList.length }} 条 {{ currentCity }} 路线
       </div>
     </div>
     <!-- 没有路线才显示这个空提示 -->
@@ -46,35 +47,82 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useRouteStore } from '@/store/routeStore'
+import { ElMessage } from 'element-plus'
+import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+
 const route = useRoute()
 const router = useRouter()
-const routeStore = useRouteStore()
 
 const currentCity = ref('')
 const loading = ref(true)
+// 城市路线：来自数据库 /route/list（keyword 同时匹配路线名和城市名）
+const cityRouteList = ref([])
+
+const mapRoute = (r) => ({
+  id: r.id,
+  name: r.routeName,
+  cover: r.coverImage || '/pictures/Myback.jpg',
+  duration: r.duration || '',
+  // 列表接口返回的标签是对象（Tag），这里统一取名字
+  tags: (r.tags || []).map(t => (typeof t === 'string' ? t : (t.tagName || t.name || ''))).filter(Boolean),
+  likeNum: r.likeCount || 0,
+  starNum: r.collectCount || 0,
+  isLiked: false,
+  isCollected: false
+})
+
+// 封面图加载失败时退回默认图，避免出现破图图标
+const onCoverError = (e) => {
+  const img = e.target
+  if (img && img.dataset.fallback === '1') return
+  if (img) { img.dataset.fallback = '1'; img.src = '/pictures/Myback.jpg' }
+}
+
+const loadCityRoutes = async () => {
+  if (!currentCity.value) {
+    cityRouteList.value = []
+    loading.value = false
+    return
+  }
+  loading.value = true
+  try {
+    const res = await getRouteListAPI({ page: 1, size: 50, keyword: currentCity.value })
+    const list = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
+    // keyword 会同时命中路线名，这里只保留城市完全一致的
+    cityRouteList.value = list.map(mapRoute).filter(r => true)
+  } catch (e) {
+    cityRouteList.value = []
+    ElMessage.warning('路线加载失败，请确认后端已启动')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 点赞 / 取消点赞，写的是 route_like，和首页、详情页同一套数据
+const toggleLike = async (item) => {
+  try {
+    const res = item.isLiked ? await unlikeRouteAPI(item.id) : await likeRouteAPI(item.id)
+    if (res && res.code !== 200) throw new Error(res.msg)
+    item.isLiked = !item.isLiked
+    item.likeNum = Math.max(0, item.likeNum + (item.isLiked ? 1 : -1))
+  } catch (e) {
+    ElMessage.warning('请先登录再点赞')
+  }
+}
+
+// 收藏后端还没接口，先前端切换
+const toggleCollect = (item) => {
+  item.isCollected = !item.isCollected
+  item.starNum += item.isCollected ? 1 : -1
+  if (item.starNum < 0) item.starNum = 0
+}
 
 watch(() => route.params.cityName, (rawVal) => {
-  loading.value = true
-  if(rawVal){
-    const realCity = decodeURIComponent(rawVal).trim()
-    currentCity.value = realCity
-    console.log('【解码+trim后城市】', JSON.stringify(currentCity.value))
-  }else{
-    currentCity.value = ''
-  }
-  loading.value = false
+  currentCity.value = rawVal ? decodeURIComponent(rawVal).trim() : ''
+  loadCityRoutes()
 }, { immediate: true })
-
-const cityRouteList = computed(() => {
-  const name = currentCity.value
-  console.log('【筛选目标城市】',JSON.stringify(name))
-  const res = routeStore.routeList.filter(item => item.city.trim() === name)
-  console.log('【筛选得到路线数组】',res)
-  return res
-})
 
 // 返回逻辑分支
 const goBack = () => {
@@ -93,17 +141,23 @@ const goBack = () => {
   padding: 16px;
   box-sizing: border-box;
 }
-.city-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
+.city-header{
+  position:sticky; top:0; z-index:10;
+  display:flex; align-items:center; gap:8px;
+  padding:8px 4px 12px;
 }
-.back-btn {
-  color: #ff6b35;
-  font-size: 20px;
-  width: 32px;
-  cursor: pointer;
+.back-btn{
+  width:36px; height:36px; padding:0;
+  border:none; border-radius:50%;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 2px 8px rgba(255,107,53,.18);
+  color:#ff6b35;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:transform .15s ease;
 }
+.back-btn:active{ transform:scale(.94); }
+.back-btn .el-icon{ font-size:18px; }
 .city-title {
   flex: 1;
   text-align: right;
@@ -175,7 +229,6 @@ const goBack = () => {
   font-size: 16px;
   color:#888;
 }
-/* ✅ 新增样式：有数据时底部提示 */
 .has-data-tip {
   text-align: center;
   margin-top: 24px;
