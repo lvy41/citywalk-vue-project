@@ -20,7 +20,7 @@
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-num">{{ completedRoutes.length }}</div>
+          <div class="stat-num">{{ finishedCount }}</div>
           <div class="stat-label">我的闯关</div>
         </div>
       </div>
@@ -34,42 +34,17 @@
               <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
               <div class="card-info">
                 <div class="title-row">
-                  <h3 class="card-title link-title" @click="openDetail(item, 'my-detail')">
+                  <h3 class="card-title link-title" @click="openRecordRoute(item)">
                     {{ item.routeName }} <span class="arrow">></span>
                   </h3>
                   <span class="delete-icon" @click.stop="deleteMyRoute(item.id, item.routeName)">🗑️</span>
                 </div>
-                <p class="card-desc"><span class="tag-icon">📍</span> 打卡点位：{{ item.pointCount }} 个<template v-if="item.checkedPoints > 0">（已打卡 {{ item.checkedPoints }} 个）</template></p>
-                <p class="card-time">
-                  <span class="pub-flag" :class="{ 'pub-yes': item.isPublic }">{{ item.isPublic ? '公开记录' : '未公开记录' }}</span>
-                </p>
-                <p class="card-time">{{ item.status === 1 ? '完成时间：' + item.createTime : '创建时间：' + item.createTime }}</p>
+                <p class="card-desc"><span class="tag-icon">📍</span> 打卡点位：{{ item.checkedPoints }} / {{ item.pointCount }} 个</p>
+                <p class="card-time">最近打卡：{{ item.createTime }}</p>
               </div>
             </div>
           </div>
-          <div v-if="checkinList.length === 0" style="text-align:center;color:#909399;padding:30px 0;">
-            还没有打卡记录，去「发布路线」页填写一条，保存后会出现在这里～
-          </div>
-        </el-tab-pane>
-
-        <!-- 收藏路线 -->
-        <el-tab-pane label="收藏路线" name="favorite">
-          <div class="card-list">
-            <div v-for="item in favoriteList" :key="item.id" class="record-card">
-              <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
-              <div class="card-info">
-                <h3 class="card-title link-title" @click="openDetail(item, 'fav-detail')">
-                  {{ item.routeName }} <span class="arrow">></span>
-                </h3>
-                <p class="card-desc"><span class="tag-icon">🏙️</span> 城市：{{ item.city }}</p>
-                <p class="card-desc"><span class="tag-icon">🚶</span> 距离：{{ item.distance }} | 耗时：{{ item.duration }}</p>
-                <div class="btn-group">
-                  <el-button type="warning" size="small" round class="action-btn yellow-btn" @click.stop="startCheckin(item)">去打卡</el-button>
-                  <el-button type="danger" size="small" round plain class="action-btn pink-btn" @click.stop="cancelFavorite(item.id)">取消收藏</el-button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <div v-if="!checkinList.length" class="empty-tip">还没有打卡记录，去首页挑一条路线开始打卡吧~</div>
         </el-tab-pane>
 
         <!-- 我的闯关 -->
@@ -357,6 +332,7 @@ import { ArrowLeft, Search, Location } from '@element-plus/icons-vue'
 import RouteDetail from '@/components/RouteDetail.vue'
 import request from '@/utils/request'
 import { useUserStore } from '@/store/user'
+import { getTrophyAPI } from '@/api/checkin'
 
 const router = useRouter()
 const route = useRoute()
@@ -385,7 +361,7 @@ const fmtTime = (v) => {
   return String(v).replace('T', ' ').slice(0, 16)
 }
 
-const pickImage = (url) => (/^(http|data:image)/.test(String(url || '')) ? url : defaultCover)
+const pickImage = (url) => (/^(http|data:image|\/)/.test(String(url || '')) ? url : defaultCover)
 
 // 点位地址兼容两种来源：自建记录直接存地址；从首页路线复制的存的是「地址：xxx；建议到达…」
 const cleanLocation = (loc) => String(loc || '')
@@ -447,6 +423,7 @@ const mapCompleted = (r) => ({
   }))
 })
 
+// 我的打卡路线：读后端 /checkin/route/my（自建/导入的打卡路线，含点位进度）
 const loadMyRoutes = async () => {
   try {
     const res = await request.get('/checkin/route/my')
@@ -454,13 +431,20 @@ const loadMyRoutes = async () => {
       const rows = res.data || []
       checkinList.value = rows.map(mapRoute)
       completedRoutes.value = rows.filter(r => r.status === 1).map(mapCompleted)
+      saveCheckinList()
     }
   } catch (err) {
     console.error('打卡路线加载失败', err)
+    checkinList.value = []
+    completedRoutes.value = []
   }
 }
 
-
+const formatApiTime = (v) => {
+  if (!v) return ''
+  const s = String(v)
+  return s.replace('T', ' ').slice(0, 16)
+}
 
 // ======= 奖杯与通关记录逻辑 =======
 const trophyCount = ref(0)
@@ -474,11 +458,16 @@ const currentCompletedView = ref('list')
 const currentCompletedRoute = ref({})
 const searchCompletedKeyword = ref('')
 
-// 读取奖杯数量
-const loadTrophyCount = () => {
-  const savedTrophies = localStorage.getItem('citywalk_trophies')
-  if (savedTrophies) {
-    trophyCount.value = parseInt(savedTrophies)
+// 读取奖杯数量：后端 /checkin/trophy 为准
+const loadTrophyCount = async () => {
+  try {
+    const res = await getTrophyAPI()
+    if (res && res.code === 200 && res.data) {
+      trophyCount.value = res.data.trophyCount || 0
+    }
+  } catch (e) {
+    const savedTrophies = localStorage.getItem('citywalk_trophies')
+    if (savedTrophies) trophyCount.value = parseInt(savedTrophies) || 0
   }
 }
 loadTrophyCount()
@@ -588,61 +577,47 @@ const pushToRecycle = (item) => {
   }
 }
 
-const deleteMyRoute = (id, routeName) => {
-  ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？`, '删除打卡足迹', {
-    confirmButtonText: '确定删除', cancelButtonText: '再想想', type: 'warning', confirmButtonClass: 'el-button--danger'
-  }).then(async () => {
-    try {
-      const res = await request.delete(`/checkin/route/${id}`)
-      if (res && res.code === 200) {
-        await loadMyRoutes()
-        ElMessage.success('打卡路线已删除')
-      }
-    } catch (err) {
-      console.error(err)
-    }
-  }).catch(() => {})
+const deleteMyRoute = async (id, routeName) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？删除后会放进「我的垃圾站」，可以随时恢复。`, '删除打卡足迹', {
+      confirmButtonText: '确定删除', cancelButtonText: '再想想', type: 'warning', confirmButtonClass: 'el-button--danger'
+    })
+  } catch (e) {
+    return
+  }
+  try {
+    const res = await request.delete(`/checkin/route/${id}`)
+    if (!res || res.code !== 200) throw new Error((res && res.msg) || '删除失败')
+    const removed = checkinList.value.find(item => item.id === id)
+    if (removed) pushToRecycle(removed)
+    await loadMyRoutes()
+    ElMessage.success('已移入「我的垃圾站」')
+    loadTrophyCount()
+  } catch (e) {
+    ElMessage.error('删除失败，请稍后重试')
+  }
 }
 
+// ======= 我的打卡路线：读后端 /checkin/my（真实数据） =======
 const checkinList = ref([])
 
-const favoriteList = ref([
-  {
-    id: 5,
-    routeName: '成都·玉林路的小酒馆',
-    coverImage: 'https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?auto=format&fit=crop&w=600&q=80',
-    city: '成都',
-    distance: '2.5km',
-    duration: '1.5h',
-    points: [
-      {
-        name: '玉林西路',
-        location: '武侯区玉林西路',
-        image: 'https://images.unsplash.com/photo-1577717903315-1691ae25ab3f?auto=format&fit=crop&w=800&q=80',
-        description: '赵雷歌里的玉林路，充满文艺气息的老街区，很多涂鸦墙和小酒馆。'
-      },
-      {
-        name: '小酒馆（玉林店）',
-        location: '武侯区玉林西路55号',
-        image: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=800&q=80',
-        description: '《成都》这首歌里唱的那个小酒馆，门口永远有人在拍照打卡。'
-      }
-    ],
-    comments: [
-      {
-        id: 101,
-        username: 'CityWalk爱好者',
-        avatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=100&q=80',
-        time: '5天前',
-        content: '这条路线很适合下午慢慢逛，周边有很多好吃的串串，推荐！',
-        isMine: false,
-        isAuthor: true,
-        likes: 8,
-        isLiked: true
-      }
-    ]
+// 打卡路线仍写一份到 localStorage，供「发布路线」页一键导入
+const saveCheckinList = () => {
+  try {
+    localStorage.setItem('citywalk_checkin_list', JSON.stringify(checkinList.value))
+  } catch (err) {
+    console.error('打卡路线本地保存失败', err)
   }
-])
+}
+
+// 打卡记录点击：有关联公开路线就进公开详情；自建未关联的记录打开本地快照详情，避免用打卡记录 id 误跳到别的路线
+const openRecordRoute = (item) => {
+  if (item.sourceRouteId) {
+    router.push(`/detail/${item.sourceRouteId}`)
+  } else {
+    openDetail(item, 'my-detail')
+  }
+}
 
 const openDetail = (item, viewName) => {
   if (!item.points || item.points.length === 0) {
@@ -654,15 +629,20 @@ const openDetail = (item, viewName) => {
 }
 
 const allCheckinPoints = computed(() => {
-  let points = []
+  const points = []
   checkinList.value.forEach(route => {
-    const cityName = route.routeName.split('·')[0] || '未知'
-    route.points.forEach((pt, index) => {
+    const cityName = route.city || '未知'
+    ;(route.points || []).forEach((pt, index) => {
+      // 打卡足迹只统计已打卡的点位
+      if (!pt.checked) return
       points.push({ ...pt, id: `${route.id}-${index}`, city: cityName })
     })
   })
   return points
 })
+
+// 我的闯关数：已通关（拿到奖杯）的路线条数
+const finishedCount = computed(() => checkinList.value.filter(r => r.status === 1).length)
 
 const filteredCheckinPoints = computed(() => {
   if (!searchKeyword.value) return allCheckinPoints.value
@@ -691,8 +671,6 @@ onMounted(async () => {
     }
   }
 })
-
-const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}`) }
 </script>
 
 <style scoped>
@@ -719,6 +697,7 @@ const cancelFavorite = (id) => { ElMessage.warning(`取消收藏路线 ID: ${id}
 .record-tabs :deep(.el-tabs__active-bar) { background-color: #FF7A45; height: 3px; border-radius: 3px; }
 
 .card-list { display: flex; flex-direction: column; gap: 16px; margin-top: 15px; }
+.empty-tip { text-align: center; color: #999; font-size: 13px; padding: 40px 0; }
 .record-card { display: flex; background: #ffffff; border-radius: 18px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04); transition: transform 0.2s ease; }
 .record-card:active { transform: scale(0.98); }
 .card-cover { width: 110px; height: 110px; object-fit: cover; }

@@ -177,8 +177,10 @@ const goBack = () => {
 }
 .card-img {
   width:100%;
-  height:140px;
-  object-fit:cover;
+  height:auto;
+  object-fit:contain;
+  background:#f4f5f7;
+  display:block;
 }
 .card-name {
   padding:6px 8px 2px;

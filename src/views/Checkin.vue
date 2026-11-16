@@ -89,7 +89,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRouteDetailFullAPI } from '@/api/route'
-import { submitCheckinAPI, getCheckinStatusAPI, getTrophyAPI } from '@/api/checkin'
+import { createMyCheckinRouteAPI, checkinRoutePointAPI, getTrophyAPI } from '@/api/checkin'
 
 const route = useRoute()
 const router = useRouter()
@@ -132,15 +132,13 @@ const loadDetail = async () => {
 }
 
 const loadStatus = async () => {
-  try {
-    const res = await getCheckinStatusAPI(routeId.value)
-    if (res.code === 200 && res.data) {
-      checkedIds.value = res.data.checkedPointIds || []
-      finished.value = checkedIds.value.length >= points.value.length && points.value.length > 0
-    }
-  } catch (e) {
+  // 进度以「我的打卡路线副本」里的 points 为准
+  if (await ensureMyRoute()) {
+    checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
+  } else {
     checkedIds.value = []
   }
+  finished.value = points.value.length > 0 && checkedIds.value.length >= points.value.length
 }
 
 // 浏览器定位（10 秒超时），失败返回 null
@@ -176,6 +174,39 @@ const haversine = (lat1, lng1, lat2, lng2) => {
   return 2 * Math.asin(Math.sqrt(a)) * R
 }
 
+// 我的打卡路线副本：同一首页路线只生成一条，create 接口幂等
+const myRouteId = ref(null)
+const myPoints = ref([])
+
+const ensureMyRoute = async () => {
+  if (myRouteId.value) return true
+  try {
+    const res = await createMyCheckinRouteAPI(routeId.value)
+    if (res && res.code === 200 && res.data) {
+      myRouteId.value = res.data.id
+      myPoints.value = res.data.points || []
+      return true
+    }
+  } catch (e) {
+    console.error('创建打卡路线副本失败', e)
+  }
+  return false
+}
+
+// 用副本里的点位序号（index 从 0 开始）提交打卡
+const submitPoint = async (p) => {
+  if (!(await ensureMyRoute())) {
+    ElMessage.error('打卡路线副本创建失败，请稍后重试')
+    return null
+  }
+  const index = myPoints.value.findIndex(pt => Number(pt.pointId) === Number(p.id))
+  if (index < 0) {
+    ElMessage.error('该点位不在打卡路线中')
+    return null
+  }
+  return checkinRoutePointAPI(myRouteId.value, index)
+}
+
 const onCheckin = async (p) => {
   if (checkedIds.value.includes(p.id)) return
   if (p.longitude == null || p.latitude == null) {
@@ -206,17 +237,17 @@ const onCheckin = async (p) => {
       )
     }
 
-    const res = await submitCheckinAPI({
-      pointId: p.id,
-      checkinLng: lng,
-      checkinLat: lat
-    })
-    if (res.code === 200 && res.data) {
-      checkedIds.value = res.data.checkedPointIds || checkedIds.value
+    const res = await submitPoint(p)
+    if (res && res.code === 200 && res.data) {
+      myPoints.value = res.data.points || myPoints.value
+      checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
       ElMessage.success(`「${p.pointName}」打卡成功`)
-      if (res.data.finished) {
+      if (res.data.status === 1 || res.data.checkedPoints >= res.data.totalPoints) {
         finished.value = true
-        trophyNo.value = res.data.trophyNo || trophyNo.value
+        try {
+          const t = await getTrophyAPI()
+          if (t.code === 200 && t.data) trophyNo.value = t.data.trophyCount
+        } catch (e) { /* ignore */ }
         trophyVisible.value = true
       }
     }
@@ -229,22 +260,22 @@ const onCheckin = async (p) => {
   }
 }
 
-// 演示打卡：不校验定位，直接用点位坐标提交，方便没有到现场时演示流程
+// 演示打卡：不校验定位，直接提交副本点位
 const demoCheckin = async (p) => {
   if (checkedIds.value.includes(p.id)) return
   checkingId.value = p.id
   try {
-    const res = await submitCheckinAPI({
-      pointId: p.id,
-      checkinLng: p.longitude,
-      checkinLat: p.latitude
-    })
-    if (res.code === 200 && res.data) {
-      checkedIds.value = res.data.checkedPointIds || checkedIds.value
+    const res = await submitPoint(p)
+    if (res && res.code === 200 && res.data) {
+      myPoints.value = res.data.points || myPoints.value
+      checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
       ElMessage.success(`「${p.pointName}」演示打卡成功`)
-      if (res.data.finished) {
+      if (res.data.status === 1 || res.data.checkedPoints >= res.data.totalPoints) {
         finished.value = true
-        trophyNo.value = res.data.trophyNo || trophyNo.value
+        try {
+          const t = await getTrophyAPI()
+          if (t.code === 200 && t.data) trophyNo.value = t.data.trophyCount
+        } catch (e) { /* ignore */ }
         trophyVisible.value = true
       }
     }

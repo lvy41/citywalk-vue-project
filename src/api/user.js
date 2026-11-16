@@ -71,3 +71,18 @@ export function changePasswordAPI(data) {
     data
   })
 }
+
+/** 他人公开主页 */
+export function getUserProfileAPI(userId) {
+  return request({ url: `/user/profile/${userId}`, method: 'get' })
+}
+
+/** 按用户ID/用户名/昵称搜索用户 */
+export function searchUserAPI(keyword) {
+  return request({ url: '/user/search', method: 'get', params: { keyword } })
+}
+
+/** 他人发布的路线 */
+export function getUserRoutesAPI(userId) {
+  return request({ url: `/user/${userId}/routes`, method: 'get' })
+}
