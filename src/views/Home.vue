@@ -10,7 +10,7 @@
       </div>
       <div class="search-bar" @click="openSearchPanel">
         <span class="search-icon">🔍</span>
-        <span class="search-placeholder">搜索路线、地点、城市</span>
+        <span class="search-placeholder">搜索路线、地点、城市、用户ID</span>
       </div>
     </div>
     <!-- ========== 搜索弹窗 ========== -->
@@ -26,7 +26,7 @@
             ref="searchInputRef"
             v-model="searchText"
             type="text"
-            placeholder="输入路线/地点/城市"
+            placeholder="输入路线/地点/城市/用户ID"
             @keyup.enter="onSearch"
           />
           <el-button type="primary" @click="onSearch" class="search-submit-btn">搜索</el-button>
@@ -46,18 +46,48 @@
           @click="currentTab='city'"
         >国内城市</span>
       </div>
-      <!-- Tab1：历史搜索 -->
+      <!-- Tab1：历史搜索 / 混合搜索结果 -->
       <div v-show="currentTab === 'history'" class="tab-content">
-        <div class="history-header">
-          <span class="title">历史搜索</span>
-          <span class="clear-all" @click="clearAllHistory">清空全部</span>
-        </div>
-        <div class="history-list">
-          <div class="history-item" v-for="(item, idx) in historyList" :key="idx">
-            <span @click="selectHistory(item)">{{ item }}</span>
-            <span class="del-icon" @click.stop="deleteOneHistory(idx)">🗑️</span>
+        <!-- 搜索后：用户结果 -->
+        <template v-if="hasSearched">
+          <div class="result-section">
+            <div class="result-title">用户</div>
+            <div v-if="userResults.length" class="user-result-list">
+              <div
+                class="user-result-item"
+                v-for="u in userResults"
+                :key="u.id"
+                @click="goUserProfile(u)"
+              >
+                <img class="user-avatar" :src="u.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+                <div class="user-meta">
+                  <div class="user-name">{{ u.nickname || u.username }}</div>
+                  <div class="user-no">ID：{{ u.userNo || u.id }}</div>
+                </div>
+                <span class="user-arrow">›</span>
+              </div>
+            </div>
+            <div v-else class="result-empty">未找到匹配的用户</div>
           </div>
-        </div>
+          <div class="result-section">
+            <div class="result-title">路线 / 地点</div>
+            <div v-if="routeKeyword" class="route-result-btn" @click="goRouteResult">查看与「{{ routeKeyword }}」相关的路线 ›</div>
+            <div v-else class="result-empty">暂无路线结果</div>
+          </div>
+        </template>
+        <!-- 未搜索：历史记录 -->
+        <template v-else>
+          <div class="history-header">
+            <span class="title">历史搜索</span>
+            <span class="clear-all" @click="clearAllHistory">清空全部</span>
+          </div>
+          <div class="history-list">
+            <div class="history-item" v-for="(item, idx) in historyList" :key="idx">
+              <span @click="selectHistory(item)">{{ item }}</span>
+              <span class="del-icon" @click.stop="deleteOneHistory(idx)">🗑️</span>
+            </div>
+          </div>
+        </template>
       </div>
       <!-- Tab2：国内城市【数据来自数据库 /area/tree，单列下钻 + 拼音排序 + 右侧字母索引】 -->
       <div v-show="currentTab === 'city'" class="tab-content city-tab">
@@ -228,6 +258,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { pinyin } from 'pinyin-pro'
 import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
 import { load } from '@amap/amap-jsapi-loader'
 const router = useRouter()
@@ -241,6 +272,11 @@ const letterRefMap = reactive({})
 const showSearchPanel = ref(false)
 const searchText = ref('')
 const currentTab = ref('history')
+
+// 搜索结果：用户 + 路线关键词
+const userResults = ref([])
+const routeKeyword = ref('')
+const hasSearched = ref(false)
 
 // 历史搜索 localStorage持久化
 const HIST_KEY = 'search_city_history'
@@ -377,6 +413,9 @@ const openSearchPanel = async ()=>{
   panelMode.value = 'search'
   showSearchPanel.value = true
   currentTab.value = 'history'
+  userResults.value = []
+  routeKeyword.value = ''
+  hasSearched.value = false
   await nextTick()
   searchInputRef.value?.focus()
   // 提前把地区树拉下来，切到“国内城市”时不用等
@@ -510,10 +549,31 @@ const resolveAreaByKeyword = (kw) => {
   return null
 }
 
+const loadUserResults = async (kw) => {
+  try {
+    const res = await searchUserAPI(kw)
+    userResults.value = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch (e) {
+    userResults.value = []
+  }
+}
+
+const goUserProfile = (u) => {
+  closeSearchPanel()
+  searchText.value = ''
+  router.push(`/user/${u.id}`)
+}
+
+const goRouteResult = () => {
+  if (routeKeyword.value) goJumpCity(routeKeyword.value)
+}
+
 const onSearch = async ()=>{
   const kw = searchText.value.trim()
   if(!kw) return
   await loadAreaTree()
+  await loadUserResults(kw)
+  hasSearched.value = true
   const matched = resolveAreaByKeyword(kw)
   if (matched && matched.type === 'province') {
     // 只搜到省份：不跳空页面，直接把这个省的市列表展开给用户
@@ -524,12 +584,9 @@ const onSearch = async ()=>{
     resetCityScroll()
     return
   }
-  if (matched && matched.type === 'city') {
-    goJumpCity(matched.name)
-    return
-  }
-  // 地区树里没有，按路线/地点关键词直接查库
-  goJumpCity(kw)
+  routeKeyword.value = matched && matched.type === 'city' ? matched.name : kw
+  // 命中用户时先留在面板展示用户结果，路线结果通过按钮再跳转
+  if (!userResults.value.length) goRouteResult()
 }
 
 // ✅ 使用命名路由，params参数名 cityName 和router/index.js保持一致
@@ -986,6 +1043,74 @@ watch(()=>route.query.fromSearch, (val)=>{
   color:#999;
   cursor:pointer;
 }
+/* 混合搜索结果：用户 / 路线 */
+.result-section{
+  margin-bottom:18px;
+}
+.result-title{
+  font-size:13px;
+  color:#999;
+  margin-bottom:10px;
+}
+.result-empty{
+  font-size:14px;
+  color:#bbb;
+  padding:10px 0;
+}
+.user-result-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.user-result-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:#fff;
+  border-radius:12px;
+  padding:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.04);
+  cursor:pointer;
+}
+.user-avatar{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#f4f5f7;
+  flex-shrink:0;
+}
+.user-meta{
+  flex:1;
+  min-width:0;
+}
+.user-name{
+  font-size:15px;
+  font-weight:600;
+  color:#222;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.user-no{
+  font-size:12px;
+  color:#999;
+  margin-top:2px;
+}
+.user-arrow{
+  color:#ccc;
+  font-size:18px;
+  flex-shrink:0;
+}
+.route-result-btn{
+  background:#fff;
+  border-radius:12px;
+  padding:13px 12px;
+  font-size:14px;
+  color:#ff6b35;
+  cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,0.04);
+}
 /* 国内城市tab：【字母栏放到右侧】 */
 .city-tab{
   display:flex;
@@ -1234,8 +1359,10 @@ watch(()=>route.query.fromSearch, (val)=>{
 }
 .card-img {
   width:100%;
-  height:140px;
-  object-fit:cover;
+  height:auto;
+  object-fit:contain;
+  background:#f4f5f7;
+  display:block;
 }
 .card-name {
   padding:6px 8px 2px;

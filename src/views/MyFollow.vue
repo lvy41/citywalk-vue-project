@@ -5,18 +5,35 @@
         <el-icon><ArrowLeft /></el-icon>
       </div>
       <div class="page-title">我的关注</div>
-      <div class="count-tag" v-if="followList.length">{{ followList.length }}</div>
+      <div class="count-tag" v-if="currentList.length">{{ currentList.length }}</div>
+    </div>
+
+    <div class="tab-bar">
+      <div
+        class="tab-item"
+        :class="{ active: activeTab === 'following' }"
+        @click="activeTab = 'following'"
+      >
+        关注 {{ followingList.length }}
+      </div>
+      <div
+        class="tab-item"
+        :class="{ active: activeTab === 'fans' }"
+        @click="activeTab = 'fans'"
+      >
+        粉丝 {{ fansList.length }}
+      </div>
     </div>
 
     <div class="content-wrap">
-      <div v-if="followList.length === 0" class="empty-box">
-        <p class="empty-main">还没有关注任何人</p>
-        <p class="empty-sub">去首页逛逛，看到喜欢的漫步者就关注一下</p>
-        <el-button round class="go-btn" @click="goHome">去首页逛逛</el-button>
+      <div v-if="currentList.length === 0" class="empty-box">
+        <p class="empty-main">{{ activeTab === 'following' ? '还没有关注任何人' : '还没有粉丝' }}</p>
+        <p class="empty-sub">{{ activeTab === 'following' ? '去首页逛逛，看到喜欢的漫步者就关注一下' : '分享你的主页，让更多人认识你' }}</p>
+        <el-button v-if="activeTab === 'following'" round class="go-btn" @click="goHome">去首页逛逛</el-button>
       </div>
 
       <div v-else class="follow-list">
-        <div v-for="item in followList" :key="item.id" class="follow-item">
+        <div v-for="item in currentList" :key="item.id" class="follow-item">
           <el-avatar :size="48" :src="item.avatar" class="avatar">
             {{ (item.nickname || '用').slice(0, 1) }}
           </el-avatar>
@@ -27,8 +44,38 @@
               {{ item.routeCount || 0 }} 条路线 · {{ item.fansCount || 0 }} 粉丝
             </div>
           </div>
-          <el-button size="small" round plain class="unfollow-btn" @click.stop="unfollow(item)">
+
+          <!-- 关注列表：已关注，可取关 -->
+          <el-button
+            v-if="activeTab === 'following'"
+            size="small"
+            round
+            plain
+            class="unfollow-btn"
+            @click.stop="unfollow(item)"
+          >
             已关注
+          </el-button>
+
+          <!-- 粉丝列表：未回关显示关注，已回关显示已回关 -->
+          <el-button
+            v-else-if="!item.followedByMe"
+            size="small"
+            round
+            class="follow-btn"
+            @click.stop="followBack(item)"
+          >
+            关注
+          </el-button>
+          <el-button
+            v-else
+            size="small"
+            round
+            plain
+            class="unfollow-btn"
+            @click.stop="unfollow(item)"
+          >
+            已回关
           </el-button>
         </div>
       </div>
@@ -37,53 +84,77 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFollowListAPI, unfollowUserAPI } from '@/api/follow'
+import {
+  getFollowListAPI,
+  getFansListAPI,
+  followUserAPI,
+  unfollowUserAPI
+} from '@/api/follow'
 
 const router = useRouter()
-const followList = ref([])
+const activeTab = ref('following')
+const followingList = ref([])
+const fansList = ref([])
 
-// 走后端 /api/follow/list；接口不可用时退回本地存档，页面不至于空白
-const loadFollowList = async () => {
+const currentList = computed(() => (activeTab.value === 'following' ? followingList.value : fansList.value))
+
+const loadFollowing = async () => {
   try {
     const res = await getFollowListAPI()
     if (res && res.code === 200 && Array.isArray(res.data)) {
-      followList.value = res.data
-      return
+      followingList.value = res.data
     }
-    throw new Error('返回数据格式异常')
   } catch (e) {
-    console.warn('关注列表接口不可用，改用本地数据', e)
-    try {
-      const raw = localStorage.getItem('citywalk_follow_list')
-      followList.value = raw ? JSON.parse(raw) : []
-    } catch (err) {
-      followList.value = []
-    }
+    console.warn('关注列表接口不可用', e)
   }
 }
 
-// 取关：先请求后端，成功后再从列表移除
+const loadFans = async () => {
+  try {
+    const res = await getFansListAPI()
+    if (res && res.code === 200 && Array.isArray(res.data)) {
+      fansList.value = res.data
+    }
+  } catch (e) {
+    console.warn('粉丝列表接口不可用', e)
+  }
+}
+
 const unfollow = async (item) => {
   try {
     await unfollowUserAPI(item.id)
-    followList.value = followList.value.filter(u => u.id !== item.id)
+    followingList.value = followingList.value.filter(u => u.id !== item.id)
+    fansList.value = fansList.value.map(u => u.id === item.id ? { ...u, followedByMe: false } : u)
     ElMessage.success(`已取消关注「${item.nickname}」`)
   } catch (e) {
     ElMessage.error('取关失败，请稍后重试')
   }
 }
 
+const followBack = async (item) => {
+  try {
+    await followUserAPI(item.id)
+    fansList.value = fansList.value.map(u => u.id === item.id ? { ...u, followedByMe: true } : u)
+    ElMessage.success(`已关注「${item.nickname}」`)
+  } catch (e) {
+    ElMessage.error('关注失败，请稍后重试')
+  }
+}
+
 const goUserHome = (item) => {
-  ElMessage.info(`「${item.nickname}」的个人主页还没有开放`)
+  router.push(`/user/${item.id}`)
 }
 const goHome = () => router.push('/home')
 const goBack = () => router.back()
 
-onMounted(loadFollowList)
+onMounted(() => {
+  loadFollowing()
+  loadFans()
+})
 </script>
 
 <style scoped>
@@ -119,6 +190,35 @@ onMounted(loadFollowList)
   margin-left: auto;
   font-size: 13px;
   color: #999;
+}
+.tab-bar {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+}
+.tab-item.active {
+  color: #e85d3a;
+  font-weight: 600;
+}
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e85d3a;
 }
 .content-wrap {
   padding: 16px;
@@ -192,6 +292,13 @@ onMounted(loadFollowList)
   flex-shrink: 0;
   color: #999;
   border-color: #ddd;
+  font-size: 12px;
+}
+.follow-btn {
+  flex-shrink: 0;
+  background: linear-gradient(to right, #ff9a44, #fc6076);
+  border: none;
+  color: #fff;
   font-size: 12px;
 }
 </style>

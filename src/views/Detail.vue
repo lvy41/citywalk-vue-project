@@ -28,6 +28,10 @@
             <span class="like-icon">{{ liked ? '❤️' : '🤍' }}</span>
             <span class="like-text">{{ liked ? '已点赞' : '点赞' }} {{ likeCount }}</span>
           </div>
+          <div class="like-btn collect-btn" :class="{ liked: collected }" @click="handleCollect">
+            <span class="like-icon">{{ collected ? '⭐' : '☆' }}</span>
+            <span class="like-text">{{ collected ? '已收藏' : '收藏' }} {{ collectCount }}</span>
+          </div>
         </div>
         <!-- 打卡入口：整条路线一个入口，进入后逐点位打卡 -->
         <div class="checkin-entry">
@@ -108,7 +112,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 const router = useRouter()
@@ -132,6 +136,8 @@ const commentText = ref("")
 const commentList = ref([])
 const likeCount = ref(0)
 const liked = ref(false)
+const collectCount = ref(0)
+const collected = ref(false)
 // 当前用户在这条路线已打卡的点位 id
 const checkedPointIds = ref([])
 const entryText = computed(() => {
@@ -197,6 +203,8 @@ const loadDetail = async () => {
     pointList.value = d.points || []
     likeCount.value = d.route.likeCount || 0
     liked.value = !!d.liked
+    collectCount.value = d.route.collectCount || 0
+    collected.value = !!d.collected
     loadComments()
     loadCheckinStatus()
     if (pointList.value.length) await initMiniMap(pointList.value)
@@ -206,6 +214,8 @@ const loadDetail = async () => {
     pointList.value = mockDetailData.points
     likeCount.value = 0
     liked.value = false
+    collectCount.value = 0
+    collected.value = false
     commentList.value = []
     await initMiniMap(mockDetailData.points)
   }
@@ -245,9 +255,23 @@ const goToMap = (point, index) => {
     }
   })
 }
-//收藏
-const handleCollect = ()=>{
-  ElMessage.success("收藏操作")
+//收藏 / 取消收藏（写入 route_favorite，我的收藏页可查到）
+const handleCollect = async ()=>{
+  try{
+    if(collected.value){
+      await unfavoriteRouteAPI(routeId.value)
+      collected.value = false
+      collectCount.value = Math.max(0, collectCount.value - 1)
+      ElMessage.success("已取消收藏")
+    }else{
+      await favoriteRouteAPI(routeId.value)
+      collected.value = true
+      collectCount.value += 1
+      ElMessage.success("收藏成功")
+    }
+  }catch(e){
+    ElMessage.warning("请先登录后再收藏")
+  }
 }
 //点赞 / 取消点赞（写入 route_like，我的点赞页可查到）
 const handleLike = async ()=>{
@@ -305,7 +329,6 @@ onUnmounted(()=>{
 .img-box{
   position:relative;
   width:100%;
-  aspect-ratio:16 / 9;
   max-height:46vh;
   overflow:hidden;
   background:#e9ecef;
@@ -313,8 +336,9 @@ onUnmounted(()=>{
 .img-box .route-img{
   display:block;
   width:100%;
-  height:100%;
-  object-fit:cover;
+  height:auto;
+  max-height:46vh;
+  object-fit:contain;
   object-position:center;
 }
 /* 顶部渐变遮罩，保证白色返回按钮在浅色图片上也看得清 */
@@ -393,7 +417,13 @@ onUnmounted(()=>{
 .like-bar{
   display:flex;
   justify-content:flex-end;
+  align-items:center;
+  gap:10px;
   margin:8px 0 4px;
+}
+.collect-btn{
+  background:#fffbe6 !important;
+  border-color:#ffe58f !important;
 }
 .like-btn{
   display:flex;
@@ -409,6 +439,11 @@ onUnmounted(()=>{
 .like-btn.liked{
   background:#ffe4c7;
   border-color:#e85d3a;
+}
+.collect-btn.liked{
+  background:#fff1b8 !important;
+  border-color:#e8a33a !important;
+  color:#b8770f !important;
 }
 .like-icon{
   font-size:15px;
@@ -493,9 +528,12 @@ onUnmounted(()=>{
 }
 .point-img{
   width:100%;
-  height:130px;
-  object-fit:cover;
+  height:auto;
+  max-height:200px;
+  object-fit:contain;
+  background:#f4f5f7;
   border-radius:6px;
+  display:block;
 }
 .point-name{
   font-weight:bold;

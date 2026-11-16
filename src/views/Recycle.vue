@@ -215,9 +215,9 @@ onMounted(loadRecycleList)
   width: 84px;
   height: 84px;
   border-radius: 10px;
-  object-fit: cover;
+  object-fit: contain;
   flex-shrink: 0;
-  background: #f2f2f2;
+  background: #f4f5f7;
 }
 .cover-fallback {
   display: flex;

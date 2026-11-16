@@ -14,14 +14,17 @@
         <div class="empty-text">暂无点赞路线</div>
       </div>
       <div v-else class="route-list">
-        <div class="route-item" v-for="item in likeList" :key="item.id" @click="goDetail(item.id)">
-          <div class="route-img">
-            <img :src="item.coverImage || defaultImg" alt="">
+        <div class="route-item" v-for="item in likeList" :key="item.id">
+          <div class="route-img" @click="goDetail(item.id)">
+            <img :src="item.coverImage || defaultImg" alt="" @error="onImgError">
           </div>
           <div class="route-info">
-            <div class="route-name">{{ item.routeName || item.title }}</div>
-            <div class="route-desc">{{ item.description || item.content }}</div>
-            <div class="route-time">{{ item.city }} · {{ item.createTime }}</div>
+            <div class="route-name" @click="goDetail(item.id)">{{ item.routeName }}</div>
+            <div class="route-desc">{{ item.city }} · {{ item.duration }} · {{ item.distance }}</div>
+            <div class="route-time">{{ item.description }}</div>
+          </div>
+          <div class="route-action" @click.stop="cancelLike(item)">
+            <span>取消点赞</span>
           </div>
         </div>
       </div>
@@ -32,22 +35,43 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { getUserLikeListAPI } from '@/api/route'
+// 我的点赞读后端 /route/user-like（真实点赞数据）
+import { getUserLikeListAPI, unlikeRouteAPI } from '@/api/route'
+
 const router = useRouter()
 
 const likeList = ref([])
-const defaultImg = ref('https://picsum.photos/id/1039/300/200')
+const defaultImg = ref('/pictures/Myback.jpg')
+
+const onImgError = (e) => {
+  const img = e.target
+  if (img && img.dataset.fallback === '1') return
+  if (img) { img.dataset.fallback = '1'; img.src = '/pictures/Myback.jpg' }
+}
 
 const goDetail = (id) => {
-  console.log('点击点赞路线id：', id)
+  if (!id) return
   router.push(`/detail/${id}`)
 }
 
 const getList = async () => {
-  const res = await getUserLikeListAPI()
-  if (res.code === 200) {
-    likeList.value = res.data
+  try {
+    const res = await getUserLikeListAPI()
+    likeList.value = (res && res.code === 200 && Array.isArray(res.data)) ? res.data : []
+  } catch (e) {
+    likeList.value = []
+  }
+}
+
+const cancelLike = async (item) => {
+  try {
+    await unlikeRouteAPI(item.id)
+    likeList.value = likeList.value.filter(r => r.id !== item.id)
+    ElMessage.success('已取消点赞')
+  } catch (e) {
+    ElMessage.warning('请先登录后再操作')
   }
 }
 
@@ -114,9 +138,63 @@ onMounted(() => {
   gap: 16px;
 }
 .route-item {
+  display: flex;
+  gap: 12px;
   background: #fff;
   border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+.route-img {
+  width: 86px;
+  height: 86px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f2f2f2;
+}
+.route-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.route-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.route-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  cursor: pointer;
+}
+.route-desc {
+  font-size: 12px;
+  color: #909399;
+}
+.route-time {
+  font-size: 12px;
+  color: #b0b3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.route-action {
+  align-self: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #e85d3a;
+  border: 1px solid #ffd2a8;
+  background: #fff7ed;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
 }
 </style>
