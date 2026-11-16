@@ -71,16 +71,23 @@
       </el-button>
     </div>
 
-    <!-- 奖杯弹窗 -->
-    <el-dialog v-model="trophyVisible" width="80%" class="trophy-dialog" :show-close="false">
-      <div class="trophy-body">
-        <div class="trophy-emoji">🎉</div>
-        <div class="trophy-title">恭喜通关！</div>
-        <div class="trophy-medal">🏆 获得第 {{ trophyNo }} 个奖杯</div>
-        <div class="trophy-desc">恭喜你完成了「{{ routeName }}」CityWalk 闯关！<br />当前累计奖杯：{{ trophyNo }} 个</div>
-        <el-button type="primary" round class="trophy-btn" @click="closeTrophy">收下奖杯</el-button>
-      </div>
-    </el-dialog>
+    <!-- 奖杯弹窗：打卡点位奖杯 / 闯关奖杯 -->
+    <TrophyDialog
+      v-model="trophyVisible"
+      :trophies="newTrophies"
+      :total-count="trophyNo"
+      :title="finished ? '恭喜通关！' : '获得新奖杯！'"
+      :subtitle="trophySubtitle"
+      @close="closeTrophy"
+    />
+    <!-- 成就弹窗：累计次数达到 10/20/50 时解锁称号 -->
+    <AchievementDialog
+      v-model="achVisible"
+      :achievements="newAchievements"
+      title="成就达成！"
+      subtitle="你的累计次数达到了新的里程碑"
+      @close="closeAchievement"
+    />
   </div>
 </template>
 
@@ -90,6 +97,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRouteDetailFullAPI } from '@/api/route'
 import { submitCheckinAPI, getCheckinStatusAPI, getTrophyAPI } from '@/api/checkin'
+import TrophyDialog from '@/components/TrophyDialog.vue'
+import AchievementDialog from '@/components/AchievementDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,6 +114,31 @@ const distanceTip = ref({})
 const finished = ref(false)
 const trophyVisible = ref(false)
 const trophyNo = ref(1)
+const newTrophies = ref([])
+const trophySubtitle = ref('')
+// 成就（称号）弹窗：累计数量到门槛才弹，排在奖杯弹窗之后
+const achVisible = ref(false)
+const newAchievements = ref([])
+const pendingAchievements = ref([])
+
+// 根据打卡返回统一处理奖杯弹窗：单点打卡只发点位奖杯，打完所有点位再加闯关奖杯
+const applyTrophyResult = (data) => {
+  const earned = Array.isArray(data.newTrophies) ? data.newTrophies : []
+  const achievements = Array.isArray(data.newAchievements) ? data.newAchievements : []
+  if (achievements.length) pendingAchievements.value = achievements
+  if (data.trophyNo) trophyNo.value = data.trophyNo
+  if (!earned.length) return
+  newTrophies.value = earned
+  trophySubtitle.value = data.finished
+    ? `恭喜你完成了「${routeName.value}」CityWalk 闯关！`
+    : '继续打卡剩下的点位，全部完成还能获得闯关小奖杯'
+  trophyVisible.value = true
+}
+
+const closeAchievement = () => {
+  achVisible.value = false
+  if (finished.value) router.push('/record')
+}
 
 const progressPercent = computed(() => {
   if (!points.value.length) return 0
@@ -216,9 +250,8 @@ const onCheckin = async (p) => {
       ElMessage.success(`「${p.pointName}」打卡成功`)
       if (res.data.finished) {
         finished.value = true
-        trophyNo.value = res.data.trophyNo || trophyNo.value
-        trophyVisible.value = true
       }
+      applyTrophyResult(res.data)
     }
   } catch (e) {
     if (e && e !== 'cancel' && e !== 'close') {
@@ -244,9 +277,8 @@ const demoCheckin = async (p) => {
       ElMessage.success(`「${p.pointName}」演示打卡成功`)
       if (res.data.finished) {
         finished.value = true
-        trophyNo.value = res.data.trophyNo || trophyNo.value
-        trophyVisible.value = true
       }
+      applyTrophyResult(res.data)
     }
   } catch (e) {
     /* 错误提示由请求拦截器处理 */
@@ -270,7 +302,15 @@ const goToMap = (p, index) => {  router.push({
 
 const closeTrophy = () => {
   trophyVisible.value = false
-  router.push('/record')
+  // 有成就解锁时，先弹成就；否则通关直接跳打卡记录
+  if (pendingAchievements.value.length) {
+    newAchievements.value = pendingAchievements.value
+    pendingAchievements.value = []
+    achVisible.value = true
+    return
+  }
+  // 通关后才跳到打卡记录；只拿到点位奖杯时留在本页继续打卡
+  if (finished.value) router.push('/record')
 }
 
 const finish = () => {

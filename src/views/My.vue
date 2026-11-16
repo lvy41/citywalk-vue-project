@@ -13,7 +13,7 @@
         <div class="user-meta">
           <div class="nickname-row">
             <span class="nickname">{{ userInfo.nickname || "匿名用户" }}</span>
-            <span class="title-tag">{{ wearTitle.name }}</span>
+            <span class="title-tag">{{ achSummary.currentTitle.titleName }}</span>
           </div>
           <div class="user-id">用户ID：{{ userInfo.userNo || userInfo.userId || userInfo.id || '-' }}</div>
           <div class="user-ip" v-if="userInfo.signature">{{ userInfo.signature }}</div>
@@ -39,14 +39,16 @@
       </div>
     </div>
 
-    <!-- 奖杯卡片：点击跳转称号页面 -->
+    <!-- 成就卡片：点击查看全部称号达成情况 -->
     <div class="trophy-card">
       <div class="trophy-left">
-        <div class="trophy-title">我的奖杯</div>
-        <div class="trophy-num">{{ trophyCount }}</div>
+        <div class="trophy-title">我的成就</div>
+        <div class="trophy-num">
+          {{ achSummary.unlockedCount }}<span class="trophy-total"> / {{ achSummary.totalCount }}</span>
+        </div>
       </div>
       <div class="trophy-right" @click="goTitleList">
-        <span>当前称号：{{ wearTitle.name }}</span>
+        <span>当前称号：{{ achSummary.currentTitle.titleName }}</span>
         <el-icon class="arrow"><ArrowRight /></el-icon>
       </div>
     </div>
@@ -117,6 +119,7 @@ import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { getUserInfoAPI } from '@/api/user'
+import { getMyAchievementAPI } from '@/api/achievement'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -131,43 +134,26 @@ const stat = ref({
   fansCount: 0
 })
 
-// 奖杯数量
-const trophyCount = ref(0)
-
-// 全部称号配置（need = 需要的奖杯数）
-const allTitleList = ref([
-  { name: '初入城市', need: 0 },
-  { name: '新手行者', need: 1 },
-  { name: '打卡爱好者', need: 5 },
-  { name: '路线探索达人', need: 10 },
-  { name: '资深漫步探险家', need: 20 },
-  { name: '城市漫游大师', need: 30 }
-])
-
-// 当前称号：由奖杯数推导，奖杯增加时自动跟着变
-const wearTitle = computed(() => {
-  let current = allTitleList.value[0]
-  allTitleList.value.forEach(item => {
-    if (trophyCount.value >= item.need) current = item
-  })
-  return current
+// 成就总览（已解锁数 / 总数 / 当前佩戴称号）
+const achSummary = ref({
+  unlockedCount: 0,
+  totalCount: 0,
+  currentTitle: { titleName: '初入城市' }
 })
 
-// 读本地存档（打卡记录 / 已发布路线 / 奖杯数），后端接口不通时用它兜底
+// 读本地存档（打卡记录 / 已发布路线），后端接口不通时用它兜底
 const readLocalStat = () => {
   try {
     const published = JSON.parse(localStorage.getItem('citywalk_published_list') || '[]')
     const checkin = JSON.parse(localStorage.getItem('citywalk_checkin_list') || '[]')
-    const trophies = parseInt(localStorage.getItem('citywalk_trophies') || '0', 10)
     stat.value.publishCount = (Array.isArray(published) ? published.length : 0) +
       (Array.isArray(checkin) ? checkin.length : 0)
-    trophyCount.value = Number.isNaN(trophies) ? 0 : trophies
   } catch (e) {
     console.warn('本地统计数据读取失败', e)
   }
 }
 
-// 获取用户信息、奖杯数据：接口不可用时退回本地统计，不弹错误
+// 获取用户信息与成就：接口不可用时退回本地统计，不弹错误
 const getStatInfo = async () => {
   readLocalStat()
   try {
@@ -178,10 +164,21 @@ const getStatInfo = async () => {
       stat.value.publishCount = res.data.publishCount ?? stat.value.publishCount
       stat.value.likeTotal = res.data.likeTotal ?? stat.value.likeTotal
       stat.value.fansCount = res.data.fansCount ?? stat.value.fansCount
-      trophyCount.value = res.data.trophyCount ?? trophyCount.value
     }
   } catch (e) {
     console.warn('用户统计接口不可用，已使用本地数据', e)
+  }
+  try {
+    const res = await getMyAchievementAPI()
+    if (res && res.code === 200 && res.data) {
+      achSummary.value = {
+        unlockedCount: res.data.unlockedCount || 0,
+        totalCount: res.data.totalCount || 0,
+        currentTitle: res.data.currentTitle || { titleName: '初入城市' }
+      }
+    }
+  } catch (e) {
+    console.warn('成就接口不可用', e)
   }
 }
 
@@ -190,7 +187,7 @@ onMounted(getStatInfo)
 onActivated(getStatInfo)
 
 const goTitleList = () => {
-  ElMessage.info('称号页面尚未创建')
+  router.push('/title-list')
 }
 const goMyPublish = () => {
   router.push('/my-publish')
@@ -353,6 +350,11 @@ const handleLogout = () => {
   color: #e85d3a;
   margin-top: 4px;
   line-height: 1.2;
+}
+.trophy-left .trophy-total {
+  font-size: 13px;
+  font-weight: normal;
+  color: #999;
 }
 .trophy-right {
   display: flex;

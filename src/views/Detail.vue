@@ -101,6 +101,14 @@
         <div class="tab-text">我的</div>
       </div>
     </div>
+
+    <!-- 点赞 / 评论后的成就弹窗（累计到门槛才弹） -->
+    <AchievementDialog
+      v-model="detailAchVisible"
+      :achievements="detailAchievements"
+      title="成就达成！"
+      subtitle="你的累计次数达到了新的里程碑"
+    />
   </div>
 </template>
 <script setup>
@@ -111,6 +119,7 @@ import { useRouter, useRoute } from "vue-router"
 import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
+import AchievementDialog from '@/components/AchievementDialog.vue'
 const router = useRouter()
 const route = useRoute()
 //【重点：从params拿id，适配 /detail/:id】
@@ -132,6 +141,16 @@ const commentText = ref("")
 const commentList = ref([])
 const likeCount = ref(0)
 const liked = ref(false)
+// 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
+const detailAchVisible = ref(false)
+const detailAchievements = ref([])
+
+const showAchievementIfAny = (res) => {
+  const list = res && res.data && Array.isArray(res.data.newAchievements) ? res.data.newAchievements : []
+  if (!list.length) return
+  detailAchievements.value = list
+  detailAchVisible.value = true
+}
 // 当前用户在这条路线已打卡的点位 id
 const checkedPointIds = ref([])
 const entryText = computed(() => {
@@ -146,6 +165,11 @@ const goCheckin = () => {
   router.push({ name: 'Checkin', params: { id: routeId.value } })
 }
 const loadCheckinStatus = async () => {
+  // 详情页无需登录即可访问，未登录时不请求打卡进度（该接口需要登录）
+  if (!localStorage.getItem('token')) {
+    checkedPointIds.value = []
+    return
+  }
   try {
     const res = await getCheckinStatusAPI(routeId.value)
     checkedPointIds.value = (res && res.code === 200 && res.data && Array.isArray(res.data.checkedPointIds))
@@ -258,10 +282,11 @@ const handleLike = async ()=>{
       likeCount.value = Math.max(0, likeCount.value - 1)
       ElMessage.success("已取消点赞")
     }else{
-      await likeRouteAPI(routeId.value)
+      const likeRes = await likeRouteAPI(routeId.value)
       liked.value = true
       likeCount.value += 1
       ElMessage.success("点赞成功")
+      showAchievementIfAny(likeRes)
     }
   }catch(e){
     ElMessage.warning("请先登录后再点赞")
@@ -277,6 +302,7 @@ const submitComment = async () => {
     const res = await addRouteCommentAPI({ routeId: routeId.value, content: commentText.value.trim() })
     if (res.code !== 200) throw new Error(res.msg || '评论失败')
     ElMessage.success('评论成功')
+    showAchievementIfAny(res)
     commentText.value = ''
     loadComments()
   } catch (e) {

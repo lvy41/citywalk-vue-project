@@ -170,6 +170,24 @@
           {{ publishForm.isPublic ? '提交审核并公开到首页' : '保存为未公开记录' }}
         </el-button>
       </div>
+
+      <!-- 创建打卡路线成功：打卡点位小奖杯 -->
+      <TrophyDialog
+        v-model="publishTrophyVisible"
+        :trophies="publishTrophies"
+        title="打卡路线创建成功！"
+        subtitle="这条路线已经记进「打卡记录」，继续去解锁更多城市吧"
+        @close="afterTrophy"
+      />
+
+      <!-- 成就弹窗：累计到 10/20/50 时解锁称号 -->
+      <AchievementDialog
+        v-model="publishAchVisible"
+        :achievements="publishAchievements"
+        title="成就达成！"
+        subtitle="你的累计次数达到了新的里程碑"
+        @close="afterAchievement"
+      />
     </div>
   </div>
 </template>
@@ -179,6 +197,8 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import AchievementDialog from '@/components/AchievementDialog.vue'
+import TrophyDialog from '@/components/TrophyDialog.vue'
 import { load } from '@amap/amap-jsapi-loader'
 import request from '@/utils/request'
 import { useUserStore } from '@/store/user'
@@ -192,6 +212,49 @@ const selectedRecordId = ref(null)
 const homeRouteList = ref([])
 const selectedHomeRouteId = ref(null)
 const submitting = ref(false)
+// 创建打卡路线 / 发布成功后的弹窗队列：奖杯 → 成就 → 跳转
+const publishTrophyVisible = ref(false)
+const publishTrophies = ref([])
+const publishAchVisible = ref(false)
+const publishAchievements = ref([])
+const publishPendingAch = ref([])
+const publishNextPath = ref('/my-publish')
+
+const runAfterDialogs = () => router.push(publishNextPath.value)
+const afterTrophy = () => {
+  publishTrophyVisible.value = false
+  if (publishPendingAch.value.length) {
+    publishAchievements.value = publishPendingAch.value
+    publishPendingAch.value = []
+    publishAchVisible.value = true
+    return
+  }
+  runAfterDialogs()
+}
+const afterAchievement = () => {
+  publishAchVisible.value = false
+  runAfterDialogs()
+}
+
+/**
+ * 新建打卡路线成功后的处理：有打卡奖杯先弹奖杯，有成就再弹成就，最后跳转。
+ * 更新已有记录不重复发奖，所以只在「新建」时调用。
+ */
+const handleCreatedTrophies = (createdData, nextPath) => {
+  publishNextPath.value = nextPath
+  publishPendingAch.value = Array.isArray(createdData?.newAchievements) ? createdData.newAchievements : []
+  const trophies = Array.isArray(createdData?.newTrophies) ? createdData.newTrophies : []
+  if (trophies.length) {
+    publishTrophies.value = trophies
+    publishTrophyVisible.value = true
+  } else if (publishPendingAch.value.length) {
+    publishAchievements.value = publishPendingAch.value
+    publishPendingAch.value = []
+    publishAchVisible.value = true
+  } else {
+    router.push(nextPath)
+  }
+}
 
 // 2. 发布表单数据
 const publishForm = ref({
@@ -611,6 +674,7 @@ const submitPublish = async () => {
     // 1. 先存进「我的打卡记录」：已有记录就更新，没有就新建
     const checkinPayload = buildCheckinPayload(points)
     let recordId = selectedRecordId.value
+    let createdData = null
     if (recordId) {
       const upd = await request.put(`/checkin/route/${recordId}`, checkinPayload)
       if (!upd || upd.code !== 200) {
@@ -624,6 +688,7 @@ const submitPublish = async () => {
         return
       }
       recordId = created.data.id
+      createdData = created.data
       selectedRecordId.value = recordId
     }
 
@@ -632,7 +697,11 @@ const submitPublish = async () => {
       savedOk.value = true
       clearDraft()
       ElMessage.success('已保存到「打卡记录」，标记为未公开记录，其他人看不到')
-      setTimeout(() => router.push('/record'), 900)
+      if (createdData) {
+        handleCreatedTrophies(createdData, '/record')
+      } else {
+        setTimeout(() => router.push('/record'), 900)
+      }
       return
     }
 
@@ -671,7 +740,15 @@ const submitPublish = async () => {
         tip += `（有 ${data.skippedPoints} 个点位缺少位置，已跳过）`
       }
       ElMessage.success(tip)
-      setTimeout(() => router.push('/my-publish'), 1200)
+      // 新建打卡记录时的打卡奖杯 + 发布相关的成就一起处理，弹完再跳「我的发布」
+      const achievements = [
+        ...(createdData?.newAchievements || []),
+        ...(Array.isArray(data.newAchievements) ? data.newAchievements : [])
+      ]
+      handleCreatedTrophies(
+        { newTrophies: createdData?.newTrophies || [], newAchievements: achievements },
+        '/my-publish'
+      )
     } else {
       ElMessage.error('发布失败，请检查内容')
     }
