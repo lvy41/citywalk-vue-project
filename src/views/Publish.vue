@@ -707,6 +707,7 @@ const submitPublish = async () => {
 
     // 3. 公开：提交到首页（管理员审核），再把这层记录标成「公开记录」
     const postData = {
+      checkinRecordId: recordId,
       routeName: publishForm.value.routeName,
       city: publishForm.value.city,
       coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',

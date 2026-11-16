@@ -151,7 +151,8 @@ onMounted(() => {
 .route-img img {
   width:100%;
   height:100%;
-  object-fit: cover;
+  object-fit: contain;
+  background:#f4f5f7;
 }
 .route-info {
   flex:1;

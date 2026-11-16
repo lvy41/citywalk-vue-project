@@ -56,6 +56,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/my-favorite',
+    name: 'MyFavorite',
+    component: () => import('@/views/MyFavorite.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/my-follow',
     name: 'MyFollow',
     component: () => import('@/views/MyFollow.vue'),
@@ -86,9 +92,15 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/my-follow',
-    name: 'MyFollow',
-    component: () => import('@/views/MyFollow.vue'),
+    path: '/search',
+    name: 'SearchUser',
+    component: () => import('@/views/SearchUser.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/:id',
+    name: 'UserProfile',
+    component: () => import('@/views/UserProfile.vue'),
     meta: { requiresAuth: true }
   },
   {

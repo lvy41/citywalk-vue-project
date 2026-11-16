@@ -44,6 +44,20 @@ export function unlikeRouteAPI(routeId){
   })
 }
 
+// 收藏 / 取消收藏（route_favorite 表）
+export function favoriteRouteAPI(routeId) {
+  return request({ url: '/route/favorite', method: 'post', params: { routeId } })
+}
+
+export function unfavoriteRouteAPI(routeId) {
+  return request({ url: '/route/favorite', method: 'delete', params: { routeId } })
+}
+
+// 我的收藏路线
+export function getUserFavoriteListAPI() {
+  return request({ url: '/route/user-favorite', method: 'get' })
+}
+
 export function getRouteDetailFullAPI(routeId) {
   return request({ url: "/route/detailFull", method: "get", params: { routeId } })
 }

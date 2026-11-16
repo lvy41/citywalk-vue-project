@@ -63,6 +63,10 @@
         <span>我的点赞</span>
         <el-icon><ArrowRight /></el-icon>
       </div>
+      <div class="menu-item" @click="goMyFavorite">
+        <span>我的收藏</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
       <div class="menu-item" @click="goMyFollow">
         <span>我的关注</span>
         <el-icon><ArrowRight /></el-icon>
@@ -194,6 +198,9 @@ const goMyPublish = () => {
 }
 const goMyLike = () => {
   router.push('/my-like')
+}
+const goMyFavorite = () => {
+  router.push('/my-favorite')
 }
 const goMyFollow = () => {
   router.push('/my-follow')
