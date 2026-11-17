@@ -51,9 +51,18 @@
 
     <div class="section">
       <div class="section-title">TA 的路线</div>
-      <div v-if="routes.length === 0" class="empty">还没有发布路线</div>
+      <div class="tag-tabs">
+        <button
+          v-for="tag in allTags"
+          :key="tag"
+          class="tag-tab"
+          :class="{ active: activeTag === tag }"
+          @click="activeTag = tag"
+        >{{ tag }}</button>
+      </div>
+      <div v-if="filteredRoutes.length === 0" class="empty">还没有发布路线</div>
       <div v-else class="route-list">
-        <div v-for="item in routes" :key="item.id" class="route-item" @click="goDetail(item.id)">
+        <div v-for="item in filteredRoutes" :key="item.id" class="route-item" @click="goDetail(item.id)">
           <div class="route-img">
             <img :src="item.coverImage || defaultImg" alt="" />
           </div>
@@ -82,7 +91,22 @@ const userId = route.params.id
 
 const profile = ref({})
 const routes = ref([])
+const activeTag = ref('全部')
 const defaultImg = 'https://picsum.photos/id/1039/300/200'
+
+const allTags = computed(() => {
+  const names = new Set()
+  routes.value.forEach(route => {
+    (route.tags || []).forEach(tag => names.add(tag.tagName || tag.name))
+  })
+  return ['全部', ...Array.from(names)]
+})
+const filteredRoutes = computed(() => {
+  if (activeTag.value === '全部') return routes.value
+  return routes.value.filter(route =>
+    (route.tags || []).some(tag => (tag.tagName || tag.name) === activeTag.value)
+  )
+})
 
 const headerStyle = computed(() => ({
   backgroundImage: profile.value.bgImage
@@ -102,7 +126,8 @@ const loadProfile = async () => {
 const loadRoutes = async () => {
   try {
     const res = await getUserRoutesAPI(userId)
-    if (res && res.code === 200 && Array.isArray(res.data)) routes.value = res.data
+    routes.value = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
+    activeTag.value = '全部'
   } catch (e) {
     routes.value = []
   }
@@ -245,6 +270,28 @@ onMounted(() => {
   font-weight: 600;
   color: #222;
   margin-bottom: 12px;
+}
+.tag-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 0 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.tag-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: 1px solid #eee;
+  background: #fff;
+  border-radius: 18px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #555;
+}
+.tag-tab.active {
+  color: #fff;
+  border-color: #ff7a45;
+  background: linear-gradient(to right, #ff9a44, #fc6076);
 }
 .empty {
   text-align: center;

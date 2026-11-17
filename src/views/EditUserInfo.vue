@@ -93,14 +93,30 @@ import { updateUserInfoAPI } from '@/api/user'
 const router = useRouter()
 const userStore = useUserStore()
 const fileRef = ref(null)
+const bgFileRef = ref(null)
 const submitting = ref(false)
 
 const formData = ref({
   avatar: '',
+  bgImage: '',
   nickname: '',
   signature: '',
   userNo: ''
 })
+
+// 背景封面上传
+const triggerBgUpload = () => {
+  bgFileRef.value.click()
+}
+const onBgFileChange = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    formData.value.bgImage = ev.target.result
+  }
+  reader.readAsDataURL(file)
+}
 
 // 头像上传
 const triggerUpload = () => {
@@ -120,6 +136,7 @@ const onFileChange = (e) => {
 const loadInfo = () => {
   const info = userStore.userInfo || {}
   formData.value.avatar = info.avatar || ''
+  formData.value.bgImage = info.bgImage || ''
   formData.value.nickname = info.nickname || '匿名用户'
   formData.value.signature = info.signature || ''
   formData.value.userNo = info.userNo || ''
@@ -136,6 +153,7 @@ const submit = async () => {
     const res = await updateUserInfoAPI({
       nickname: formData.value.nickname,
       avatar: formData.value.avatar,
+      bgImage: formData.value.bgImage,
       signature: formData.value.signature,
       userNo: formData.value.userNo
     })
@@ -148,6 +166,7 @@ const submit = async () => {
     userStore.setUserInfo({
       nickname: formData.value.nickname,
       avatar: formData.value.avatar,
+      bgImage: formData.value.bgImage,
       signature: formData.value.signature,
       userNo: formData.value.userNo
     })

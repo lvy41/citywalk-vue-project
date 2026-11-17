@@ -257,8 +257,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, reactive, watch } from
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { pinyin } from 'pinyin-pro'
-import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
-import { getTagList } from '@/api/tag'
+import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
 import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
 import { load } from '@amap/amap-jsapi-loader'
@@ -692,8 +691,8 @@ const mapRoute = (r) => ({
   tags: [],
   likeNum: r.likeCount || 0,
   starNum: r.collectCount || 0,
-  isLiked: false,
-  isCollected: false
+  isLiked: !!r.isLiked,
+  isCollected: !!r.isCollected
 })
 
 // 加载中又要 reset 时先记下，等当前请求结束再重来，避免条件切换后列表是旧数据
@@ -776,11 +775,16 @@ const toggleLike = async (item) => {
   }
 }
 
-// 收藏后端还没做接口，先在前端切换
-const toggleCollect = (item) => {
-  item.isCollected = !item.isCollected
-  item.starNum += item.isCollected ? 1 : -1
-  if (item.starNum < 0) item.starNum = 0
+// 收藏 / 取消收藏（真实接口）
+const toggleCollect = async (item) => {
+  try {
+    const res = item.isCollected ? await unfavoriteRouteAPI(item.id) : await favoriteRouteAPI(item.id)
+    if (res.code !== 200) throw new Error(res.msg)
+    item.isCollected = !item.isCollected
+    item.starNum = Math.max(0, item.starNum + (item.isCollected ? 1 : -1))
+  } catch (e) {
+    ElMessage.warning('请先登录再收藏')
+  }
 }
 const currentCity = ref(null)   // { label, cityId, provinceLabel, districtLabel }
 const locating = ref(false)

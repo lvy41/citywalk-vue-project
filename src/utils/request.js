@@ -63,12 +63,13 @@ request.interceptors.request.use(
     ]
     const isSkipApi = skipUrls.some(path => url.split('?')[0] === path)
 
-    // 后台接口一律带管理员 Token（/admin/login 除外）；公开接口（/route/list 等）不带 Token
+    // 后台接口一律带管理员 Token；普通接口只要本地有普通用户 Token 就带上。
+    // 公开浏览接口由后端白名单放行，不带 Token 也能访问；带上 Token 是为了让列表回传当前用户点赞/收藏状态。
     if (isAdminApi) {
       if (url !== '/admin/login' && token) {
         config.headers.Authorization = `Bearer ${token}`
       }
-    } else if (!isSkipApi && token) {
+    } else if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
