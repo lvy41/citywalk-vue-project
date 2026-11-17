@@ -21,7 +21,10 @@
         <div class="tag-wrap">
           <el-tag v-for="tag in routeInfo.tags" :key="tag" size="small">{{tag}}</el-tag>
         </div>
-        <div class="author">创作者：{{ routeInfo.authorName }}</div>
+        <div class="author" :class="{ clickable: authorUid }" @click="goUserProfile(authorUid)">
+          <img class="author-avatar" :src="routeInfo.authorAvatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+          <span class="author-name">创作者：{{ routeInfo.authorName }}</span>
+        </div>
         <!-- 点赞条：真实调用后端 /route/like，点赞数据会进「我的点赞」 -->
         <div class="like-bar">
           <div class="like-btn" :class="{ liked }" @click="handleLike">
@@ -74,7 +77,10 @@
         <el-input v-model="commentText" placeholder="写下你的游玩感受..." />
         <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
         <div class="comment-item" v-for="c in commentList" :key="c.id">
-          <div class="c-user">{{ c.nickname || '匿名用户' }}</div>
+          <div class="c-head" @click="goUserProfile(c.userId)">
+            <img class="c-avatar" :src="c.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+            <span class="c-user">{{ c.nickname || '匿名用户' }}</span>
+          </div>
           <div class="c-content">{{ c.content }}</div>
         </div>
         <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
@@ -140,6 +146,7 @@ const collectCount = ref(0)
 const collected = ref(false)
 // 当前用户在这条路线已打卡的点位 id
 const checkedPointIds = ref([])
+const authorUid = computed(() => routeInfo.value.authorId || routeInfo.value.userId || null)
 const entryText = computed(() => {
   const total = pointList.value.length
   const done = pointList.value.filter(p => checkedPointIds.value.includes(p.id)).length
@@ -150,6 +157,10 @@ const entryText = computed(() => {
 })
 const goCheckin = () => {
   router.push({ name: 'Checkin', params: { id: routeId.value } })
+}
+const goUserProfile = (uid) => {
+  if (!uid) return
+  router.push(`/user/${uid}`)
 }
 const loadCheckinStatus = async () => {
   try {
@@ -199,7 +210,13 @@ const loadDetail = async () => {
     const res = await getRouteDetailFullAPI(routeId.value)
     if (res.code !== 200 || !res.data) throw new Error(res.msg || '路线不存在')
     const d = res.data
-    routeInfo.value = { ...d.route, tags: d.tags || [], authorName: d.authorName || '城市漫步用户' }
+    routeInfo.value = {
+      ...d.route,
+      tags: d.tags || [],
+      authorName: d.authorName || '城市漫步用户',
+      authorAvatar: d.authorAvatar || '',
+      authorId: d.authorId || null
+    }
     pointList.value = d.points || []
     likeCount.value = d.route.likeCount || 0
     liked.value = !!d.liked
@@ -409,9 +426,27 @@ onUnmounted(()=>{
   margin:8px 0;
 }
 .author{
+  display:flex;
+  align-items:center;
+  gap:8px;
   font-size:13px;
   color:#888;
   margin:6px 0;
+}
+.author.clickable{
+  cursor:pointer;
+}
+.author-avatar{
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#f4f5f7;
+}
+.author-name{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 /* 点赞条 */
 .like-bar{
@@ -556,6 +591,19 @@ onUnmounted(()=>{
 .comment-item{
   padding:8px 0;
   border-bottom:1px solid #eee;
+}
+.c-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+}
+.c-avatar{
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#f4f5f7;
 }
 .c-user{
   font-size:13px;

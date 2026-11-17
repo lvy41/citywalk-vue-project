@@ -50,7 +50,7 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
 
 const route = useRoute()
 const router = useRouter()
@@ -69,8 +69,8 @@ const mapRoute = (r) => ({
   tags: (r.tags || []).map(t => (typeof t === 'string' ? t : (t.tagName || t.name || ''))).filter(Boolean),
   likeNum: r.likeCount || 0,
   starNum: r.collectCount || 0,
-  isLiked: false,
-  isCollected: false
+  isLiked: !!r.isLiked,
+  isCollected: !!r.isCollected
 })
 
 // 封面图加载失败时退回默认图，避免出现破图图标
@@ -112,11 +112,16 @@ const toggleLike = async (item) => {
   }
 }
 
-// 收藏后端还没接口，先前端切换
-const toggleCollect = (item) => {
-  item.isCollected = !item.isCollected
-  item.starNum += item.isCollected ? 1 : -1
-  if (item.starNum < 0) item.starNum = 0
+// 收藏 / 取消收藏，写的是 route_favorite，和首页、我的收藏同一套数据
+const toggleCollect = async (item) => {
+  try {
+    const res = item.isCollected ? await unfavoriteRouteAPI(item.id) : await favoriteRouteAPI(item.id)
+    if (res && res.code !== 200) throw new Error(res.msg)
+    item.isCollected = !item.isCollected
+    item.starNum = Math.max(0, item.starNum + (item.isCollected ? 1 : -1))
+  } catch (e) {
+    ElMessage.warning('请先登录再收藏')
+  }
 }
 
 watch(() => route.params.cityName, (rawVal) => {
