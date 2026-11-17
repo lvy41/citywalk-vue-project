@@ -73,15 +73,65 @@
       </div>
       <!-- 评论区 -->
       <div class="comment-block">
-        <div class="sub-title">用户评论</div>
-        <el-input v-model="commentText" placeholder="写下你的游玩感受..." />
-        <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
+        <div class="sub-title">用户评论 <span class="c-count" v-if="commentList.length">（{{ totalCommentCount }}）</span></div>
+
+        <!-- 回复提示条 -->
+        <div v-if="replyTarget" class="reply-hint">
+          正在回复 <span class="reply-to-name">@{{ replyTarget.nickname }}</span>
+          <span class="reply-cancel" @click="cancelReply">取消回复</span>
+        </div>
+
+        <div class="c-input-row">
+          <div class="c-input-box">
+            <el-input
+              v-model="commentText"
+              :placeholder="replyTarget ? `回复 @${replyTarget.nickname}...` : '写下你的游玩感受...'"
+              @keyup.enter="submitComment"
+            />
+            <span v-if="commentText" class="clear-input" @click="clearCommentText" aria-label="清空输入">×</span>
+          </div>
+          <span class="emoji-btn" :class="{on: showEmoji}" @click="toggleEmojiPanel" title="表情">😊</span>
+        </div>
+        <div v-if="showEmoji" class="emoji-panel">
+          <span v-for="e in emojiList" :key="e" class="emoji-item" @click="insertEmoji(e)">{{ e }}</span>
+        </div>
+        <el-button class="c-submit" type="primary" @click="submitComment">{{ replyTarget ? '回复' : '发表评论' }}</el-button>
+
+        <!-- 一级评论 -->
         <div class="comment-item" v-for="c in commentList" :key="c.id">
           <div class="c-head" @click="goUserProfile(c.userId)">
             <img class="c-avatar" :src="c.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
             <span class="c-user">{{ c.nickname || '匿名用户' }}</span>
           </div>
           <div class="c-content">{{ c.content }}</div>
+          <div class="c-actions">
+            <span class="c-action" :class="{ active: c.liked }" @click="toggleLike(c)">
+              {{ c.liked ? '❤' : '♡' }} {{ c.likeCount || 0 }}
+            </span>
+            <span class="c-action" @click="startReply(c)">回复</span>
+            <span v-if="c.canDelete" class="c-action danger" @click="removeComment(c)">删除</span>
+          </div>
+
+          <!-- 楼中楼回复 -->
+          <div class="reply-list" v-if="c.children && c.children.length">
+            <div class="reply-item" v-for="r in c.children" :key="r.id">
+              <img class="r-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+              <div class="r-body">
+                <div class="r-head">
+                  <span class="c-user" @click="goUserProfile(r.userId)">{{ r.nickname || '匿名用户' }}</span>
+                  <span v-if="r.replyToNickname" class="r-to">回复 {{ r.replyToNickname }}</span>
+                </div>
+                <div class="c-content">{{ r.content }}</div>
+                <div class="c-actions">
+                  <span class="c-action" :class="{ active: r.liked }" @click="toggleLike(r, c)">
+                    {{ r.liked ? '❤' : '♡' }} {{ r.likeCount || 0 }}
+                  </span>
+                  <span class="c-action" @click="startReply(r, c)">回复</span>
+                  <span v-if="r.canDelete" class="c-action danger" @click="removeComment(r, c)">删除</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
       </div>
@@ -123,10 +173,10 @@
 </template>
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, toggleCommentLikeAPI, deleteRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 import AchievementDialog from '@/components/AchievementDialog.vue'
@@ -149,6 +199,24 @@ const routeInfo = ref({})
 const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
+// 回复目标：{ id, parentId, replyToUserId, nickname }
+const replyTarget = ref(null)
+const showEmoji = ref(false)
+// 微信风格常用表情（Unicode，直接存入评论内容）
+const emojiList = [
+  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','🥰','😍','😘',
+  '🙂','🤔','😐','😑','😶','😏','😣','😥','😭','😮','😯','😲','🥱','😴','🤯',
+  '🥵','🥶','😷','🤒','🤕','😵','🥴','😈','👻','💩','💯','❤️','🔥','🌟','⭐',
+  '🎉','🎊','🎁','👍','👎','👌','✌️','🤝','👏','🙏','💪','🤙','👋','😺','🐶',
+  '🐱','🐰','🦊','🐻','🐼','🐨','🐷','🐸','🐵','🐧','🐦','🐟','🐙','🦀','🌹',
+  '🌸','🌻','🌼','🍀','🌙','☀️','⚡','🍉','🍇','🍓','🍒','🍑','🍍','🍔','🍟',
+  '🍕','🍰','🎂','☕','🍵','🍺','🚗','✈️','🚶','🚴','🏠','⛰️','🌊'
+]
+const totalCommentCount = computed(() => {
+  let n = commentList.value.length
+  for (const c of commentList.value) n += (c.children && c.children.length) || 0
+  return n
+})
 const likeCount = ref(0)
 const liked = ref(false)
 // 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
@@ -334,21 +402,89 @@ const handleLike = async ()=>{
     ElMessage.warning("请先登录后再点赞")
   }
 }
-//提交评论
+// 表情面板开关
+const toggleEmojiPanel = () => { showEmoji.value = !showEmoji.value }
+// 一键清空评论输入框（保留当前回复对象）
+const clearCommentText = () => {
+  commentText.value = ''
+}
+const insertEmoji = (emoji) => {
+  commentText.value += emoji
+  showEmoji.value = false
+}
+
+// 开始回复某条评论；root 为其所属一级评论（回复楼中楼时传）
+const startReply = (comment, root) => {
+  const top = root || comment
+  replyTarget.value = {
+    id: comment.id,
+    parentId: top.id,
+    replyToUserId: comment.userId,
+    nickname: comment.nickname || '匿名用户'
+  }
+  showEmoji.value = false
+}
+const cancelReply = () => { replyTarget.value = null }
+
+// 提交一级评论 / 回复
 const submitComment = async () => {
   if (!commentText.value.trim()) {
     ElMessage.warning('请先写点内容')
     return
   }
   try {
-    const res = await addRouteCommentAPI({ routeId: routeId.value, content: commentText.value.trim() })
+    const payload = { routeId: routeId.value, content: commentText.value.trim() }
+    if (replyTarget.value) {
+      payload.parentId = replyTarget.value.parentId
+      payload.replyToUserId = replyTarget.value.replyToUserId
+    }
+    const res = await addRouteCommentAPI(payload)
     if (res.code !== 200) throw new Error(res.msg || '评论失败')
-    ElMessage.success('评论成功')
+    ElMessage.success(replyTarget.value ? '回复成功' : '评论成功')
     showAchievementIfAny(res)
     commentText.value = ''
+    cancelReply()
     loadComments()
   } catch (e) {
     ElMessage.warning('评论失败，请确认已登录')
+  }
+}
+
+// 点赞 / 取消点赞评论
+const toggleLike = async (comment, root) => {
+  if (!localStorage.getItem('token')) {
+    ElMessage.warning('请先登录后再点赞')
+    return
+  }
+  try {
+    const res = await toggleCommentLikeAPI(comment.id)
+    if (res.code === 200 && res.data) {
+      comment.liked = !!res.data.liked
+      comment.likeCount = res.data.likeCount ?? 0
+    }
+  } catch (e) {
+    ElMessage.warning('点赞失败，请确认已登录')
+  }
+}
+
+// 删除评论（仅路线发布者或本人，后端二次校验）
+const removeComment = async (comment, root) => {
+  try {
+    await ElMessageBox.confirm('确定删除这条评论吗？', '提示', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch {
+    return
+  }
+  try {
+    const res = await deleteRouteCommentAPI(comment.id)
+    if (res.code !== 200) throw new Error(res.msg || '删除失败')
+    ElMessage.success('评论已删除')
+    if (root) {
+      root.children = (root.children || []).filter(r => r.id !== comment.id)
+    } else {
+      commentList.value = commentList.value.filter(c => c.id !== comment.id)
+    }
+  } catch (e) {
+    ElMessage.warning(e.response?.data?.msg || '删除失败，仅路线发布者可删除该评论')
   }
 }
 onMounted(()=>{
@@ -615,8 +751,100 @@ onUnmounted(()=>{
   border-radius:10px;
   padding:14px;
 }
+.c-count{
+  font-size:13px;
+  color:#999;
+  font-weight:normal;
+}
+.reply-hint{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:8px 0;
+  padding:6px 10px;
+  background:#fff3ec;
+  border-radius:8px;
+  font-size:13px;
+  color:#ff6b35;
+}
+.reply-to-name{
+  font-weight:600;
+}
+.reply-cancel{
+  margin-left:auto;
+  color:#999;
+  cursor:pointer;
+}
+.c-input-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.c-input-box{
+  flex:1;
+  position:relative;
+}
+.c-input-box :deep(.el-input__inner){
+  padding-right:32px;
+}
+.clear-input{
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:20px;
+  height:20px;
+  line-height:18px;
+  text-align:center;
+  border-radius:50%;
+  background:#e5e7eb;
+  color:#fff;
+  font-size:14px;
+  cursor:pointer;
+  user-select:none;
+}
+.clear-input:active{
+  background:#d1d5db;
+}
+.emoji-btn{
+  font-size:22px;
+  cursor:pointer;
+  user-select:none;
+  line-height:1;
+  padding:4px;
+  border-radius:8px;
+}
+.emoji-btn.on{
+  background:#fff3ec;
+}
+.emoji-panel{
+  margin-top:8px;
+  padding:10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  gap:6px;
+  max-height:180px;
+  overflow-y:auto;
+}
+.emoji-item{
+  font-size:20px;
+  text-align:center;
+  cursor:pointer;
+  padding:4px 0;
+  border-radius:6px;
+}
+.emoji-item:active{
+  background:#e5e7eb;
+}
+.c-submit{
+  margin:8px 0;
+  background-color:#ff6b35;
+  border-color:#ff6b35;
+}
 .comment-item{
-  padding:8px 0;
+  padding:10px 0;
   border-bottom:1px solid #eee;
 }
 .c-head{
@@ -639,6 +867,58 @@ onUnmounted(()=>{
 .c-content{
   font-size:14px;
   margin-top:2px;
+  word-break:break-word;
+}
+.c-actions{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin-top:6px;
+}
+.c-action{
+  font-size:12px;
+  color:#999;
+  cursor:pointer;
+}
+.c-action.active{
+  color:#ff6b35;
+}
+.c-action.danger{
+  color:#f56c6c;
+}
+.reply-list{
+  margin:8px 0 0 36px;
+  padding:8px 10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.reply-item{
+  display:flex;
+  gap:8px;
+}
+.r-avatar{
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#f4f5f7;
+  flex:none;
+}
+.r-body{
+  flex:1;
+  min-width:0;
+}
+.r-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.r-to{
+  font-size:12px;
+  color:#999;
 }
 .c-empty{
   font-size:13px;
