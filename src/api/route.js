@@ -77,11 +77,19 @@ export function addRouteCommentAPI(data) {
   return request({ url: "/route/comment", method: "post", data })
 }
 
-// 评论点赞 / 取消点赞
-export function likeCommentAPI(commentId) {
-  return request({ url: `/route/comment/like/${commentId}`, method: "post" })
+// 评论点赞 / 取消点赞（后端切换状态，返回 { liked, likeCount }）
+export function toggleCommentLikeAPI(commentId) {
+  return request({
+    url: '/route/comment/like',
+    method: 'post',
+    params: { commentId }
+  })
 }
 
-export function unlikeCommentAPI(commentId) {
-  return request({ url: `/route/comment/like/${commentId}`, method: "delete" })
+// 删除评论（路线发布者或评论本人）
+export function deleteCommentAPI(commentId) {
+  return request({
+    url: `/route/comment/${commentId}`,
+    method: 'delete'
+  })
 }

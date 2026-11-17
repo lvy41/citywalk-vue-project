@@ -96,6 +96,7 @@
               {{ c.liked ? '❤️' : '🤍' }} {{ c.likeCount || 0 }}
             </span>
             <span class="c-action" @click="startReply(c)">回复</span>
+            <span v-if="c.canDelete" class="c-action delete" @click="removeComment(c)">删除</span>
           </div>
 
           <div class="reply-list">
@@ -111,6 +112,7 @@
                   {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
                 </span>
                 <span class="c-action" @click="startReply(r)">回复</span>
+                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r)">删除</span>
               </div>
             </div>
           </div>
@@ -158,7 +160,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, likeCommentAPI, unlikeCommentAPI } from '@/api/route'
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, toggleCommentLikeAPI, deleteCommentAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 import AchievementDialog from '@/components/AchievementDialog.vue'
@@ -201,7 +203,18 @@ const collected = ref(false)
 const checkedPointIds = ref([])
 const authorUid = computed(() => routeInfo.value.authorId || routeInfo.value.userId || null)
 const topComments = computed(() => commentList.value.filter(c => !c.parentId || Number(c.parentId) === 0))
-const repliesOf = (parentId) => commentList.value.filter(c => Number(c.parentId) === Number(parentId))
+const repliesOf = (parentId) => {
+  const parent = topComments.value.find(c => Number(c.id) === Number(parentId))
+  return parent?.children || []
+}
+const findComment = (comments, id) => {
+  for (const c of comments || []) {
+    if (String(c.id) === String(id)) return c
+    const child = findComment(c.children, id)
+    if (child) return child
+  }
+  return null
+}
 const entryText = computed(() => {
   const total = pointList.value.length
   const done = pointList.value.filter(p => checkedPointIds.value.includes(p.id)).length
@@ -262,7 +275,7 @@ const loadComments = async () => {
 const focusTargetComment = async () => {
   const targetId = route.query.comment
   if (!targetId) return
-  const target = commentList.value.find(c => String(c.id) === String(targetId))
+  const target = findComment(commentList.value, targetId)
   if (!target) return
   await nextTick()
   startReply(target)
@@ -394,17 +407,22 @@ const cancelReply = () => {
 
 const toggleCommentLike = async (comment) => {
   try {
-    if (comment.liked) {
-      await unlikeCommentAPI(comment.id)
-      comment.liked = false
-      comment.likeCount = Math.max(0, (comment.likeCount || 0) - 1)
-    } else {
-      await likeCommentAPI(comment.id)
-      comment.liked = true
-      comment.likeCount = (comment.likeCount || 0) + 1
-    }
+    const res = await toggleCommentLikeAPI(comment.id)
+    const data = res && res.data ? res.data : {}
+    comment.liked = !!data.liked
+    comment.likeCount = data.likeCount ?? 0
   } catch (e) {
     ElMessage.warning('请先登录后再点赞评论')
+  }
+}
+
+const removeComment = async (comment) => {
+  try {
+    await deleteCommentAPI(comment.id)
+    ElMessage.success('评论已删除')
+    loadComments()
+  } catch (e) {
+    ElMessage.warning('删除失败，仅路线发布者或本人可删除')
   }
 }
 
@@ -747,6 +765,12 @@ onUnmounted(()=>{
   cursor:pointer;
 }
 .c-action.liked{
+  color:#e65b38;
+}
+.c-action.delete{
+  color:#999;
+}
+.c-action.delete:active{
   color:#e65b38;
 }
 .reply-list{

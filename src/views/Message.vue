@@ -143,7 +143,7 @@ import {
   getSystemNotificationsAPI
 } from '@/api/notification'
 import { followUserAPI, unfollowUserAPI } from '@/api/follow'
-import { likeCommentAPI, unlikeCommentAPI } from '@/api/route'
+import { toggleCommentLikeAPI } from '@/api/route'
 
 const router = useRouter()
 
@@ -253,13 +253,12 @@ const updateCommentItem = (id, patch) => {
 
 const toggleCommentLike = async (item) => {
   try {
-    if (item.liked) {
-      await unlikeCommentAPI(item.id)
-      updateCommentItem(item.id, { liked: false, likeCount: Math.max(0, (item.likeCount || 0) - 1) })
-    } else {
-      await likeCommentAPI(item.id)
-      updateCommentItem(item.id, { liked: true, likeCount: (item.likeCount || 0) + 1 })
-    }
+    const res = await toggleCommentLikeAPI(item.id)
+    const data = res && res.data ? res.data : {}
+    updateCommentItem(item.id, {
+      liked: !!data.liked,
+      likeCount: data.likeCount ?? 0
+    })
   } catch (e) {
     ElMessage.warning('请先登录后再点赞评论')
   }
