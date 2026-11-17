@@ -120,7 +120,6 @@
 import { ref, onMounted, onActivated, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { getUserInfoAPI } from '@/api/user'
 import { getMyAchievementAPI } from '@/api/achievement'

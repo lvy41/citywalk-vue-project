@@ -258,6 +258,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { pinyin } from 'pinyin-pro'
 import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI } from '@/api/route'
+import { getTagList } from '@/api/tag'
 import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
 import { load } from '@amap/amap-jsapi-loader'
@@ -667,7 +668,19 @@ const page = ref(0)           // 已加载页数
 const hasMore = ref(true)
 const loading = ref(false)
 const activeTag = ref('全部')
-const tagList = ['全部', '老街', '美食', '人文', '公园', '夜景']
+// 标签栏从后端 /tag/list 动态获取，首项固定「全部」；后台新增/删除标签后首页同步
+const tagList = ref(['全部'])
+
+const loadTags = async () => {
+  try {
+    const res = await getTagList()
+    const list = res.code === 200 && Array.isArray(res.data) ? res.data : []
+    const names = list.map(t => t.tagName).filter(Boolean)
+    tagList.value = ['全部', ...names]
+  } catch (e) {
+    // 标签接口失败时保留「全部」兜底，不阻断路线列表
+  }
+}
 
 // 后端字段 → 页面字段
 const mapRoute = (r) => ({
@@ -781,6 +794,7 @@ const locateCurrentCity = async () => {
     if (locating.value) locating.value = false
   }, 10000)
   try {
+    window._AMapSecurityConfig = { securityJsCode: import.meta.env.VITE_AMAP_SECRET }
     const AMap = await load({
       key: '8720bcdd0f7029b7a9ca3f2a3498e505',
       version: '2.0',
@@ -829,6 +843,7 @@ onMounted(() => {
   // 首屏先出内容（走缓存城市或全国），定位成功后再按当前城市重拉
   const cached = JSON.parse(localStorage.getItem('citywalk_current_city') || 'null')
   if (cached) currentCity.value = cached
+  loadTags()
   loadRoutes(true)
   locateCurrentCity()
   window.addEventListener('scroll', onScrollLoad)

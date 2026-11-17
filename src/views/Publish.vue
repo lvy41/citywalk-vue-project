@@ -67,8 +67,21 @@
           <el-form-item label="所属城市">
             <el-input v-model="publishForm.city" placeholder="例如：杭州"></el-input>
           </el-form-item>
-          <el-form-item label="路线封面图 (URL)">
-            <el-input v-model="publishForm.coverImage" placeholder="输入图片链接 (可选)"></el-input>
+          <el-form-item label="路线封面图">
+            <div class="img-upload" :class="{ 'is-preview': publishForm.coverImage }">
+              <template v-if="publishForm.coverImage">
+                <img :src="publishForm.coverImage" alt="封面预览" />
+                <div class="img-upload-mask">
+                  <span @click="triggerCoverPicker">更换</span>
+                  <span class="clear" @click="clearCover">移除</span>
+                </div>
+              </template>
+              <div v-else class="img-upload-empty" @click="triggerCoverPicker">
+                <el-icon><Picture /></el-icon>
+                <span>点击从本机选择封面图 (可选)</span>
+              </div>
+              <input ref="coverFileRef" type="file" accept="image/*" hidden @change="onCoverFileChange" />
+            </div>
           </el-form-item>
           <el-form-item label="路线简介 / 游玩提示">
             <el-input type="textarea" v-model="publishForm.description" placeholder="写一点走心推荐吧..."></el-input>
@@ -89,6 +102,7 @@
       <!-- 打卡点列表 (动态添加) -->
       <div class="form-card">
         <h3 class="section-title">📍 途径打卡点</h3>
+        <input ref="pointFileRef" type="file" accept="image/*" hidden @change="onPointFileChange" />
         
         <div v-for="(point, index) in publishForm.points" :key="index" class="point-edit-item">
           <div class="point-edit-header">
@@ -104,7 +118,20 @@
               <el-time-picker v-model="point.time" placeholder="选择时间" format="HH:mm" value-format="HH:mm" style="width: 100%;" />
             </el-form-item>
             <el-form-item label="通勤方式">
-              <el-input v-model="point.transport" placeholder="例如：打车 15min / 步行"></el-input>
+              <div class="transport-row">
+                <el-select v-model="point.transportMode" placeholder="选择方式" clearable class="transport-mode">
+                  <el-option v-for="m in TRANSPORT_MODES" :key="m" :label="m" :value="m" />
+                </el-select>
+                <el-input-number
+                  v-model="point.transportMin"
+                  :min="0"
+                  :max="240"
+                  :controls="false"
+                  placeholder="耗时"
+                  class="transport-min"
+                />
+                <span class="transport-unit">分钟</span>
+              </div>
             </el-form-item>
             <el-form-item label="看点 / 小贴士 (选填)">
               <el-input v-model="point.tip" placeholder="例如：红树林与候鸟，看日落最好的位置"></el-input>
@@ -112,8 +139,20 @@
             <el-form-item label="点位介绍 / 感受 (选填)">
               <el-input type="textarea" :rows="2" v-model="point.description" placeholder="想在这里做什么、有什么感受，写两句..."></el-input>
             </el-form-item>
-            <el-form-item label="打卡照片 (URL)">
-              <el-input v-model="point.image" placeholder="输入照片链接 (可选)"></el-input>
+            <el-form-item label="打卡照片">
+              <div class="img-upload img-upload--small" :class="{ 'is-preview': point.image }">
+                <template v-if="point.image">
+                  <img :src="point.image" alt="照片预览" />
+                  <div class="img-upload-mask">
+                    <span @click="triggerPointPicker(index)">更换</span>
+                    <span class="clear" @click="clearPointImage(index)">移除</span>
+                  </div>
+                </template>
+                <div v-else class="img-upload-empty" @click="triggerPointPicker(index)">
+                  <el-icon><Picture /></el-icon>
+                  <span>点击从本机选择照片 (可选)</span>
+                </div>
+              </div>
             </el-form-item>
             <el-form-item label="地点位置">
               <div class="loc-field">
@@ -195,7 +234,7 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Picture } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import AchievementDialog from '@/components/AchievementDialog.vue'
 import TrophyDialog from '@/components/TrophyDialog.vue'
@@ -265,7 +304,7 @@ const publishForm = ref({
   tagIds: [],
   isPublic: true,
   points: [
-    { name: '', time: '09:00', transport: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' }
+    { name: '', time: '09:00', transport: '', transportMode: '', transportMin: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' }
   ]
 })
 
@@ -277,11 +316,81 @@ const hasCoord = (point) => {
 }
 const coordText = (point) => `${Number(point.longitude).toFixed(4)}, ${Number(point.latitude).toFixed(4)}`
 
+// ==================== 图片本地选择（与头像上传一致：选本机文件，压缩后存 data URL） ====================
+const coverFileRef = ref(null)
+const pointFileRef = ref(null)
+let pendingPointIndex = -1
+
+// 压缩图片：限制最长边，转 JPEG data URL，避免原图过大撑爆表单 / 数据库
+const compressImage = (file) => new Promise((resolve, reject) => {
+  if (!file.type.startsWith('image/')) {
+    reject(new Error('仅支持图片文件'))
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1000
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => reject(new Error('图片读取失败'))
+    img.src = ev.target.result
+  }
+  reader.onerror = () => reject(new Error('图片读取失败'))
+  reader.readAsDataURL(file)
+})
+
+const pickFile = async (inputEl, onDone) => {
+  const file = inputEl.files && inputEl.files[0]
+  if (!file) return
+  try {
+    const dataUrl = await compressImage(file)
+    onDone(dataUrl)
+  } catch (e) {
+    ElMessage.warning(e.message || '图片处理失败，请换一张')
+  } finally {
+    // 清空 input 值，保证选同一张图也能再次触发 change
+    inputEl.value = ''
+  }
+}
+
+const triggerCoverPicker = () => coverFileRef.value && coverFileRef.value.click()
+const onCoverFileChange = (e) => pickFile(e.target, (url) => { publishForm.value.coverImage = url })
+const clearCover = () => { publishForm.value.coverImage = '' }
+
+const triggerPointPicker = (index) => {
+  pendingPointIndex = index
+  pointFileRef.value && pointFileRef.value.click()
+}
+const onPointFileChange = (e) => pickFile(e.target, (url) => {
+  if (pendingPointIndex >= 0 && publishForm.value.points[pendingPointIndex]) {
+    publishForm.value.points[pendingPointIndex].image = url
+  }
+})
+const clearPointImage = (index) => { publishForm.value.points[index].image = '' }
+
+
 // ==================== 地点定位 / 地图选点 ====================
 let AMapLib = null
 let mapPickInstance = null
 let mapPickMarker = null
-let mapPickGeocoder = null
+let geocoderInstance = null
+let placeSearchInstance = null
+let lastPluginCity = null
 
 const mapDialogVisible = ref(false)
 const mapSearchKeyword = ref('')
@@ -302,19 +411,96 @@ const ensureAMap = async () => {
   return AMapLib
 }
 
-const geocodeText = async (address) => {
-  const AMap = await ensureAMap()
-  if (!mapPickGeocoder) mapPickGeocoder = new AMap.Geocoder({ city: publishForm.value.city || '全国' })
-  const keyword = publishForm.value.city && !address.includes(publishForm.value.city)
-    ? `${publishForm.value.city}${address}`
-    : address
-  const result = await new Promise((resolve, reject) => {
-    mapPickGeocoder.getLocation(keyword, (status, res) => {
-      if (status === 'complete' && res.geocodes && res.geocodes.length) resolve(res.geocodes[0])
-      else reject(new Error('没找到这个地址'))
+// 城市参数：表单没填城市时不做城市限制（全国检索），避免传无效城市名导致检索不到
+const amapCity = () => (publishForm.value.city || '').trim()
+
+const getGeocoder = (AMap) => {
+  const city = amapCity() || '全国'
+  if (!geocoderInstance || lastPluginCity !== city) {
+    geocoderInstance = new AMap.Geocoder({ city })
+    lastPluginCity = city
+  }
+  return geocoderInstance
+}
+
+const getPlaceSearch = (AMap) => {
+  const city = amapCity() || '全国'
+  if (!placeSearchInstance || lastPluginCity !== city) {
+    placeSearchInstance = new AMap.PlaceSearch({
+      city,
+      citylimit: false,
+      pageSize: 5
+    })
+    lastPluginCity = city
+  }
+  return placeSearchInstance
+}
+
+// 超时保护：高德接口卡住时不要一直转圈，到点给出明确提示
+const withTimeout = (promise, ms = 8000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('amap timeout')), ms))
+  ])
+
+// 地理编码：地址 / 道路名 → 坐标
+const geocodeAddress = (AMap, keyword) =>
+  new Promise((resolve, reject) => {
+    getGeocoder(AMap).getLocation(keyword, (status, res) => {
+      if (status === 'complete' && res.geocodes && res.geocodes.length) {
+        const g = res.geocodes[0]
+        resolve({
+          lng: String(g.location.lng),
+          lat: String(g.location.lat),
+          address: g.formattedAddress || keyword,
+          name: g.formattedAddress || keyword
+        })
+      } else {
+        console.warn('[AMap 地理编码] 未命中', { status, info: res?.info, keyword })
+        reject(new Error(`geocode ${status}`))
+      }
     })
   })
-  return { lng: String(result.location.lng), lat: String(result.location.lat), address: result.formattedAddress || address }
+
+// POI 关键词搜索：地点名称 / 商场景点 → 坐标
+const searchPoi = (AMap, keyword) =>
+  new Promise((resolve, reject) => {
+    getPlaceSearch(AMap).search(keyword, (status, res) => {
+      const pois = res?.poiList?.pois
+      if (status === 'complete' && pois && pois.length) {
+        const p = pois[0]
+        resolve({
+          lng: String(p.location.lng),
+          lat: String(p.location.lat),
+          address: p.name || keyword,
+          name: p.name || keyword
+        })
+      } else {
+        console.warn('[AMap POI 搜索] 未命中', { status, info: res?.info, keyword })
+        reject(new Error(`poi ${status}`))
+      }
+    })
+  })
+
+// 统一解析：POI 与地理编码并行检索，谁先命中用谁；避免串行等待导致“加载半天”
+const resolvePlace = async (keyword) => {
+  const AMap = await ensureAMap()
+  const kw = String(keyword || '').trim()
+  if (!kw) throw new Error('empty keyword')
+  const [poiRes, geoRes] = await Promise.allSettled([
+    withTimeout(searchPoi(AMap, kw), 6000),
+    withTimeout(geocodeAddress(AMap, kw), 6000)
+  ])
+  const hit = [poiRes, geoRes].find(r => r.status === 'fulfilled')
+  if (hit) return hit.value
+  const reasons = [poiRes.reason, geoRes.reason].map(e => e?.message).filter(Boolean).join('; ')
+  throw new Error(reasons || 'no result')
+}
+
+// 兼容提交流程里的旧调用：地址 → 坐标
+const geocodeText = async (address) => {
+  const g = await resolvePlace(address)
+  return { lng: g.lng, lat: g.lat, address: g.address }
 }
 
 // 填地址 → 自动定位（不需要用户知道经纬度）
@@ -360,8 +546,7 @@ const setTempMarker = (lng, lat) => {
 const applyTempPick = (lng, lat) => {
   tempPick.value = { lng: String(lng), lat: String(lat), address: '', hasCoord: true }
   if (mapPickInstance) mapPickInstance.setCenter([lng, lat])
-  if (!mapPickGeocoder) mapPickGeocoder = new AMapLib.Geocoder({ city: publishForm.value.city || '全国' })
-  mapPickGeocoder.getAddress([lng, lat], (status, res) => {
+  getGeocoder(AMapLib).getAddress([lng, lat], (status, res) => {
     if (status === 'complete' && res.regeocode) {
       tempPick.value.address = res.regeocode.formattedAddress || ''
     }
@@ -401,24 +586,17 @@ const openMapPicker = async (index) => {
   }
 }
 
-// 弹窗内搜索地点
+// 弹窗内搜索地点（POI 优先，地理编码兜底）
 const searchOnMap = async () => {
   const keyword = String(mapSearchKeyword.value || '').trim()
   if (!keyword) return
   mapSearching.value = true
   try {
-    const AMap = await ensureAMap()
-    const placeSearch = new AMap.PlaceSearch({ city: publishForm.value.city || '全国', pageSize: 5 })
-    const result = await new Promise((resolve, reject) => {
-      placeSearch.search(keyword, (status, res) => {
-        if (status === 'complete' && res.poiList && res.poiList.pois && res.poiList.pois.length) resolve(res.poiList.pois[0])
-        else reject(new Error('没搜到'))
-      })
-    })
-    const lng = result.location.lng
-    const lat = result.location.lat
-    tempPick.value = { lng: String(lng), lat: String(lat), address: result.name || keyword, hasCoord: true }
-    mapPickInstance.setZoomAndCenter(17, [lng, lat])
+    const result = await resolvePlace(keyword)
+    const lng = parseFloat(result.lng)
+    const lat = parseFloat(result.lat)
+    tempPick.value = { lng: result.lng, lat: result.lat, address: result.address, hasCoord: true }
+    if (mapPickInstance) mapPickInstance.setZoomAndCenter(17, [lng, lat])
     setTempMarker(lng, lat)
   } catch (e) {
     ElMessage.warning('没有搜到这个地方，换个关键词试试')
@@ -485,12 +663,33 @@ onMounted(async () => {
   restoreDraft()
 })
 
+// 通勤方式可选项；耗时（分钟）单独填写，提交时组合成展示用 transport 字符串
+const TRANSPORT_MODES = ['步行', '骑行', '公交', '地铁', '打车']
+
+const composeTransport = (mode, min) => {
+  const m = String(mode || '').trim()
+  const minutes = Number(min)
+  if (!m) return ''
+  return minutes > 0 ? `${m} ${minutes}min` : m
+}
+
+// 把旧的「打车 15min / 步行」等文本拆回方式与耗时，兼容自由文本
+const splitTransport = (raw) => {
+  const s = String(raw || '').trim()
+  if (!s) return { transportMode: '', transportMin: '' }
+  const hit = TRANSPORT_MODES.find(m => s.startsWith(m))
+  if (!hit) return { transportMode: '', transportMin: '' }
+  const num = s.match(/(\d+)\s*(?:min|分钟)?/)
+  return { transportMode: hit, transportMin: num ? num[1] : '' }
+}
+
 // 把点位列表写进表单（统一字段结构）
 const applyPointsToForm = (points) => {
   publishForm.value.points = points.map(p => ({
     name: p.name || '',
     time: p.time || p.planTime || '09:00',
     transport: p.transport || '',
+    ...splitTransport(p.transport),
     tip: p.tip || p.tag || '',
     description: p.description || '',
     image: p.image || '',
@@ -606,7 +805,7 @@ const fillMissingCoord = async () => {
 
 // 添加打卡点
 const addPoint = () => {
-  publishForm.value.points.push({ name: '', time: '12:00', transport: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' })
+  publishForm.value.points.push({ name: '', time: '12:00', transport: '', transportMode: '', transportMin: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' })
 }
 
 // 删除打卡点
@@ -624,7 +823,7 @@ const buildCheckinPayload = (points) => ({
     name: p.name,
     location: p.address,
     time: p.time,
-    transport: p.transport,
+    transport: composeTransport(p.transportMode, p.transportMin) || p.transport,
     tip: p.tip,
     description: p.description,
     image: p.image,
@@ -716,7 +915,7 @@ const submitPublish = async () => {
       points: points.map(p => ({
         name: p.name,
         time: p.time,
-        transport: p.transport,
+        transport: composeTransport(p.transportMode, p.transportMin) || p.transport,
         tip: p.tip,
         description: p.description,
         image: p.image,
@@ -896,4 +1095,23 @@ const handleBack = async () => {
 .map-pick-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
 .map-pick-canvas { width: 100%; height: 46vh; border-radius: 10px; overflow: hidden; background: #f2f3f5; }
 .map-pick-tip { margin-top: 10px; font-size: 13px; color: #606266; }
+
+/* 通勤方式 + 耗时 */
+.transport-row { display: flex; align-items: center; gap: 10px; }
+.transport-mode { flex: 1.2; }
+.transport-min { flex: 1; }
+.transport-unit { font-size: 13px; color: #909399; white-space: nowrap; }
+
+/* 图片本地选择上传（封面 / 点位照片） */
+.img-upload { position: relative; width: 100%; border: 1px dashed #ffb16b; border-radius: 12px; overflow: hidden; cursor: pointer; background: #FFF9F0; }
+.img-upload--small { max-width: 220px; }
+.img-upload-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 120px; color: #FF7A45; font-size: 13px; }
+.img-upload--small .img-upload-empty { height: 110px; }
+.img-upload-empty .el-icon { font-size: 26px; }
+.img-upload img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.img-upload.is-preview { height: 160px; border-style: solid; border-color: #ffb16b; }
+.img-upload--small.is-preview { height: 130px; }
+.img-upload-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 14px; background: rgba(0,0,0,0.35); color: #fff; font-size: 13px; opacity: 0; transition: opacity .2s; }
+.img-upload:hover .img-upload-mask { opacity: 1; }
+.img-upload-mask .clear { color: #ffd0d0; }
 </style>

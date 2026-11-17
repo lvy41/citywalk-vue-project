@@ -288,10 +288,11 @@ const handleCollect = async ()=>{
       collectCount.value = Math.max(0, collectCount.value - 1)
       ElMessage.success("已取消收藏")
     }else{
-      await favoriteRouteAPI(routeId.value)
+      const favRes = await favoriteRouteAPI(routeId.value)
       collected.value = true
       collectCount.value += 1
       ElMessage.success("收藏成功")
+      showAchievementIfAny(favRes)
     }
   }catch(e){
     ElMessage.warning("请先登录后再收藏")
