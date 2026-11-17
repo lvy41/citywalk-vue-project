@@ -33,7 +33,7 @@
         <p>暂无系统通知</p>
       </div>
       <div v-else class="msg-list">
-        <div class="msg-item" v-for="item in systemList" :key="item.id">
+        <div class="msg-item" v-for="item in systemList" :key="item.id" @click="goRoute(item.routeId)">
           <div class="msg-title">{{ item.title }}</div>
           <div class="msg-content">{{ item.content }}</div>
           <div class="msg-time">{{ formatTime(item.createTime) }}</div>
