@@ -54,6 +54,13 @@
               @click="demoCheckin(p)"
             >演示打卡</span>
           </div>
+          <div class="ck-photo" v-if="!checkedIds.includes(p.id)">
+            <template v-if="pointPhotos[p.id]">
+              <img :src="pointPhotos[p.id]" class="ck-photo-thumb" alt="打卡照片">
+              <span class="ck-photo-op" @click="clearPhoto(p)">移除</span>
+            </template>
+            <span v-else class="ck-photo-add" @click="triggerPhoto(p)">📷 上传打卡照片（可选）</span>
+          </div>
         </div>
       </div>
     </div>
@@ -71,16 +78,24 @@
       </el-button>
     </div>
 
-    <!-- 奖杯弹窗 -->
-    <el-dialog v-model="trophyVisible" width="80%" class="trophy-dialog" :show-close="false">
-      <div class="trophy-body">
-        <div class="trophy-emoji">🎉</div>
-        <div class="trophy-title">恭喜通关！</div>
-        <div class="trophy-medal">🏆 获得第 {{ trophyNo }} 个奖杯</div>
-        <div class="trophy-desc">恭喜你完成了「{{ routeName }}」CityWalk 闯关！<br />当前累计奖杯：{{ trophyNo }} 个</div>
-        <el-button type="primary" round class="trophy-btn" @click="closeTrophy">收下奖杯</el-button>
-      </div>
-    </el-dialog>
+    <!-- 奖杯弹窗：打卡点位奖杯 / 闯关奖杯 -->
+    <TrophyDialog
+      v-model="trophyVisible"
+      :trophies="newTrophies"
+      :total-count="trophyNo"
+      :title="finished ? '恭喜通关！' : '获得新奖杯！'"
+      :subtitle="trophySubtitle"
+      @close="closeTrophy"
+    />
+    <!-- 成就弹窗：累计次数达到 10/20/50 时解锁称号 -->
+    <AchievementDialog
+      v-model="achVisible"
+      :achievements="newAchievements"
+      title="成就达成！"
+      subtitle="你的累计次数达到了新的里程碑"
+      @close="closeAchievement"
+    />
+    <input ref="photoInput" type="file" accept="image/*" class="ck-hidden-input" @change="onPhotoChange">
   </div>
 </template>
 
@@ -90,6 +105,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRouteDetailFullAPI } from '@/api/route'
 import { createMyCheckinRouteAPI, checkinRoutePointAPI, getTrophyAPI } from '@/api/checkin'
+import TrophyDialog from '@/components/TrophyDialog.vue'
+import AchievementDialog from '@/components/AchievementDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,6 +122,36 @@ const distanceTip = ref({})
 const finished = ref(false)
 const trophyVisible = ref(false)
 const trophyNo = ref(1)
+const newTrophies = ref([])
+const trophySubtitle = ref('')
+// 成就（称号）弹窗：累计数量到门槛才弹，排在奖杯弹窗之后
+const achVisible = ref(false)
+const newAchievements = ref([])
+const pendingAchievements = ref([])
+
+// 打卡照片：pointId -> data URL（可选，未上传则画廊用占位图）
+const pointPhotos = ref({})
+const photoInput = ref(null)
+const pendingPhotoPoint = ref(null)
+
+// 根据打卡返回统一处理奖杯弹窗：单点打卡只发点位奖杯，打完所有点位再加闯关奖杯
+const applyTrophyResult = (data) => {
+  const earned = Array.isArray(data.newTrophies) ? data.newTrophies : []
+  const achievements = Array.isArray(data.newAchievements) ? data.newAchievements : []
+  if (achievements.length) pendingAchievements.value = achievements
+  if (data.trophyNo) trophyNo.value = data.trophyNo
+  if (!earned.length) return
+  newTrophies.value = earned
+  trophySubtitle.value = data.finished
+    ? `恭喜你完成了「${routeName.value}」CityWalk 闯关！`
+    : '继续打卡剩下的点位，全部完成还能获得闯关小奖杯'
+  trophyVisible.value = true
+}
+
+const closeAchievement = () => {
+  achVisible.value = false
+  if (finished.value) router.push('/record')
+}
 
 const progressPercent = computed(() => {
   if (!points.value.length) return 0
@@ -193,8 +240,8 @@ const ensureMyRoute = async () => {
   return false
 }
 
-// 用副本里的点位序号（index 从 0 开始）提交打卡
-const submitPoint = async (p) => {
+// 用副本里的点位序号（index 从 0 开始）提交打卡，image 为可选打卡照片
+const submitPoint = async (p, image) => {
   if (!(await ensureMyRoute())) {
     ElMessage.error('打卡路线副本创建失败，请稍后重试')
     return null
@@ -204,7 +251,63 @@ const submitPoint = async (p) => {
     ElMessage.error('该点位不在打卡路线中')
     return null
   }
-  return checkinRoutePointAPI(myRouteId.value, index)
+  return checkinRoutePointAPI(myRouteId.value, index, image)
+}
+
+// 压缩本地照片为 data URL，限制最长边 1000、JPEG 0.82，避免快照过大
+const compressImage = (file) => new Promise((resolve, reject) => {
+  if (!file.type.startsWith('image/')) { reject(new Error('仅支持图片文件')); return }
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1000
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => reject(new Error('图片读取失败'))
+    img.src = ev.target.result
+  }
+  reader.onerror = () => reject(new Error('图片读取失败'))
+  reader.readAsDataURL(file)
+})
+
+const triggerPhoto = (p) => {
+  pendingPhotoPoint.value = p
+  if (photoInput.value) {
+    photoInput.value.value = ''
+    photoInput.value.click()
+  }
+}
+
+const onPhotoChange = async (e) => {
+  const file = e.target.files && e.target.files[0]
+  const p = pendingPhotoPoint.value
+  if (!file || !p) return
+  try {
+    const dataUrl = await compressImage(file)
+    pointPhotos.value = { ...pointPhotos.value, [p.id]: dataUrl }
+  } catch (err) {
+    ElMessage.warning(err.message || '图片读取失败')
+  }
+}
+
+const clearPhoto = (p) => {
+  const next = { ...pointPhotos.value }
+  delete next[p.id]
+  pointPhotos.value = next
 }
 
 const onCheckin = async (p) => {
@@ -237,19 +340,16 @@ const onCheckin = async (p) => {
       )
     }
 
-    const res = await submitPoint(p)
+    const res = await submitPoint(p, pointPhotos.value[p.id])
     if (res && res.code === 200 && res.data) {
       myPoints.value = res.data.points || myPoints.value
       checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
+      clearPhoto(p)
       ElMessage.success(`「${p.pointName}」打卡成功`)
       if (res.data.status === 1 || res.data.checkedPoints >= res.data.totalPoints) {
         finished.value = true
-        try {
-          const t = await getTrophyAPI()
-          if (t.code === 200 && t.data) trophyNo.value = t.data.trophyCount
-        } catch (e) { /* ignore */ }
-        trophyVisible.value = true
       }
+      applyTrophyResult(res.data)
     }
   } catch (e) {
     if (e && e !== 'cancel' && e !== 'close') {
@@ -265,19 +365,16 @@ const demoCheckin = async (p) => {
   if (checkedIds.value.includes(p.id)) return
   checkingId.value = p.id
   try {
-    const res = await submitPoint(p)
+    const res = await submitPoint(p, pointPhotos.value[p.id])
     if (res && res.code === 200 && res.data) {
       myPoints.value = res.data.points || myPoints.value
       checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
+      clearPhoto(p)
       ElMessage.success(`「${p.pointName}」演示打卡成功`)
       if (res.data.status === 1 || res.data.checkedPoints >= res.data.totalPoints) {
         finished.value = true
-        try {
-          const t = await getTrophyAPI()
-          if (t.code === 200 && t.data) trophyNo.value = t.data.trophyCount
-        } catch (e) { /* ignore */ }
-        trophyVisible.value = true
       }
+      applyTrophyResult(res.data)
     }
   } catch (e) {
     /* 错误提示由请求拦截器处理 */
@@ -301,7 +398,15 @@ const goToMap = (p, index) => {  router.push({
 
 const closeTrophy = () => {
   trophyVisible.value = false
-  router.push('/record')
+  // 有成就解锁时，先弹成就；否则通关直接跳打卡记录
+  if (pendingAchievements.value.length) {
+    newAchievements.value = pendingAchievements.value
+    pendingAchievements.value = []
+    achVisible.value = true
+    return
+  }
+  // 通关后才跳到打卡记录；只拿到点位奖杯时留在本页继续打卡
+  if (finished.value) router.push('/record')
 }
 
 const finish = () => {
@@ -430,6 +535,12 @@ onMounted(async () => {
   padding: 2px 4px;
 }
 .ck-demo:active { color: #ff6b35; }
+
+.ck-hidden-input { display: none; }
+.ck-photo { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.ck-photo-thumb { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; }
+.ck-photo-add { font-size: 12px; color: #FF7A45; background: #FFF0F3; padding: 6px 10px; border-radius: 10px; cursor: pointer; }
+.ck-photo-op { font-size: 12px; color: #909399; cursor: pointer; text-decoration: underline; }
 
 .ck-footer {
   position: fixed;

@@ -5,22 +5,35 @@
         <el-icon><ArrowLeft /></el-icon>
       </div>
       <div class="page-title">我的垃圾站</div>
-      <div class="clear-btn" v-if="recycleList.length" @click="clearAll">清空</div>
+      <div class="header-placeholder"></div>
     </div>
 
-    <div class="tip-bar" v-if="recycleList.length">
-      删除的打卡路线会暂存在这里，保留最近 20 条，恢复后可回到「打卡记录」
+    <div class="tip-bar">
+      删除的路线会先放到这里，恢复后可回到「打卡记录」；彻底删除后无法再找回。
+    </div>
+
+    <div class="tab-bar">
+      <div
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="tab-item"
+        :class="{ active: activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+        <span class="tab-count">{{ countBy(tab.key) }}</span>
+      </div>
     </div>
 
     <div class="content-wrap">
-      <div v-if="recycleList.length === 0" class="empty-box">
-        <p class="empty-main">垃圾站是空的</p>
+      <div v-if="filteredList.length === 0" class="empty-box">
+        <p class="empty-main">这里是空的</p>
         <p class="empty-sub">在「打卡记录」里删除的路线会先放到这里</p>
         <el-button round class="go-btn" @click="goRecord">去打卡记录</el-button>
       </div>
 
       <div v-else class="recycle-list">
-        <div v-for="item in recycleList" :key="item.id" class="recycle-item">
+        <div v-for="item in filteredList" :key="item.id" class="recycle-item">
           <img
             v-if="item.coverImage"
             :src="item.coverImage"
@@ -33,10 +46,13 @@
           <div class="item-info">
             <div class="item-title">{{ item.routeName }}</div>
             <div class="item-meta">
-              <span v-if="item.pointCount">打卡点位：{{ item.pointCount }} 个</span>
-              <span v-if="item.createTime">完成：{{ item.createTime }}</span>
+              <el-tag size="small" :type="item.mine ? 'warning' : 'success'" effect="plain">
+                {{ item.mine ? '我的路线' : '我的闯关' }}
+              </el-tag>
+              <span v-if="item.totalPoints">打卡点位：{{ item.totalPoints }} 个</span>
+              <span>{{ item.status === 1 ? '已通关' : '打卡中' }}</span>
             </div>
-            <div class="item-deleted">删除于 {{ item.deletedTime || '未知时间' }}</div>
+            <div class="item-deleted">删除于 {{ formatTime(item.deleteTime) }}</div>
           </div>
 
           <div class="item-actions">
@@ -50,79 +66,72 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { getTrashRoutesAPI, restoreRouteAPI, destroyRouteAPI } from '@/api/checkin'
 
 const router = useRouter()
-const RECYCLE_KEY = 'citywalk_recycle_list'
-const CHECKIN_KEY = 'citywalk_checkin_list'
+const tabs = [
+  { key: 'mine', label: '我的路线' },
+  { key: 'challenge', label: '我的闯关' }
+]
+const activeTab = ref('mine')
 const recycleList = ref([])
 
-// 读取垃圾站
-const loadRecycleList = () => {
+const countBy = (key) => recycleList.value.filter(r => key === 'mine' ? r.mine : !r.mine).length
+
+const filteredList = computed(() =>
+  recycleList.value.filter(r => activeTab.value === 'mine' ? r.mine : !r.mine)
+)
+
+const loadRecycleList = async () => {
   try {
-    const raw = localStorage.getItem(RECYCLE_KEY)
-    recycleList.value = raw ? JSON.parse(raw) : []
+    const res = await getTrashRoutesAPI()
+    recycleList.value = (res && res.data) || []
   } catch (e) {
-    console.warn('垃圾站读取失败', e)
+    console.warn('回收站读取失败', e)
     recycleList.value = []
   }
 }
-const saveRecycleList = () => {
-  localStorage.setItem(RECYCLE_KEY, JSON.stringify(recycleList.value))
-}
 
-// 封面加载失败时不显示破图
 const onImgError = (e) => {
   e.target.style.display = 'none'
 }
 
-// 恢复：从垃圾站移回打卡记录列表
-const restore = (item) => {
-  try {
-    const checkinList = JSON.parse(localStorage.getItem(CHECKIN_KEY) || '[]')
-    if (checkinList.some(r => r.id === item.id)) {
-      ElMessage.warning('打卡记录里已经有这条路线了')
-    } else {
-      const { deletedTime, ...plain } = item
-      checkinList.unshift(plain)
-      localStorage.setItem(CHECKIN_KEY, JSON.stringify(checkinList))
-    }
-  } catch (e) {
-    console.warn('恢复打卡路线失败', e)
-  }
-  recycleList.value = recycleList.value.filter(r => r.id !== item.id)
-  saveRecycleList()
-  ElMessage.success(`已恢复「${item.routeName}」`)
+const formatTime = (t) => {
+  if (!t) return '未知时间'
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return String(t)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// 彻底删除
+const restore = async (item) => {
+  try {
+    await restoreRouteAPI(item.id)
+    recycleList.value = recycleList.value.filter(r => r.id !== item.id)
+    ElMessage.success(`已恢复「${item.routeName}」`)
+  } catch (e) {
+    ElMessage.error('恢复失败，请稍后重试')
+  }
+}
+
 const destroy = (item) => {
   ElMessageBox.confirm(`「${item.routeName}」将被永久删除，无法再恢复，确定吗？`, '彻底删除', {
     confirmButtonText: '永久删除',
     cancelButtonText: '再想想',
     type: 'warning',
     confirmButtonClass: 'el-button--danger'
-  }).then(() => {
-    recycleList.value = recycleList.value.filter(r => r.id !== item.id)
-    saveRecycleList()
-    ElMessage.success('已永久删除')
-  }).catch(() => {})
-}
-
-// 清空垃圾站
-const clearAll = () => {
-  ElMessageBox.confirm('垃圾站里的所有路线都会被永久删除，确定清空吗？', '清空垃圾站', {
-    confirmButtonText: '清空',
-    cancelButtonText: '再想想',
-    type: 'warning',
-    confirmButtonClass: 'el-button--danger'
-  }).then(() => {
-    recycleList.value = []
-    saveRecycleList()
-    ElMessage.success('垃圾站已清空')
+  }).then(async () => {
+    try {
+      await destroyRouteAPI(item.id)
+      recycleList.value = recycleList.value.filter(r => r.id !== item.id)
+      ElMessage.success('已永久删除')
+    } catch (e) {
+      ElMessage.error('删除失败，请稍后重试')
+    }
   }).catch(() => {})
 }
 
@@ -161,12 +170,9 @@ onMounted(loadRecycleList)
   font-weight: 600;
   color: #222;
 }
-.clear-btn {
+.header-placeholder {
   margin-left: auto;
-  font-size: 14px;
-  color: #e85d3a;
-  cursor: pointer;
-  z-index: 2;
+  width: 20px;
 }
 .tip-bar {
   background: #fff5ef;
@@ -174,6 +180,30 @@ onMounted(loadRecycleList)
   font-size: 12px;
   line-height: 1.6;
   padding: 10px 16px;
+}
+.tab-bar {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px 0;
+}
+.tab-item {
+  padding: 8px 16px;
+  border-radius: 18px;
+  background: #fff;
+  color: #606266;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #eee;
+}
+.tab-item.active {
+  background: linear-gradient(to right, #ff9a44, #fc6076);
+  color: #fff;
+  border-color: transparent;
+}
+.tab-count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.85;
 }
 .content-wrap {
   padding: 16px;
@@ -241,15 +271,16 @@ onMounted(loadRecycleList)
 .item-meta {
   font-size: 12px;
   color: #888;
-  margin-top: 4px;
+  margin-top: 6px;
   display: flex;
   gap: 10px;
+  align-items: center;
   flex-wrap: wrap;
 }
 .item-deleted {
   font-size: 12px;
   color: #bbb;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 .item-actions {
   display: flex;

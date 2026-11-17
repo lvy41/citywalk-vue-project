@@ -10,6 +10,11 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 // 引入userStore
 import { useUserStore } from '@/store/user'
 
+// 高德 2.0 安全密钥必须在 JSAPI 首次加载前设置，否则地理编码/POI 检索等服务会被鉴权拒绝
+window._AMapSecurityConfig = {
+  securityJsCode: import.meta.env.VITE_AMAP_SECRET
+}
+
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)

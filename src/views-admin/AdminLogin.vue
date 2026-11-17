@@ -50,11 +50,11 @@
 
     <div class="login-box">
       <div class="tab-wrap">
-        <div class="tab-item active">登录</div>
-        <div class="tab-item">注册</div>
+        <div class="tab-item" :class="{ active: mode === 'login' }" @click="switchMode('login')">登录</div>
+        <div class="tab-item" :class="{ active: mode === 'register' }" @click="switchMode('register')">注册</div>
       </div>
 
-      <el-form ref="loginFormRef" :model="loginForm" class="login-form">
+      <el-form v-if="mode === 'login'" ref="loginFormRef" :model="loginForm" class="login-form">
         <el-form-item>
           <el-input
             v-model="loginForm.username"
@@ -71,6 +71,34 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" class="login-btn" @click="handleLogin">登录</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-form v-else ref="registerFormRef" :model="registerForm" class="login-form">
+        <el-form-item>
+          <el-input
+            v-model="registerForm.username"
+            placeholder="设置管理员用户名（3-20 位）"
+          ></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-input
+            v-model="registerForm.password"
+            type="password"
+            placeholder="设置密码（6-20 位）"
+            show-password
+          ></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-input
+            v-model="registerForm.confirmPassword"
+            type="password"
+            placeholder="再次输入密码"
+            show-password
+          ></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" class="login-btn" @click="handleRegister">注册</el-button>
         </el-form-item>
       </el-form>
 
@@ -102,9 +130,66 @@ const loginForm = ref({
 })
 
 const loginFormRef = ref(null)
+const registerFormRef = ref(null)
+
+// 当前表单：登录 / 注册
+const mode = ref('login')
+const registerForm = ref({
+  username: '',
+  password: '',
+  confirmPassword: ''
+})
 
 // 是否勾选隐私协议
 const agreeProtocol = ref(false)
+
+const switchMode = (target) => {
+  mode.value = target
+}
+
+// 管理员注册
+const handleRegister = async () => {
+  const username = (registerForm.value.username || '').trim()
+  const password = registerForm.value.password || ''
+  const confirmPassword = registerForm.value.confirmPassword || ''
+
+  if (!username || !password) {
+    ElMessage.warning('请填写管理员用户名和密码')
+    return
+  }
+  if (username.length < 3 || username.length > 20) {
+    ElMessage.warning('用户名长度需在 3-20 位之间')
+    return
+  }
+  if (password.length < 6 || password.length > 20) {
+    ElMessage.warning('密码长度需在 6-20 位之间')
+    return
+  }
+  if (password !== confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  if (!agreeProtocol.value) {
+    ElMessage.warning('请先勾选同意隐私协议')
+    return
+  }
+
+  try {
+    const res = await request.post('/admin/register', { username, password })
+    if (res && res.code === 200) {
+      ElMessage.success('注册成功，请用新账号登录')
+      // 注册完顺手把用户名带到登录表单，少填一次
+      loginForm.value.username = username
+      loginForm.value.password = ''
+      registerForm.value = { username: '', password: '', confirmPassword: '' }
+      mode.value = 'login'
+    } else {
+      ElMessage.error(res?.msg || res?.message || '注册失败')
+    }
+  } catch (error) {
+    ElMessage.error('网络请求失败，请检查后端是否启动')
+  }
+}
 
 const handleLogin = async () => {
   // 1. 判断账号密码不能为空

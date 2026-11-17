@@ -39,12 +39,14 @@
                   </h3>
                   <span class="delete-icon" @click.stop="deleteMyRoute(item.id, item.routeName)">🗑️</span>
                 </div>
-                <p class="card-desc"><span class="tag-icon">📍</span> 打卡点位：{{ item.checkedPoints }} / {{ item.pointCount }} 个</p>
-                <p class="card-time">最近打卡：{{ item.createTime }}</p>
+                <p class="card-desc">
+                  <span class="pub-flag" :class="{ 'pub-yes': item.isPublic }">{{ item.isPublic ? '公开路线' : '未公开路线' }}</span>
+                </p>
+                <p class="card-time">创建时间：{{ item.createTime }}</p>
               </div>
             </div>
           </div>
-          <div v-if="!checkinList.length" class="empty-tip">还没有打卡记录，去首页挑一条路线开始打卡吧~</div>
+          <div v-if="!checkinList.length" class="empty-tip">还没有自己的路线，去「发布路线」创建一条吧~</div>
         </el-tab-pane>
 
         <!-- 我的闯关 -->
@@ -54,7 +56,7 @@
             <div class="search-bar" style="margin-top: 15px;">
               <el-input 
                 v-model="searchCompletedKeyword" 
-                placeholder="搜索你通关的城市或路线..." 
+                placeholder="搜索你闯关的城市或路线..." 
                 clearable
                 class="search-input"
               >
@@ -69,20 +71,23 @@
                 <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
                 <div class="card-info">
                   <div class="title-row">
-                    <h3 class="card-title link-title" @click="openCompletedRoute(item)">
+                    <h3 class="card-title link-title" @click="openChallengeRoute(item)">
                       {{ item.routeName }} <span class="arrow">></span>
                     </h3>
                     <span class="delete-icon" @click.stop="deleteCompletedRoute(item.id, item.routeName)">🗑️</span>
                   </div>
                   <p class="card-desc"><span class="tag-icon">🏙️</span> 城市：{{ item.city }}</p>
-                  <p class="card-desc"><span class="tag-icon">📍</span> 已打卡点：{{ item.points.length }} 个</p>
-                  <p class="card-time">通关时间：{{ item.createTime }}</p>
+                  <p class="card-desc"><span class="tag-icon">📍</span> 已打卡点：{{ item.checkedPoints }} / {{ item.pointCount }} 个</p>
+                  <p class="card-time">
+                    <template v-if="item.status === 1">通关时间：{{ item.createTime }}</template>
+                    <span v-else class="ongoing-tag">打卡中 · 点击继续打卡</span>
+                  </p>
                 </div>
               </div>
             </div>
-            
+
             <div v-if="filteredCompletedRoutes.length === 0" style="text-align: center; color: #909399; padding: 40px 0;">
-              没有找到相关的通关路线哦~
+              还没有闯关路线，去首页挑一条路线开始打卡吧~
             </div>
           </div>
 
@@ -97,18 +102,28 @@
             </div>
 
             <div class="checkin-gallery">
-              <div 
-                v-for="point in currentCompletedRoute.points" 
-                :key="point.id" 
+              <div
+                v-for="point in currentCompletedRoute.points"
+                :key="point.id"
                 class="gallery-card"
               >
-                <img :src="point.image || '/pictures/Myback.jpg'" class="gallery-img" alt="打卡图" @error="onImgError($event)">
+                <div v-if="point.hasImage" class="gallery-img-wrap">
+                  <img :src="point.image" class="gallery-img" alt="打卡图" @error="onImgError($event)">
+                </div>
+                <div v-else class="gallery-placeholder">
+                  <el-icon class="ph-icon"><Location /></el-icon>
+                  <span class="ph-text">{{ point.name }}</span>
+                </div>
                 <div class="gallery-info">
                   <div class="gallery-header">
                     <h3 class="gallery-name">{{ point.name }}</h3>
                   </div>
-                  <p class="gallery-desc"><el-icon><Location /></el-icon> {{ point.location }}</p>
-                  <p class="gallery-time">打卡时间：{{ point.time }}</p>
+                  <p class="gallery-desc" v-if="point.location || point.description">
+                    <el-icon><Location /></el-icon>
+                    <span>{{ point.location || point.description }}</span>
+                  </p>
+                  <p class="gallery-tip" v-if="point.tip">💡 {{ point.tip }}</p>
+                  <p class="gallery-time" v-if="point.time">打卡时间：{{ point.time }}</p>
                 </div>
               </div>
             </div>
@@ -218,6 +233,13 @@
             <div class="level-info" style="flex: 1;">
               <h4>{{ point.name }}</h4>
               <p v-if="point.location">{{ point.location }}</p>
+              <div class="play-photo" v-if="!point.isChecked">
+                <template v-if="playPhotos[point.id]">
+                  <img :src="playPhotos[point.id]" class="play-photo-thumb" alt="打卡照片">
+                  <span class="play-photo-op" @click.stop="clearPlayPhoto(point)">移除</span>
+                </template>
+                <span v-else class="play-photo-add" @click.stop="triggerPlayPhoto(point)">📷 打卡照片（可选）</span>
+              </div>
             </div>
             <div class="level-status">
               <el-button v-if="!point.isChecked" type="primary" size="small" round @click.stop="doCheckin(point)">打卡</el-button>
@@ -229,6 +251,7 @@
         <div class="action-footer" v-if="checkedCount === currentPlayRoute.points.length && currentPlayRoute.points.length > 0">
           <el-button type="success" class="checkin-btn" @click="finishGame">🎉 恭喜通关！查看通关凭证</el-button>
         </div>
+        <input ref="playPhotoInput" type="file" accept="image/*" class="play-hidden-input" @change="onPlayPhotoChange">
       </div>
     </div>
 
@@ -261,14 +284,23 @@
           :key="point.id"
           class="gallery-card"
         >
-          <img :src="point.image || '/pictures/Myback.jpg'" class="gallery-img" alt="打卡图" @error="onImgError($event)">
+          <div v-if="point.hasImage" class="gallery-img-wrap">
+            <img :src="point.image" class="gallery-img" alt="打卡图" @error="onImgError($event)">
+          </div>
+          <div v-else class="gallery-placeholder">
+            <el-icon class="ph-icon"><Location /></el-icon>
+            <span class="ph-text">{{ point.name }}</span>
+          </div>
           <div class="gallery-info">
             <div class="gallery-header">
               <h3 class="gallery-name">{{ point.name }}</h3>
               <span class="gallery-city">{{ point.city }}</span>
             </div>
-            <p class="gallery-desc"><el-icon><Location /></el-icon> {{ point.location }}</p>
-            <p class="gallery-time">打卡时间：{{ point.time }}</p>
+            <p class="gallery-desc" v-if="point.location || point.description">
+              <el-icon><Location /></el-icon>
+              <span>{{ point.location || point.description }}</span>
+            </p>
+            <p class="gallery-time" v-if="point.time">打卡时间：{{ point.time }}</p>
           </div>
         </div>
       </div>
@@ -375,6 +407,7 @@ const looksLikeAddress = (text) => /(省|市|区|县|镇|村|路|街|巷|号|大
 const mapRoute = (r) => ({
   id: r.id,
   sourceRouteId: r.sourceRouteId,
+  mine: r.mine !== false,
   routeName: r.routeName,
   city: r.city,
   coverImage: pickImage(r.coverImage),
@@ -408,35 +441,25 @@ const mapRoute = (r) => ({
   })
 })
 
-const mapCompleted = (r) => ({
-  id: r.id,
-  routeName: r.routeName,
-  coverImage: pickImage(r.coverImage),
-  city: r.city,
-  createTime: fmtTime(r.finishTime || r.createTime),
-  points: (r.points || []).map((p, i) => ({
-    id: p.pointId || `${r.id}-${i}`,
-    name: p.name,
-    location: p.location || r.city,
-    image: pickImage(p.image),
-    time: p.checkTime ? fmtTime(p.checkTime) : ''
-  }))
-})
-
 // 我的打卡路线：读后端 /checkin/route/my（自建/导入的打卡路线，含点位进度）
 const loadMyRoutes = async () => {
   try {
     const res = await request.get('/checkin/route/my')
     if (res && res.code === 200) {
       const rows = res.data || []
-      checkinList.value = rows.map(mapRoute)
-      completedRoutes.value = rows.filter(r => r.status === 1).map(mapCompleted)
+      const all = rows.map(mapRoute)
+      allRoutes.value = all
+      // 我的路线：本人在「发布路线」里自建的记录（公开 / 未公开都算）
+      checkinList.value = all.filter(r => r.mine)
+      // 我的闯关：从他人 / 收藏路线发起的记录，打卡中或已通关都列出
+      completedRoutes.value = all.filter(r => !r.mine)
       saveCheckinList()
     }
   } catch (err) {
     console.error('打卡路线加载失败', err)
     checkinList.value = []
     completedRoutes.value = []
+    allRoutes.value = []
   }
 }
 
@@ -453,6 +476,11 @@ const currentTitle = ref('初出茅庐')
 
 const currentPlayRoute = ref({})
 const checkedCount = ref(0)
+
+// 续打页可选打卡照片：pointId -> data URL
+const playPhotos = ref({})
+const playPhotoInput = ref(null)
+const pendingPlayPoint = ref(null)
 
 const currentCompletedView = ref('list') 
 const currentCompletedRoute = ref({})
@@ -474,9 +502,9 @@ loadTrophyCount()
 
 const completedRoutes = ref([])
 
-// 删除通关记录
+// 删除闯关记录（移入回收站，可在垃圾站恢复）
 const deleteCompletedRoute = (id, routeName) => {
-  ElMessageBox.confirm(`确定要删除「${routeName}」的通关记录吗？`, '删除打卡足迹', {
+  ElMessageBox.confirm(`确定要删除「${routeName}」的闯关记录吗？删除后会放进「我的垃圾站」，可以随时恢复。`, '删除打卡足迹', {
     confirmButtonText: '确定删除',
     cancelButtonText: '再想想',
     type: 'warning',
@@ -485,11 +513,20 @@ const deleteCompletedRoute = (id, routeName) => {
     try {
       await request.delete(`/checkin/route/${id}`)
       await loadMyRoutes()
-      ElMessage.success('通关记录已删除')
+      ElMessage.success('已移入「我的垃圾站」')
     } catch (err) {
       console.error(err)
     }
   }).catch(() => {})
+}
+
+// 点击闯关路线：已通关进点位画廊；打卡中继续打卡
+const openChallengeRoute = (route) => {
+  if (route.status === 1) {
+    openCompletedRoute(route)
+  } else {
+    startCheckin(route)
+  }
 }
 
 // 点击进入路线的具体点位页
@@ -520,6 +557,62 @@ const startCheckin = (item) => {
   currentView.value = 'checkin-play'
 }
 
+// 压缩本地照片为 data URL，限制最长边 1000、JPEG 0.82
+const compressPlayImage = (file) => new Promise((resolve, reject) => {
+  if (!file.type.startsWith('image/')) { reject(new Error('仅支持图片文件')); return }
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1000
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => reject(new Error('图片读取失败'))
+    img.src = ev.target.result
+  }
+  reader.onerror = () => reject(new Error('图片读取失败'))
+  reader.readAsDataURL(file)
+})
+
+const triggerPlayPhoto = (point) => {
+  pendingPlayPoint.value = point
+  if (playPhotoInput.value) {
+    playPhotoInput.value.value = ''
+    playPhotoInput.value.click()
+  }
+}
+
+const onPlayPhotoChange = async (e) => {
+  const file = e.target.files && e.target.files[0]
+  const point = pendingPlayPoint.value
+  if (!file || !point) return
+  try {
+    const dataUrl = await compressPlayImage(file)
+    playPhotos.value = { ...playPhotos.value, [point.id]: dataUrl }
+  } catch (err) {
+    ElMessage.warning(err.message || '图片读取失败')
+  }
+}
+
+const clearPlayPhoto = (point) => {
+  const next = { ...playPhotos.value }
+  delete next[point.id]
+  playPhotos.value = next
+}
+
 const handlePointClick = (point, index) => {
   if (point.isChecked) {
     ElMessage.info(`你已经在这个地方打过卡啦！`)
@@ -533,10 +626,12 @@ const doCheckin = (point) => {
     const index = currentPlayRoute.value.points.findIndex(pt => pt.id === point.id)
     if (index < -1) return
     try {
-      const res = await request.post(`/checkin/route/${currentPlayRoute.value.id}/point`, { index })
+      const res = await request.post(`/checkin/route/${currentPlayRoute.value.id}/point`, { index, image: playPhotos.value[point.id] || null })
       if (res && res.code === 200) {
         const data = res.data || {}
         point.isChecked = true
+        if (playPhotos.value[point.id]) point.image = playPhotos.value[point.id]
+        clearPlayPhoto(point)
         checkedCount.value = data.checkedPoints ?? (checkedCount.value + 1)
         currentPlayRoute.value.status = data.status
         ElMessage.success(`「${point.name}」打卡成功！`)
@@ -565,18 +660,7 @@ const closeTrophyDialog = () => {
   showTrophyDialog.value = false
 }
 
-// ======= 删除我的打卡路线逻辑（删除后进「我的垃圾站」，可恢复） =======
-const RECYCLE_KEY = 'citywalk_recycle_list'
-const pushToRecycle = (item) => {
-  try {
-    const list = JSON.parse(localStorage.getItem(RECYCLE_KEY) || '[]')
-    list.unshift({ ...item, deletedTime: new Date().toLocaleString() })
-    localStorage.setItem(RECYCLE_KEY, JSON.stringify(list.slice(0, 20)))
-  } catch (e) {
-    console.warn('写入垃圾站失败', e)
-  }
-}
-
+// ======= 删除我的打卡路线逻辑（后端软删除，进「我的垃圾站」，可恢复） =======
 const deleteMyRoute = async (id, routeName) => {
   try {
     await ElMessageBox.confirm(`确定要删除打卡记录「${routeName}」吗？删除后会放进「我的垃圾站」，可以随时恢复。`, '删除打卡足迹', {
@@ -588,8 +672,6 @@ const deleteMyRoute = async (id, routeName) => {
   try {
     const res = await request.delete(`/checkin/route/${id}`)
     if (!res || res.code !== 200) throw new Error((res && res.msg) || '删除失败')
-    const removed = checkinList.value.find(item => item.id === id)
-    if (removed) pushToRecycle(removed)
     await loadMyRoutes()
     ElMessage.success('已移入「我的垃圾站」')
     loadTrophyCount()
@@ -600,6 +682,8 @@ const deleteMyRoute = async (id, routeName) => {
 
 // ======= 我的打卡路线：读后端 /checkin/my（真实数据） =======
 const checkinList = ref([])
+// 全部记录（自建 + 闯关），仅用于汇总打卡足迹点位
+const allRoutes = ref([])
 
 // 打卡路线仍写一份到 localStorage，供「发布路线」页一键导入
 const saveCheckinList = () => {
@@ -630,7 +714,7 @@ const openDetail = (item, viewName) => {
 
 const allCheckinPoints = computed(() => {
   const points = []
-  checkinList.value.forEach(route => {
+  allRoutes.value.forEach(route => {
     const cityName = route.city || '未知'
     ;(route.points || []).forEach((pt, index) => {
       // 打卡足迹只统计已打卡的点位
@@ -641,8 +725,8 @@ const allCheckinPoints = computed(() => {
   return points
 })
 
-// 我的闯关数：已通关（拿到奖杯）的路线条数
-const finishedCount = computed(() => checkinList.value.filter(r => r.status === 1).length)
+// 我的闯关数：从他人路线发起的闯关条数（打卡中 + 已通关）
+const finishedCount = computed(() => completedRoutes.value.length)
 
 const filteredCheckinPoints = computed(() => {
   if (!searchKeyword.value) return allCheckinPoints.value
@@ -663,7 +747,7 @@ onMounted(async () => {
       const res = await request.post('/checkin/route/create', { sourceRouteId })
       if (res && res.code === 200) {
         await loadMyRoutes()
-        const target = checkinList.value.find(item => item.sourceRouteId === sourceRouteId)
+        const target = allRoutes.value.find(item => item.sourceRouteId === sourceRouteId)
         if (target) startCheckin(target)
       }
     } catch (err) {
@@ -707,6 +791,7 @@ onMounted(async () => {
 .link-title .arrow { font-size: 14px; color: #C0C4CC; }
 .card-desc, .card-time { margin: 6px 0; font-size: 13px; color: #606266; }
 .card-time { color: #909399; }
+.ongoing-tag { color: #FF7A45; font-weight: 600; }
 .btn-group { display: flex; gap: 10px; margin-top: 5px;}
 .action-btn { font-weight: 600; border: none; padding: 8px 16px; }
 .yellow-btn { background: linear-gradient(to right, #FFD15C, #FFA04D); color: #fff; }
@@ -772,15 +857,20 @@ onMounted(async () => {
 /* ======== 搜索栏与打卡网格 ======== */
 .search-bar { margin: 10px 0 20px 0; }
 .search-input :deep(.el-input__wrapper) { border-radius: 20px; background-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 5px 15px; }
-.checkin-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
-.gallery-card { display: flex; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: transform 0.2s ease; }
+.checkin-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; }
+.gallery-card { display: flex; flex-direction: column; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: transform 0.2s ease; }
 .gallery-card:hover { transform: translateY(-2px); }
-.gallery-img { width: 100px; height: 100%; object-fit: cover; }
-.gallery-info { flex: 1; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; }
-.gallery-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+.gallery-img-wrap { width: 100%; height: 150px; }
+.gallery-img { width: 100%; height: 150px; object-fit: cover; display: block; }
+.gallery-placeholder { width: 100%; height: 150px; background: linear-gradient(135deg, #FFE4D6, #FFF0F3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #FF7A45; }
+.gallery-placeholder .ph-icon { font-size: 26px; }
+.gallery-placeholder .ph-text { font-size: 13px; font-weight: 600; }
+.gallery-info { padding: 12px 14px; display: flex; flex-direction: column; gap: 5px; }
+.gallery-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
 .gallery-name { margin: 0; font-size: 15px; color: #303133; font-weight: bold; }
 .gallery-city { font-size: 11px; color: #FF7A45; background: #FFF0F3; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
-.gallery-desc { margin: 0 0 5px 0; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 3px; }
+.gallery-desc { margin: 0; font-size: 12px; color: #606266; display: flex; align-items: flex-start; gap: 4px; line-height: 1.5; }
+.gallery-tip { margin: 0; font-size: 12px; color: #67C23A; }
 .gallery-time { margin: 0; font-size: 12px; color: #C0C4CC; }
 
 /* 列表页返回按钮 */
@@ -897,6 +987,11 @@ onMounted(async () => {
 .is-completed .level-icon { background: #67C23A; }
 .level-info h4 { margin: 0 0 5px 0; font-size: 16px; color: #303133; }
 .level-info p { margin: 0; font-size: 13px; color: #909399; }
+.play-hidden-input { display: none; }
+.play-photo { margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+.play-photo-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+.play-photo-add { font-size: 12px; color: #FF7A45; background: #FFF0F3; padding: 5px 10px; border-radius: 10px; cursor: pointer; }
+.play-photo-op { font-size: 12px; color: #909399; cursor: pointer; text-decoration: underline; }
 .action-footer { margin-top: 30px; padding: 0 10px; }
 .checkin-btn { width: 100%; border-radius: 20px; font-size: 16px; font-weight: bold; padding: 12px 0; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; }
 
