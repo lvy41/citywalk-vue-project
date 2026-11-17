@@ -32,7 +32,7 @@
           <div class="label">总获赞</div>
         </div>
         <div class="divider"></div>
-        <div class="stat-item">
+        <div class="stat-item clickable" @click="goMyFans">
           <div class="num">{{ stat.fansCount }}</div>
           <div class="label">粉丝</div>
         </div>
@@ -204,6 +204,9 @@ const goMyFavorite = () => {
 const goMyFollow = () => {
   router.push('/my-follow')
 }
+const goMyFans = () => {
+  router.push({ path: '/my-follow', query: { tab: 'fans' } })
+}
 const goRecycle = () => {
   router.push('/recycle')
 }
@@ -318,6 +321,9 @@ const handleLogout = () => {
 }
 .stat-item {
   flex: 1;
+}
+.stat-item.clickable {
+  cursor: pointer;
 }
 .divider {
   width: 1px;

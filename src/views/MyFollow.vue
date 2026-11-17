@@ -85,7 +85,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -96,7 +96,8 @@ import {
 } from '@/api/follow'
 
 const router = useRouter()
-const activeTab = ref('following')
+const route = useRoute()
+const activeTab = ref(route.query.tab === 'fans' ? 'fans' : 'following')
 const followingList = ref([])
 const fansList = ref([])
 
