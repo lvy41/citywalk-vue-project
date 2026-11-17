@@ -349,7 +349,7 @@ const handleRegister = async () => {
 .bg-layer {
   position: absolute;
   inset: 0;
-  background: url('https://aka.doubaocdn.com/s/Xct4qbWra2') no-repeat center center / cover;
+  background: url('/pictures/city-bg.png') no-repeat center center / cover;
   transform: scale(1.1);
   z-index: 0;
 }
