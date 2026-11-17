@@ -76,3 +76,12 @@ export function getRouteCommentsAPI(routeId) {
 export function addRouteCommentAPI(data) {
   return request({ url: "/route/comment", method: "post", data })
 }
+
+// 评论点赞 / 取消点赞
+export function likeCommentAPI(commentId) {
+  return request({ url: `/route/comment/like/${commentId}`, method: "post" })
+}
+
+export function unlikeCommentAPI(commentId) {
+  return request({ url: `/route/comment/like/${commentId}`, method: "delete" })
+}

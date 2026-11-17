@@ -78,6 +78,12 @@
               </div>
               <div class="msg-route">{{ item.routeName }}</div>
               <div v-if="item.content" class="msg-comment">{{ item.content }}</div>
+              <div v-if="item.type === 'comment'" class="msg-actions">
+                <span class="msg-action-btn" @click.stop="replyComment(item)">回复</span>
+                <span class="msg-action-btn" :class="{ liked: item.liked }" @click.stop="toggleCommentLike(item)">
+                  {{ item.liked ? '❤️' : '🤍' }} {{ item.likeCount || 0 }}
+                </span>
+              </div>
               <div class="msg-time">{{ formatTime(item.createTime) }}</div>
             </div>
           </div>
@@ -137,6 +143,7 @@ import {
   getSystemNotificationsAPI
 } from '@/api/notification'
 import { followUserAPI, unfollowUserAPI } from '@/api/follow'
+import { likeCommentAPI, unlikeCommentAPI } from '@/api/route'
 
 const router = useRouter()
 
@@ -233,6 +240,29 @@ const unfollow = async (item) => {
 
 const goRoute = (routeId) => {
   if (routeId) router.push(`/detail/${routeId}`)
+}
+
+const replyComment = (item) => {
+  if (!item.routeId) return
+  router.push(`/detail/${item.routeId}?comment=${item.id}&nickname=${encodeURIComponent(item.nickname || '')}`)
+}
+
+const updateCommentItem = (id, patch) => {
+  commentsList.value = commentsList.value.map(c => c.id === id ? { ...c, ...patch } : c)
+}
+
+const toggleCommentLike = async (item) => {
+  try {
+    if (item.liked) {
+      await unlikeCommentAPI(item.id)
+      updateCommentItem(item.id, { liked: false, likeCount: Math.max(0, (item.likeCount || 0) - 1) })
+    } else {
+      await likeCommentAPI(item.id)
+      updateCommentItem(item.id, { liked: true, likeCount: (item.likeCount || 0) + 1 })
+    }
+  } catch (e) {
+    ElMessage.warning('请先登录后再点赞评论')
+  }
 }
 
 const goUserHome = (userId) => {
@@ -415,6 +445,22 @@ onMounted(() => {
   background: #f7f7f7;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #888;
+}
+
+.msg-action-btn {
+  cursor: pointer;
+}
+
+.msg-action-btn.liked {
+  color: #e65b38;
 }
 
 .msg-time,

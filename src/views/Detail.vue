@@ -74,14 +74,46 @@
       <!-- 评论区 -->
       <div class="comment-block">
         <div class="sub-title">用户评论</div>
-        <el-input v-model="commentText" placeholder="写下你的游玩感受..." />
+        <div class="reply-bar" v-if="replyingTo">
+          <span>回复 @{{ replyingTo.nickname }}</span>
+          <el-button size="small" text @click="cancelReply">取消</el-button>
+        </div>
+        <el-input
+          ref="commentInputRef"
+          v-model="commentText"
+          :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '写下你的游玩感受...'"
+        />
         <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
-        <div class="comment-item" v-for="c in commentList" :key="c.id">
+
+        <div class="comment-item" v-for="c in topComments" :key="c.id" :id="`comment-${c.id}`">
           <div class="c-head" @click="goUserProfile(c.userId)">
             <img class="c-avatar" :src="c.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
             <span class="c-user">{{ c.nickname || '匿名用户' }}</span>
           </div>
           <div class="c-content">{{ c.content }}</div>
+          <div class="c-actions">
+            <span class="c-action" :class="{ liked: c.liked }" @click="toggleCommentLike(c)">
+              {{ c.liked ? '❤️' : '🤍' }} {{ c.likeCount || 0 }}
+            </span>
+            <span class="c-action" @click="startReply(c)">回复</span>
+          </div>
+
+          <div class="reply-list">
+            <div class="comment-item reply-item" v-for="r in repliesOf(c.id)" :key="r.id" :id="`comment-${r.id}`">
+              <div class="c-head" @click="goUserProfile(r.userId)">
+                <img class="c-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+                <span class="c-user">{{ r.nickname || '匿名用户' }}</span>
+                <span v-if="r.replyToNickname" class="reply-to">回复 {{ r.replyToNickname }}</span>
+              </div>
+              <div class="c-content">{{ r.content }}</div>
+              <div class="c-actions">
+                <span class="c-action" :class="{ liked: r.liked }" @click="toggleCommentLike(r)">
+                  {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
+                </span>
+                <span class="c-action" @click="startReply(r)">回复</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
       </div>
@@ -122,11 +154,11 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, likeCommentAPI, unlikeCommentAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 import AchievementDialog from '@/components/AchievementDialog.vue'
@@ -149,6 +181,8 @@ const routeInfo = ref({})
 const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
+const replyingTo = ref(null)
+const commentInputRef = ref(null)
 const likeCount = ref(0)
 const liked = ref(false)
 // 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
@@ -166,6 +200,8 @@ const collected = ref(false)
 // 当前用户在这条路线已打卡的点位 id
 const checkedPointIds = ref([])
 const authorUid = computed(() => routeInfo.value.authorId || routeInfo.value.userId || null)
+const topComments = computed(() => commentList.value.filter(c => !c.parentId || Number(c.parentId) === 0))
+const repliesOf = (parentId) => commentList.value.filter(c => Number(c.parentId) === Number(parentId))
 const entryText = computed(() => {
   const total = pointList.value.length
   const done = pointList.value.filter(p => checkedPointIds.value.includes(p.id)).length
@@ -217,9 +253,20 @@ const loadComments = async () => {
   try {
     const res = await getRouteCommentsAPI(routeId.value)
     commentList.value = res.code === 200 && Array.isArray(res.data) ? res.data : []
+    await focusTargetComment()
   } catch (e) {
     commentList.value = []
   }
+}
+
+const focusTargetComment = async () => {
+  const targetId = route.query.comment
+  if (!targetId) return
+  const target = commentList.value.find(c => String(c.id) === String(targetId))
+  if (!target) return
+  await nextTick()
+  startReply(target)
+  document.getElementById(`comment-${targetId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 // 加载详情
 // 封面/点位图加载失败时退回默认图，不显示破图
@@ -334,18 +381,53 @@ const handleLike = async ()=>{
     ElMessage.warning("请先登录后再点赞")
   }
 }
-//提交评论
+const startReply = (comment) => {
+  replyingTo.value = comment
+  commentText.value = `@${comment.nickname || '用户'} `
+  nextTick(() => commentInputRef.value?.focus?.())
+}
+
+const cancelReply = () => {
+  replyingTo.value = null
+  commentText.value = ''
+}
+
+const toggleCommentLike = async (comment) => {
+  try {
+    if (comment.liked) {
+      await unlikeCommentAPI(comment.id)
+      comment.liked = false
+      comment.likeCount = Math.max(0, (comment.likeCount || 0) - 1)
+    } else {
+      await likeCommentAPI(comment.id)
+      comment.liked = true
+      comment.likeCount = (comment.likeCount || 0) + 1
+    }
+  } catch (e) {
+    ElMessage.warning('请先登录后再点赞评论')
+  }
+}
+
+//提交评论/回复
 const submitComment = async () => {
   if (!commentText.value.trim()) {
     ElMessage.warning('请先写点内容')
     return
   }
   try {
-    const res = await addRouteCommentAPI({ routeId: routeId.value, content: commentText.value.trim() })
+    const payload = {
+      routeId: routeId.value,
+      content: commentText.value.trim()
+    }
+    if (replyingTo.value) {
+      payload.parentId = replyingTo.value.id
+      payload.replyToUserId = replyingTo.value.userId
+    }
+    const res = await addRouteCommentAPI(payload)
     if (res.code !== 200) throw new Error(res.msg || '评论失败')
-    ElMessage.success('评论成功')
+    ElMessage.success(replyingTo.value ? '回复成功' : '评论成功')
     showAchievementIfAny(res)
-    commentText.value = ''
+    cancelReply()
     loadComments()
   } catch (e) {
     ElMessage.warning('评论失败，请确认已登录')
@@ -644,6 +726,40 @@ onUnmounted(()=>{
   font-size:13px;
   color:#999;
   padding:10px 0;
+}
+.reply-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:8px 0;
+  font-size:13px;
+  color:#e65b38;
+}
+.c-actions{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:6px;
+  font-size:12px;
+  color:#888;
+}
+.c-action{
+  cursor:pointer;
+}
+.c-action.liked{
+  color:#e65b38;
+}
+.reply-list{
+  margin-left:34px;
+  border-left:1px solid #f0f0f0;
+  padding-left:10px;
+}
+.reply-item{
+  border-bottom:none;
+}
+.reply-to{
+  font-size:12px;
+  color:#999;
 }
 .bottom-space{
   height:70px;
