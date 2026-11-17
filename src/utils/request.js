@@ -59,7 +59,9 @@ request.interceptors.request.use(
       '/area/tree',
       '/area/provinceList',
       '/area/cityListByProvince',
-      '/area/districtListByCity'
+      '/area/districtListByCity',
+      '/user/search',
+      '/user/profile/'
     ]
     const isSkipApi = skipUrls.some(path => url.split('?')[0] === path)
 
