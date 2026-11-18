@@ -74,14 +74,9 @@
       <!-- 评论区 -->
       <div class="comment-block">
         <div class="sub-title">用户评论</div>
-        <div class="reply-bar" v-if="replyingTo">
-          <span>回复 @{{ replyingTo.nickname }}</span>
-          <el-button size="small" text @click="cancelReply">取消</el-button>
-        </div>
         <el-input
-          ref="commentInputRef"
           v-model="commentText"
-          :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '写下你的游玩感受...'"
+          :placeholder="'写下你的游玩感受...'"
         />
         <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
 
@@ -91,6 +86,7 @@
             <span class="c-user">{{ c.nickname || '匿名用户' }}</span>
           </div>
           <div class="c-content">{{ c.content }}</div>
+          <div class="c-time">{{ formatCommentTime(c.createTime) }}</div>
           <div class="c-actions">
             <span class="c-action" :class="{ liked: c.liked }" @click="toggleCommentLike(c)">
               {{ c.liked ? '❤️' : '🤍' }} {{ c.likeCount || 0 }}
@@ -107,6 +103,7 @@
                 <span v-if="r.replyToNickname" class="reply-to">回复 {{ r.replyToNickname }}</span>
               </div>
               <div class="c-content">{{ r.content }}</div>
+              <div class="c-time">{{ formatCommentTime(r.createTime) }}</div>
               <div class="c-actions">
                 <span class="c-action" :class="{ liked: r.liked }" @click="toggleCommentLike(r)">
                   {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
@@ -118,6 +115,28 @@
           </div>
         </div>
         <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
+      </div>
+
+      <div v-if="replyVisible" class="reply-sheet">
+        <div class="reply-quote" v-if="replyingTo">
+          <div class="reply-quote-main">
+            <span class="reply-quote-user">回复 @{{ replyingTo.nickname || '匿名用户' }}</span>
+            <span class="reply-quote-content">{{ replyingTo.content }}</span>
+          </div>
+          <span class="reply-close" @click="cancelReply">取消</span>
+        </div>
+        <div class="reply-input-row">
+          <el-input
+            ref="replyInputRef"
+            v-model="replyText"
+            type="textarea"
+            :rows="2"
+            autosize
+            :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '回复内容...'"
+            @keydown.enter.prevent="submitComment"
+          />
+          <el-button class="reply-send" type="primary" round @click="submitComment">发送</el-button>
+        </div>
       </div>
     </div>
     <!-- 底部留白，避开tab -->
@@ -184,7 +203,9 @@ const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
 const replyingTo = ref(null)
-const commentInputRef = ref(null)
+const replyVisible = ref(false)
+const replyText = ref("")
+const replyInputRef = ref(null)
 const likeCount = ref(0)
 const liked = ref(false)
 // 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
@@ -206,6 +227,13 @@ const topComments = computed(() => commentList.value.filter(c => !c.parentId || 
 const repliesOf = (parentId) => {
   const parent = topComments.value.find(c => Number(c.id) === Number(parentId))
   return parent?.children || []
+}
+const formatCommentTime = (time) => {
+  if (!time) return ''
+  const d = new Date(typeof time === 'string' ? time.replace(' ', 'T') : time)
+  if (Number.isNaN(d.getTime())) return String(time)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 const findComment = (comments, id) => {
   for (const c of comments || []) {
@@ -396,13 +424,15 @@ const handleLike = async ()=>{
 }
 const startReply = (comment) => {
   replyingTo.value = comment
-  commentText.value = `@${comment.nickname || '用户'} `
-  nextTick(() => commentInputRef.value?.focus?.())
+  replyText.value = `@${comment.nickname || '用户'} `
+  replyVisible.value = true
+  nextTick(() => replyInputRef.value?.focus?.())
 }
 
 const cancelReply = () => {
   replyingTo.value = null
-  commentText.value = ''
+  replyText.value = ""
+  replyVisible.value = false
 }
 
 const toggleCommentLike = async (comment) => {
@@ -428,14 +458,15 @@ const removeComment = async (comment) => {
 
 //提交评论/回复
 const submitComment = async () => {
-  if (!commentText.value.trim()) {
+  const content = replyingTo.value ? replyText.value.trim() : commentText.value.trim()
+  if (!content) {
     ElMessage.warning('请先写点内容')
     return
   }
   try {
     const payload = {
       routeId: routeId.value,
-      content: commentText.value.trim()
+      content
     }
     if (replyingTo.value) {
       payload.parentId = replyingTo.value.id
@@ -445,7 +476,11 @@ const submitComment = async () => {
     if (res.code !== 200) throw new Error(res.msg || '评论失败')
     ElMessage.success(replyingTo.value ? '回复成功' : '评论成功')
     showAchievementIfAny(res)
-    cancelReply()
+    if (replyingTo.value) {
+      cancelReply()
+    } else {
+      commentText.value = ''
+    }
     loadComments()
   } catch (e) {
     ElMessage.warning('评论失败，请确认已登录')
@@ -740,18 +775,69 @@ onUnmounted(()=>{
   font-size:14px;
   margin-top:2px;
 }
+.c-time{
+  font-size:12px;
+  color:#999;
+  margin-top:3px;
+}
 .c-empty{
   font-size:13px;
   color:#999;
   padding:10px 0;
 }
-.reply-bar{
+.reply-sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:1000;
+  background:#fff;
+  border-radius:18px 18px 0 0;
+  box-shadow:0 -6px 24px rgba(0,0,0,0.12);
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+}
+.reply-quote{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
-  margin:8px 0;
+  gap:10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.reply-quote-main{
+  min-width:0;
+}
+.reply-quote-user{
+  display:block;
   font-size:13px;
-  color:#e65b38;
+  font-weight:600;
+  color:#333;
+  margin-bottom:4px;
+}
+.reply-quote-content{
+  display:block;
+  font-size:14px;
+  color:#555;
+  line-height:1.5;
+}
+.reply-close{
+  flex-shrink:0;
+  font-size:13px;
+  color:#999;
+  cursor:pointer;
+}
+.reply-input-row{
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+}
+.reply-input-row .el-textarea{
+  flex:1;
+}
+.reply-send{
+  flex-shrink:0;
 }
 .c-actions{
   display:flex;
