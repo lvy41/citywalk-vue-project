@@ -176,7 +176,7 @@
 </template>
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
 import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, toggleCommentLikeAPI, deleteCommentAPI } from '@/api/route'
@@ -446,16 +446,6 @@ const toggleCommentLike = async (comment) => {
   }
 }
 
-const removeComment = async (comment) => {
-  try {
-    await deleteCommentAPI(comment.id)
-    ElMessage.success('评论已删除')
-    loadComments()
-  } catch (e) {
-    ElMessage.warning('删除失败，仅路线发布者或本人可删除')
-  }
-}
-
 //提交评论/回复
 const submitComment = async () => {
   const content = replyingTo.value ? replyText.value.trim() : commentText.value.trim()
@@ -512,7 +502,7 @@ const removeComment = async (comment, root) => {
     return
   }
   try {
-    const res = await deleteRouteCommentAPI(comment.id)
+    const res = await deleteCommentAPI(comment.id)
     if (res.code !== 200) throw new Error(res.msg || '删除失败')
     ElMessage.success('评论已删除')
     if (root) {

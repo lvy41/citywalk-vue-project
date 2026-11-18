@@ -264,7 +264,6 @@ import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavo
 import { getTagList } from '@/api/tag'
 import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
-import { getTagList } from '@/api/tag'
 import { load } from '@amap/amap-jsapi-loader'
 const router = useRouter()
 const route = useRoute()
