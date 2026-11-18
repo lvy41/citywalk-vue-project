@@ -73,67 +73,70 @@
       </div>
       <!-- 评论区 -->
       <div class="comment-block">
-        <div class="sub-title">用户评论 <span class="c-count" v-if="commentList.length">（{{ totalCommentCount }}）</span></div>
+        <div class="sub-title">用户评论</div>
+        <el-input
+          v-model="commentText"
+          :placeholder="'写下你的游玩感受...'"
+        />
+        <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
 
-        <!-- 回复提示条 -->
-        <div v-if="replyTarget" class="reply-hint">
-          正在回复 <span class="reply-to-name">@{{ replyTarget.nickname }}</span>
-          <span class="reply-cancel" @click="cancelReply">取消回复</span>
-        </div>
-
-        <div class="c-input-row">
-          <div class="c-input-box">
-            <el-input
-              v-model="commentText"
-              :placeholder="replyTarget ? `回复 @${replyTarget.nickname}...` : '写下你的游玩感受...'"
-              @keyup.enter="submitComment"
-            />
-            <span v-if="commentText" class="clear-input" @click="clearCommentText" aria-label="清空输入">×</span>
-          </div>
-          <span class="emoji-btn" :class="{on: showEmoji}" @click="toggleEmojiPanel" title="表情">😊</span>
-        </div>
-        <div v-if="showEmoji" class="emoji-panel">
-          <span v-for="e in emojiList" :key="e" class="emoji-item" @click="insertEmoji(e)">{{ e }}</span>
-        </div>
-        <el-button class="c-submit" type="primary" @click="submitComment">{{ replyTarget ? '回复' : '发表评论' }}</el-button>
-
-        <!-- 一级评论 -->
-        <div class="comment-item" v-for="c in commentList" :key="c.id">
+        <div class="comment-item" v-for="c in topComments" :key="c.id" :id="`comment-${c.id}`">
           <div class="c-head" @click="goUserProfile(c.userId)">
             <img class="c-avatar" :src="c.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
             <span class="c-user">{{ c.nickname || '匿名用户' }}</span>
           </div>
           <div class="c-content">{{ c.content }}</div>
+          <div class="c-time">{{ formatCommentTime(c.createTime) }}</div>
           <div class="c-actions">
-            <span class="c-action" :class="{ active: c.liked }" @click="toggleLike(c)">
-              {{ c.liked ? '❤' : '♡' }} {{ c.likeCount || 0 }}
+            <span class="c-action" :class="{ liked: c.liked }" @click="toggleCommentLike(c)">
+              {{ c.liked ? '❤️' : '🤍' }} {{ c.likeCount || 0 }}
             </span>
             <span class="c-action" @click="startReply(c)">回复</span>
-            <span v-if="c.canDelete" class="c-action danger" @click="removeComment(c)">删除</span>
+            <span v-if="c.canDelete" class="c-action delete" @click="removeComment(c)">删除</span>
           </div>
 
-          <!-- 楼中楼回复 -->
-          <div class="reply-list" v-if="c.children && c.children.length">
-            <div class="reply-item" v-for="r in c.children" :key="r.id">
-              <img class="r-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
-              <div class="r-body">
-                <div class="r-head">
-                  <span class="c-user" @click="goUserProfile(r.userId)">{{ r.nickname || '匿名用户' }}</span>
-                  <span v-if="r.replyToNickname" class="r-to">回复 {{ r.replyToNickname }}</span>
-                </div>
-                <div class="c-content">{{ r.content }}</div>
-                <div class="c-actions">
-                  <span class="c-action" :class="{ active: r.liked }" @click="toggleLike(r, c)">
-                    {{ r.liked ? '❤' : '♡' }} {{ r.likeCount || 0 }}
-                  </span>
-                  <span class="c-action" @click="startReply(r, c)">回复</span>
-                  <span v-if="r.canDelete" class="c-action danger" @click="removeComment(r, c)">删除</span>
-                </div>
+          <div class="reply-list">
+            <div class="comment-item reply-item" v-for="r in repliesOf(c.id)" :key="r.id" :id="`comment-${r.id}`">
+              <div class="c-head" @click="goUserProfile(r.userId)">
+                <img class="c-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+                <span class="c-user">{{ r.nickname || '匿名用户' }}</span>
+                <span v-if="r.replyToNickname" class="reply-to">回复 {{ r.replyToNickname }}</span>
+              </div>
+              <div class="c-content">{{ r.content }}</div>
+              <div class="c-time">{{ formatCommentTime(r.createTime) }}</div>
+              <div class="c-actions">
+                <span class="c-action" :class="{ liked: r.liked }" @click="toggleCommentLike(r)">
+                  {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
+                </span>
+                <span class="c-action" @click="startReply(r)">回复</span>
+                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r)">删除</span>
               </div>
             </div>
           </div>
         </div>
         <div v-if="!commentList.length" class="c-empty">还没有评论，来说两句吧</div>
+      </div>
+
+      <div v-if="replyVisible" class="reply-sheet">
+        <div class="reply-quote" v-if="replyingTo">
+          <div class="reply-quote-main">
+            <span class="reply-quote-user">回复 @{{ replyingTo.nickname || '匿名用户' }}</span>
+            <span class="reply-quote-content">{{ replyingTo.content }}</span>
+          </div>
+          <span class="reply-close" @click="cancelReply">取消</span>
+        </div>
+        <div class="reply-input-row">
+          <el-input
+            ref="replyInputRef"
+            v-model="replyText"
+            type="textarea"
+            :rows="2"
+            autosize
+            :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '回复内容...'"
+            @keydown.enter.prevent="submitComment"
+          />
+          <el-button class="reply-send" type="primary" round @click="submitComment">发送</el-button>
+        </div>
       </div>
     </div>
     <!-- 底部留白，避开tab -->
@@ -172,11 +175,11 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
-import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, toggleCommentLikeAPI, deleteRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
+import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, toggleCommentLikeAPI, deleteCommentAPI } from '@/api/route'
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 import AchievementDialog from '@/components/AchievementDialog.vue'
@@ -199,24 +202,10 @@ const routeInfo = ref({})
 const pointList = ref([])
 const commentText = ref("")
 const commentList = ref([])
-// 回复目标：{ id, parentId, replyToUserId, nickname }
-const replyTarget = ref(null)
-const showEmoji = ref(false)
-// 微信风格常用表情（Unicode，直接存入评论内容）
-const emojiList = [
-  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','🥰','😍','😘',
-  '🙂','🤔','😐','😑','😶','😏','😣','😥','😭','😮','😯','😲','🥱','😴','🤯',
-  '🥵','🥶','😷','🤒','🤕','😵','🥴','😈','👻','💩','💯','❤️','🔥','🌟','⭐',
-  '🎉','🎊','🎁','👍','👎','👌','✌️','🤝','👏','🙏','💪','🤙','👋','😺','🐶',
-  '🐱','🐰','🦊','🐻','🐼','🐨','🐷','🐸','🐵','🐧','🐦','🐟','🐙','🦀','🌹',
-  '🌸','🌻','🌼','🍀','🌙','☀️','⚡','🍉','🍇','🍓','🍒','🍑','🍍','🍔','🍟',
-  '🍕','🍰','🎂','☕','🍵','🍺','🚗','✈️','🚶','🚴','🏠','⛰️','🌊'
-]
-const totalCommentCount = computed(() => {
-  let n = commentList.value.length
-  for (const c of commentList.value) n += (c.children && c.children.length) || 0
-  return n
-})
+const replyingTo = ref(null)
+const replyVisible = ref(false)
+const replyText = ref("")
+const replyInputRef = ref(null)
 const likeCount = ref(0)
 const liked = ref(false)
 // 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
@@ -234,6 +223,26 @@ const collected = ref(false)
 // 当前用户在这条路线已打卡的点位 id
 const checkedPointIds = ref([])
 const authorUid = computed(() => routeInfo.value.authorId || routeInfo.value.userId || null)
+const topComments = computed(() => commentList.value.filter(c => !c.parentId || Number(c.parentId) === 0))
+const repliesOf = (parentId) => {
+  const parent = topComments.value.find(c => Number(c.id) === Number(parentId))
+  return parent?.children || []
+}
+const formatCommentTime = (time) => {
+  if (!time) return ''
+  const d = new Date(typeof time === 'string' ? time.replace(' ', 'T') : time)
+  if (Number.isNaN(d.getTime())) return String(time)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const findComment = (comments, id) => {
+  for (const c of comments || []) {
+    if (String(c.id) === String(id)) return c
+    const child = findComment(c.children, id)
+    if (child) return child
+  }
+  return null
+}
 const entryText = computed(() => {
   const total = pointList.value.length
   const done = pointList.value.filter(p => checkedPointIds.value.includes(p.id)).length
@@ -285,9 +294,20 @@ const loadComments = async () => {
   try {
     const res = await getRouteCommentsAPI(routeId.value)
     commentList.value = res.code === 200 && Array.isArray(res.data) ? res.data : []
+    await focusTargetComment()
   } catch (e) {
     commentList.value = []
   }
+}
+
+const focusTargetComment = async () => {
+  const targetId = route.query.comment
+  if (!targetId) return
+  const target = findComment(commentList.value, targetId)
+  if (!target) return
+  await nextTick()
+  startReply(target)
+  document.getElementById(`comment-${targetId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 // 加载详情
 // 封面/点位图加载失败时退回默认图，不显示破图
@@ -402,48 +422,65 @@ const handleLike = async ()=>{
     ElMessage.warning("请先登录后再点赞")
   }
 }
-// 表情面板开关
-const toggleEmojiPanel = () => { showEmoji.value = !showEmoji.value }
-// 一键清空评论输入框（保留当前回复对象）
-const clearCommentText = () => {
-  commentText.value = ''
-}
-const insertEmoji = (emoji) => {
-  commentText.value += emoji
-  showEmoji.value = false
+const startReply = (comment) => {
+  replyingTo.value = comment
+  replyText.value = `@${comment.nickname || '用户'} `
+  replyVisible.value = true
+  nextTick(() => replyInputRef.value?.focus?.())
 }
 
-// 开始回复某条评论；root 为其所属一级评论（回复楼中楼时传）
-const startReply = (comment, root) => {
-  const top = root || comment
-  replyTarget.value = {
-    id: comment.id,
-    parentId: top.id,
-    replyToUserId: comment.userId,
-    nickname: comment.nickname || '匿名用户'
+const cancelReply = () => {
+  replyingTo.value = null
+  replyText.value = ""
+  replyVisible.value = false
+}
+
+const toggleCommentLike = async (comment) => {
+  try {
+    const res = await toggleCommentLikeAPI(comment.id)
+    const data = res && res.data ? res.data : {}
+    comment.liked = !!data.liked
+    comment.likeCount = data.likeCount ?? 0
+  } catch (e) {
+    ElMessage.warning('请先登录后再点赞评论')
   }
-  showEmoji.value = false
 }
-const cancelReply = () => { replyTarget.value = null }
 
-// 提交一级评论 / 回复
+const removeComment = async (comment) => {
+  try {
+    await deleteCommentAPI(comment.id)
+    ElMessage.success('评论已删除')
+    loadComments()
+  } catch (e) {
+    ElMessage.warning('删除失败，仅路线发布者或本人可删除')
+  }
+}
+
+//提交评论/回复
 const submitComment = async () => {
-  if (!commentText.value.trim()) {
+  const content = replyingTo.value ? replyText.value.trim() : commentText.value.trim()
+  if (!content) {
     ElMessage.warning('请先写点内容')
     return
   }
   try {
-    const payload = { routeId: routeId.value, content: commentText.value.trim() }
-    if (replyTarget.value) {
-      payload.parentId = replyTarget.value.parentId
-      payload.replyToUserId = replyTarget.value.replyToUserId
+    const payload = {
+      routeId: routeId.value,
+      content
+    }
+    if (replyingTo.value) {
+      payload.parentId = replyingTo.value.id
+      payload.replyToUserId = replyingTo.value.userId
     }
     const res = await addRouteCommentAPI(payload)
     if (res.code !== 200) throw new Error(res.msg || '评论失败')
-    ElMessage.success(replyTarget.value ? '回复成功' : '评论成功')
+    ElMessage.success(replyingTo.value ? '回复成功' : '评论成功')
     showAchievementIfAny(res)
-    commentText.value = ''
-    cancelReply()
+    if (replyingTo.value) {
+      cancelReply()
+    } else {
+      commentText.value = ''
+    }
     loadComments()
   } catch (e) {
     ElMessage.warning('评论失败，请确认已登录')
@@ -920,10 +957,101 @@ onUnmounted(()=>{
   font-size:12px;
   color:#999;
 }
+.c-time{
+  font-size:12px;
+  color:#999;
+  margin-top:3px;
+}
 .c-empty{
   font-size:13px;
   color:#999;
   padding:10px 0;
+}
+.reply-sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:1000;
+  background:#fff;
+  border-radius:18px 18px 0 0;
+  box-shadow:0 -6px 24px rgba(0,0,0,0.12);
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+}
+.reply-quote{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.reply-quote-main{
+  min-width:0;
+}
+.reply-quote-user{
+  display:block;
+  font-size:13px;
+  font-weight:600;
+  color:#333;
+  margin-bottom:4px;
+}
+.reply-quote-content{
+  display:block;
+  font-size:14px;
+  color:#555;
+  line-height:1.5;
+}
+.reply-close{
+  flex-shrink:0;
+  font-size:13px;
+  color:#999;
+  cursor:pointer;
+}
+.reply-input-row{
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+}
+.reply-input-row .el-textarea{
+  flex:1;
+}
+.reply-send{
+  flex-shrink:0;
+}
+.c-actions{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:6px;
+  font-size:12px;
+  color:#888;
+}
+.c-action{
+  cursor:pointer;
+}
+.c-action.liked{
+  color:#e65b38;
+}
+.c-action.delete{
+  color:#999;
+}
+.c-action.delete:active{
+  color:#e65b38;
+}
+.reply-list{
+  margin-left:34px;
+  border-left:1px solid #f0f0f0;
+  padding-left:10px;
+}
+.reply-item{
+  border-bottom:none;
+}
+.reply-to{
+  font-size:12px;
+  color:#999;
 }
 .bottom-space{
   height:70px;

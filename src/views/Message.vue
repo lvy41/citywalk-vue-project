@@ -74,10 +74,16 @@
             <div class="msg-body">
               <div class="msg-line">
                 <span class="nickname">{{ item.nickname }}</span>
-                <span class="action" :class="`action-${item.type}`">{{ actionText(item.type) }}</span>
+                <span class="action" :class="`action-${item.type}`">{{ actionText(item.type, item) }}</span>
               </div>
               <div class="msg-route">{{ item.routeName }}</div>
               <div v-if="item.content" class="msg-comment">{{ item.content }}</div>
+              <div v-if="item.type === 'comment'" class="msg-actions">
+                <span class="msg-action-btn" @click.stop="replyComment(item)">回复</span>
+                <span class="msg-action-btn" :class="{ liked: item.liked }" @click.stop="toggleCommentLike(item)">
+                  {{ item.liked ? '❤️' : '🤍' }} {{ item.likeCount || 0 }}
+                </span>
+              </div>
               <div class="msg-time">{{ formatTime(item.createTime) }}</div>
             </div>
           </div>
@@ -124,11 +130,33 @@
         </div>
       </div>
     </div>
+
+    <div v-if="replyVisible" class="reply-sheet">
+      <div class="reply-quote" v-if="replyTarget">
+        <div class="reply-quote-main">
+          <span class="reply-quote-user">回复 @{{ replyTarget.nickname || '匿名用户' }}</span>
+          <span class="reply-quote-content">{{ replyTarget.content }}</span>
+        </div>
+        <span class="reply-close" @click="closeReply">取消</span>
+      </div>
+      <div class="reply-input-row">
+        <el-input
+          ref="replyInputRef"
+          v-model="replyText"
+          type="textarea"
+          :rows="2"
+          autosize
+          :placeholder="replyTarget ? `回复 @${replyTarget.nickname}...` : '回复内容...'"
+          @keydown.enter.prevent="submitReply"
+        />
+        <el-button class="reply-send" type="primary" round @click="submitReply">发送</el-button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -137,6 +165,7 @@ import {
   getSystemNotificationsAPI
 } from '@/api/notification'
 import { followUserAPI, unfollowUserAPI } from '@/api/follow'
+import { toggleCommentLikeAPI, addRouteCommentAPI } from '@/api/route'
 
 const router = useRouter()
 
@@ -146,21 +175,28 @@ const subTab = ref('messages')
 const systemList = ref([])
 const likesList = ref([])
 const commentsList = ref([])
+const repliesList = ref([])
 const favoritesList = ref([])
 const followsList = ref([])
+const replyVisible = ref(false)
+const replyTarget = ref(null)
+const replyText = ref("")
+const replyInputRef = ref(null)
 
 const messages = computed(() => {
   const merged = [
     ...likesList.value.map(item => ({ ...item, type: 'like' })),
     ...commentsList.value.map(item => ({ ...item, type: 'comment' })),
+    ...repliesList.value.map(item => ({ ...item, type: 'reply' })),
     ...favoritesList.value.map(item => ({ ...item, type: 'favorite' }))
   ]
   return merged.sort((a, b) => compareTime(b.createTime, a.createTime))
 })
 
-const actionText = (type) => {
+const actionText = (type, item) => {
   if (type === 'like') return '点赞了你的路线'
   if (type === 'comment') return '评论了你的路线'
+  if (type === 'reply') return `回复了 ${item?.replyToNickname || '对方'}`
   if (type === 'favorite') return '收藏了你的路线'
   return '互动了你的路线'
 }
@@ -173,10 +209,7 @@ const compareTime = (a, b) => {
 
 const formatTime = (time) => {
   if (!time) return ''
-  if (typeof time === 'string') {
-    return time.replace('T', ' ').slice(0, 16)
-  }
-  const d = new Date(time)
+  const d = new Date(typeof time === 'string' ? time.replace(' ', 'T') : time)
   if (Number.isNaN(d.getTime())) return String(time)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -188,6 +221,7 @@ const loadInteractions = async () => {
     if (res && res.code === 200 && res.data) {
       likesList.value = res.data.likes || []
       commentsList.value = res.data.comments || []
+      repliesList.value = res.data.replies || []
       favoritesList.value = res.data.favorites || []
       followsList.value = res.data.follows || []
     }
@@ -233,6 +267,62 @@ const unfollow = async (item) => {
 
 const goRoute = (routeId) => {
   if (routeId) router.push(`/detail/${routeId}`)
+}
+
+const replyComment = (item) => {
+  replyTarget.value = item
+  replyText.value = `@${item.nickname || '用户'} `
+  replyVisible.value = true
+  nextTick(() => replyInputRef.value?.focus?.())
+}
+
+const submitReply = async () => {
+  const content = replyText.value.trim()
+  if (!content) {
+    ElMessage.warning('请先写点回复内容')
+    return
+  }
+  if (!replyTarget.value?.routeId) {
+    ElMessage.warning('缺少路线信息，无法回复')
+    return
+  }
+  try {
+    await addRouteCommentAPI({
+      routeId: replyTarget.value.routeId,
+      parentId: replyTarget.value.id,
+      replyToUserId: replyTarget.value.userId,
+      content
+    })
+    ElMessage.success('回复成功')
+    replyVisible.value = false
+    replyTarget.value = null
+    replyText.value = ''
+  } catch (e) {
+    ElMessage.warning('回复失败，请确认已登录')
+  }
+}
+
+const closeReply = () => {
+  replyVisible.value = false
+  replyTarget.value = null
+  replyText.value = ''
+}
+
+const updateCommentItem = (id, patch) => {
+  commentsList.value = commentsList.value.map(c => c.id === id ? { ...c, ...patch } : c)
+}
+
+const toggleCommentLike = async (item) => {
+  try {
+    const res = await toggleCommentLikeAPI(item.id)
+    const data = res && res.data ? res.data : {}
+    updateCommentItem(item.id, {
+      liked: !!data.liked,
+      likeCount: data.likeCount ?? 0
+    })
+  } catch (e) {
+    ElMessage.warning('请先登录后再点赞评论')
+  }
 }
 
 const goUserHome = (userId) => {
@@ -391,7 +481,8 @@ onMounted(() => {
   color: #fc6076;
 }
 
-.action-comment {
+.action-comment,
+.action-reply {
   color: #409eff;
 }
 
@@ -415,6 +506,22 @@ onMounted(() => {
   background: #f7f7f7;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #888;
+}
+
+.msg-action-btn {
+  cursor: pointer;
+}
+
+.msg-action-btn.liked {
+  color: #e65b38;
 }
 
 .msg-time,
@@ -472,5 +579,68 @@ onMounted(() => {
   border: none;
   color: #fff;
   font-size: 12px;
+}
+
+.reply-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+}
+
+.reply-quote {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f7f8fa;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.reply-quote-main {
+  min-width: 0;
+}
+
+.reply-quote-user {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.reply-quote-content {
+  display: block;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.reply-close {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #999;
+  cursor: pointer;
+}
+
+.reply-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.reply-input-row .el-textarea {
+  flex: 1;
+}
+
+.reply-send {
+  flex-shrink: 0;
 }
 </style>
