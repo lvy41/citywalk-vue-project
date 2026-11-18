@@ -25,15 +25,21 @@
       </div>
     </div>
 
+    <div class="search-bar">
+      <el-input v-model="searchKeyword" placeholder="搜索昵称或签名" clearable>
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+    </div>
+
     <div class="content-wrap">
-      <div v-if="currentList.length === 0" class="empty-box">
+      <div v-if="filteredList.length === 0" class="empty-box">
         <p class="empty-main">{{ activeTab === 'following' ? '还没有关注任何人' : '还没有粉丝' }}</p>
         <p class="empty-sub">{{ activeTab === 'following' ? '去首页逛逛，看到喜欢的漫步者就关注一下' : '分享你的主页，让更多人认识你' }}</p>
         <el-button v-if="activeTab === 'following'" round class="go-btn" @click="goHome">去首页逛逛</el-button>
       </div>
 
       <div v-else class="follow-list">
-        <div v-for="item in currentList" :key="item.id" class="follow-item">
+        <div v-for="item in filteredList" :key="item.id" class="follow-item">
           <el-avatar :size="48" :src="item.avatar" class="avatar">
             {{ (item.nickname || '用').slice(0, 1) }}
           </el-avatar>
@@ -84,9 +90,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   getFollowListAPI,
@@ -100,8 +106,21 @@ const route = useRoute()
 const activeTab = ref(route.query.tab === 'fans' ? 'fans' : 'following')
 const followingList = ref([])
 const fansList = ref([])
+const searchKeyword = ref('')
 
 const currentList = computed(() => (activeTab.value === 'following' ? followingList.value : fansList.value))
+const filteredList = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  if (!keyword) return currentList.value
+  return currentList.value.filter(item =>
+    (item.nickname || '').toLowerCase().includes(keyword) ||
+    (item.desc || '').toLowerCase().includes(keyword)
+  )
+})
+
+watch(() => route.query.tab, (tab) => {
+  activeTab.value = tab === 'fans' ? 'fans' : 'following'
+})
 
 const loadFollowing = async () => {
   try {
@@ -153,6 +172,10 @@ const goHome = () => router.push('/home')
 const goBack = () => router.back()
 
 onMounted(() => {
+  loadFollowing()
+  loadFans()
+})
+onActivated(() => {
   loadFollowing()
   loadFans()
 })
@@ -220,6 +243,10 @@ onMounted(() => {
   height: 3px;
   border-radius: 2px;
   background: #e85d3a;
+}
+.search-bar {
+  padding: 12px 16px 0;
+  background: #fff;
 }
 .content-wrap {
   padding: 16px;

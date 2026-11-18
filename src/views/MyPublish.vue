@@ -10,88 +10,94 @@
     </div>
 
     <div class="content-wrap">
-      <!-- 有路线列表 -->
-      <div v-if="list.length > 0" class="card-list">
-        <div v-for="item in list" :key="item.id" class="record-card" @click="goDetail(item.id)">
-          <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
-          <div class="card-info">
-            <div class="title-row">
-              <h3 class="card-title link-title">
-                {{ item.routeName }} <span class="arrow">></span>
-              </h3>
+      <div v-if="list.length > 0" class="route-list">
+        <div class="route-item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
+          <div class="route-img">
+            <img :src="item.coverImage || defaultImg" alt="" @error="onImgError">
+          </div>
+          <div class="route-info">
+            <div class="route-name-row">
+              <div class="route-name">{{ item.routeName || '未命名路线' }}</div>
+              <span class="status-tag" :class="statusClass(item.auditStatus)">{{ statusText(item.auditStatus) }}</span>
             </div>
-            <p class="card-desc">
-              <span class="pub-flag" :class="{ 'pub-yes': item.auditStatus === 1 }">{{ pubText(item) }}</span>
-            </p>
-            <p class="card-time">创建时间：{{ fmtTime(item.createTime) }}</p>
+            <div class="route-desc">{{ item.description || '暂无路线介绍' }}</div>
+            <div class="route-meta">
+              <span v-if="item.city">{{ item.city }}</span>
+              <span v-if="item.duration">{{ item.duration }}</span>
+              <span v-if="item.distance">{{ item.distance }}</span>
+            </div>
+            <div class="route-time">{{ formatTime(item.createTime) }}</div>
           </div>
         </div>
       </div>
-      <!-- 空状态 -->
+
       <div v-else class="empty-wrap">
+        <div class="empty-icon">🗺</div>
         <div class="empty-text">暂无发布路线</div>
+        <div class="empty-sub">发布第一条城市漫步路线，记录你的出行足迹</div>
+        <el-button type="primary" round class="go-publish" @click="$router.push('/publish')">去发布路线</el-button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getUserPublishRouteAPI } from '@/api/route' // 查询用户发布路线接口
+import { getUserPublishRouteAPI } from '@/api/route'
+
 const router = useRouter()
-
 const list = ref([])
+const defaultImg = ref('/pictures/Myback.jpg')
 
-// 跳转到路线详情
+const onImgError = (e) => {
+  const img = e.target
+  if (img && img.dataset.fallback === '1') return
+  if (img) {
+    img.dataset.fallback = '1'
+    img.src = defaultImg.value
+  }
+}
+
 const goDetail = (id) => {
-  console.log('点击路线id：', id)
+  if (!id) return
   router.push(`/detail/${id}`)
 }
 
-const onImgError = (e) => {
-  e.target.style.display = 'none'
-}
-
-const pubText = (item) => {
-  if (item.auditStatus === 2) return '已下架'
-  if (item.auditStatus === 0) return '待审核'
-  return item.isPublic ? '公开路线' : '未公开路线'
-}
-
-// 兼容后端 ISO / 时间戳，格式化为 YYYY-MM-DD HH:mm
-const fmtTime = (t) => {
-  if (!t) return '未知时间'
-  const d = new Date(t)
-  if (Number.isNaN(d.getTime())) return String(t)
+const formatTime = (time) => {
+  if (!time) return ''
+  const d = new Date(typeof time === 'string' ? time.replace(' ', 'T') : time)
+  if (Number.isNaN(d.getTime())) return String(time)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// 获取我的发布列表：优先后端，接口不可用时退回本地暂存
+const statusText = (status) => {
+  if (Number(status) === 1) return '已通过'
+  if (Number(status) === 2) return '已驳回'
+  return '待审核'
+}
+
+const statusClass = (status) => {
+  if (Number(status) === 1) return 'status-pass'
+  if (Number(status) === 2) return 'status-reject'
+  return 'status-pending'
+}
+
 const getList = async () => {
   try {
     const res = await getUserPublishRouteAPI()
-    const data = res && res.data
-    list.value = Array.isArray(data) ? data : []
+    list.value = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
   } catch (e) {
-    console.warn('我的发布接口不可用，改用本地暂存', e)
-    try {
-      const raw = localStorage.getItem('citywalk_published_list')
-      const local = raw ? JSON.parse(raw) : []
-      list.value = Array.isArray(local) ? local : []
-    } catch (err) {
-      list.value = []
-    }
+    console.warn('我的发布接口不可用', e)
+    list.value = []
   }
 }
 
-onMounted(() => {
-  getList()
-})
+onMounted(getList)
+onActivated(getList)
 </script>
-
 
 <style scoped>
 .page-my-publish {
@@ -138,7 +144,32 @@ onMounted(() => {
   padding: 20px 16px 40px;
 }
 
-.card-list {
+.empty-wrap {
+  text-align: center;
+  margin-top: 120px;
+}
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+.empty-text {
+  font-size: 20px;
+  color: #666;
+}
+.empty-sub {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #999;
+}
+.go-publish {
+  margin-top: 22px;
+  background: linear-gradient(to right, #ff9a44, #fc6076);
+  border: none;
+  color: #fff;
+  padding: 10px 28px;
+}
+
+.route-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -146,98 +177,78 @@ onMounted(() => {
 
 .record-card {
   display: flex;
-  background: #ffffff;
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s ease;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(255, 130, 50, 0.1);
   cursor: pointer;
 }
-
-.record-card:active {
-  transform: scale(0.98);
-}
-
-.card-cover {
-  width: 110px;
-  height: 110px;
-  object-fit: cover;
+.route-img {
+  width: 100px;
+  height: 80px;
+  border-radius: 12px;
+  overflow: hidden;
   flex-shrink: 0;
+  background: #f4f5f7;
 }
-
-.card-info {
+.route-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.route-info {
   flex: 1;
-  padding: 15px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-}
-
-.title-row {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
+  gap: 4px;
 }
-
-.title-row .card-title {
-  margin: 0;
-  flex: 1;
-}
-
-.link-title {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  color: #303133;
-  cursor: pointer;
+.route-name-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  transition: color 0.2s;
+  gap: 8px;
 }
-
-.link-title:active {
-  color: #FF7A45;
+.route-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #222;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.link-title .arrow {
-  font-size: 14px;
-  color: #C0C4CC;
-}
-
-.card-desc,
-.card-time {
-  margin: 6px 0;
-  font-size: 13px;
-  color: #606266;
-}
-
-.card-time {
-  color: #909399;
-}
-
-.pub-flag {
-  display: inline-block;
+.status-tag {
+  flex-shrink: 0;
   font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: #F2F3F5;
-  color: #909399;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
-
-.pub-flag.pub-yes {
-  background: #F0F9EB;
-  color: #67C23A;
+.status-pending {
+  background: #fff7ed;
+  color: #ff8833;
 }
-
-.empty-wrap {
-  text-align: center;
-  padding: 120px 0;
+.status-pass {
+  background: #f0f9eb;
+  color: #67c23a;
 }
-
-.empty-text {
-  font-size: 22px;
+.status-reject {
+  background: #fef0f0;
+  color: #f56c6c;
+}
+.route-desc {
+  font-size: 13px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+}
+.route-time {
+  font-size: 12px;
   color: #999;
 }
 </style>

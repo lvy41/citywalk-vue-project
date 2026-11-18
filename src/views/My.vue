@@ -6,7 +6,7 @@
       class="my-header"
       :style="{backgroundImage: userInfo.bgImage ? `url(${userInfo.bgImage})` : `url(/pictures/city-bg.png)`}"
     >
-      <div class="user-profile">
+      <div class="user-profile" @click="goEditUser">
         <el-avatar :size="80" :src="userInfo.avatar" class="avatar">
           <span v-if="!userInfo.avatar">用</span>
         </el-avatar>
@@ -15,21 +15,28 @@
             <span class="nickname">{{ userInfo.nickname || "匿名用户" }}</span>
             <span class="title-tag">{{ achSummary.currentTitle.titleName }}</span>
           </div>
-          <div class="user-id">用户ID：{{ userInfo.userNo || userInfo.userId || userInfo.id || '-' }}</div>
+          <div class="user-id" @click.stop="copyUserNo">
+            用户ID：{{ userInfo.userNo || userInfo.userId || userInfo.id || '-' }}
+            <el-icon class="copy-icon"><CopyDocument /></el-icon>
+          </div>
           <div class="user-ip" v-if="userInfo.signature">{{ userInfo.signature }}</div>
-
         </div>
       </div>
-      <!-- 数据统计卡片：发布路线数量、总获赞数量、粉丝数量 -->
+      <!-- 数据统计卡片：发布路线数量、总获赞数量、关注、粉丝 -->
       <div class="stat-card">
-        <div class="stat-item">
+        <div class="stat-item clickable" @click="goMyPublish">
           <div class="num">{{ stat.publishCount }}</div>
           <div class="label">发布路线</div>
         </div>
         <div class="divider"></div>
-        <div class="stat-item">
+        <div class="stat-item clickable" @click="goMyLike">
           <div class="num">{{ stat.likeTotal }}</div>
           <div class="label">总获赞</div>
+        </div>
+        <div class="divider"></div>
+        <div class="stat-item clickable" @click="goMyFollow">
+          <div class="num">{{ stat.followCount }}</div>
+          <div class="label">关注</div>
         </div>
         <div class="divider"></div>
         <div class="stat-item clickable" @click="goMyFans">
@@ -119,7 +126,8 @@
 <script setup>
 import { ref, onMounted, onActivated, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight } from '@element-plus/icons-vue'
+import { ArrowRight, CopyDocument } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { getUserInfoAPI } from '@/api/user'
 import { getMyAchievementAPI } from '@/api/achievement'
@@ -130,10 +138,11 @@ const userStore = useUserStore()
 // 用户信息兜底，避免 store 还没恢复时模板读 undefined 报错
 const userInfo = computed(() => userStore.userInfo || {})
 
-// 统计数据
+// 统计数据：以后端云端数据库为准，本地缓存只做页面展示兜底，不参与统计口径
 const stat = ref({
   publishCount: 0,
   likeTotal: 0,
+  followCount: 0,
   fansCount: 0
 })
 
@@ -144,32 +153,20 @@ const achSummary = ref({
   currentTitle: { titleName: '初入城市' }
 })
 
-// 读本地存档（打卡记录 / 已发布路线），后端接口不通时用它兜底
-const readLocalStat = () => {
-  try {
-    const published = JSON.parse(localStorage.getItem('citywalk_published_list') || '[]')
-    const checkin = JSON.parse(localStorage.getItem('citywalk_checkin_list') || '[]')
-    stat.value.publishCount = (Array.isArray(published) ? published.length : 0) +
-      (Array.isArray(checkin) ? checkin.length : 0)
-  } catch (e) {
-    console.warn('本地统计数据读取失败', e)
-  }
-}
-
-// 获取用户信息与成就：接口不可用时退回本地统计，不弹错误
+// 获取用户信息与成就：统计口径以后端返回的云端数据为准
 const getStatInfo = async () => {
-  readLocalStat()
   try {
     const res = await getUserInfoAPI()
     if (res && res.code === 200 && res.data) {
       // 头像、背景图、昵称等以服务端为准，回写 store 才能刷新头部
       userStore.setUserInfo(res.data)
-      stat.value.publishCount = res.data.publishCount ?? stat.value.publishCount
-      stat.value.likeTotal = res.data.likeTotal ?? stat.value.likeTotal
-      stat.value.fansCount = res.data.fansCount ?? stat.value.fansCount
+      stat.value.publishCount = res.data.publishCount ?? 0
+      stat.value.likeTotal = res.data.likeTotal ?? 0
+      stat.value.followCount = res.data.followCount ?? 0
+      stat.value.fansCount = res.data.fansCount ?? 0
     }
   } catch (e) {
-    console.warn('用户统计接口不可用，已使用本地数据', e)
+    console.warn('用户统计接口不可用', e)
   }
   try {
     const res = await getMyAchievementAPI()
@@ -189,6 +186,9 @@ const getStatInfo = async () => {
 onMounted(getStatInfo)
 onActivated(getStatInfo)
 
+const goEditUser = () => {
+  router.push('/edit-user')
+}
 const goTitleList = () => {
   router.push('/title-list')
 }
@@ -217,9 +217,32 @@ const goSetting = () => {
   router.push('/setting')
 }
 
-const handleLogout = () => {
-  userStore.clearUser()
-  router.replace('/login')
+const copyUserNo = async () => {
+  const userNo = userInfo.value.userNo || userInfo.value.userId || userInfo.value.id
+  if (!userNo) {
+    ElMessage.warning('暂无可复制的用户ID')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(String(userNo))
+    ElMessage.success('用户ID已复制')
+  } catch (e) {
+    ElMessage.warning('复制失败，请手动复制：' + userNo)
+  }
+}
+
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
+      confirmButtonText: '退出',
+      cancelButtonText: '再看看',
+      type: 'warning'
+    })
+    userStore.clearUser()
+    router.replace('/login')
+  } catch (e) {
+    // 用户取消退出，不做处理
+  }
 }
 </script>
 
@@ -306,6 +329,13 @@ const handleLogout = () => {
   font-size: 13px;
   opacity: 0.85;
   margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.copy-icon {
+  font-size: 13px;
 }
 .user-meta .user-ip {
   font-size: 13px;
@@ -330,7 +360,7 @@ const handleLogout = () => {
   background: rgba(255, 255, 255, 0.35);
 }
 .stat-item .num {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: bold;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }

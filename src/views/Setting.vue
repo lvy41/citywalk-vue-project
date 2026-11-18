@@ -27,17 +27,51 @@
         <el-icon><ArrowRight /></el-icon>
       </div>
     </div>
+
+    <div class="menu-group danger-group">
+      <div class="menu-item danger" @click="openCancel">
+        <span>注销账号</span>
+        <el-icon><ArrowRight /></el-icon>
+      </div>
+    </div>
+
+    <el-dialog
+      v-model="cancelVisible"
+      title="注销账号"
+      width="86%"
+      :close-on-click-modal="false"
+    >
+      <div class="cancel-tip">
+        注销后，账号、发布路线、评论、点赞、收藏和打卡记录将无法恢复。请输入当前密码确认注销。
+      </div>
+      <el-input
+        v-model="cancelPassword"
+        type="password"
+        show-password
+        placeholder="请输入当前密码"
+        @keyup.enter="submitCancel"
+      />
+      <template #footer>
+        <el-button @click="cancelVisible = false">再想想</el-button>
+        <el-button type="danger" :loading="canceling" @click="submitCancel">确认注销</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
+import { cancelAccountAPI } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+const cancelVisible = ref(false)
+const cancelPassword = ref('')
+const canceling = ref(false)
 
 // 跳转编辑个人信息
 const goEditUser = () => {
@@ -54,6 +88,30 @@ const goClearCache = () => {
 // 跳转关于我们页面
 const goAbout = () => {
   router.push('/about')
+}
+
+const openCancel = () => {
+  cancelPassword.value = ''
+  cancelVisible.value = true
+}
+
+const submitCancel = async () => {
+  if (canceling.value) return
+  if (!cancelPassword.value) {
+    ElMessage.warning('请输入当前密码')
+    return
+  }
+  canceling.value = true
+  try {
+    await cancelAccountAPI({ password: cancelPassword.value })
+    userStore.clearUser()
+    ElMessage.success('账号已注销')
+    router.replace('/login')
+  } catch (error) {
+    console.error('注销账号失败:', error)
+  } finally {
+    canceling.value = false
+  }
 }
 </script>
 
@@ -114,5 +172,18 @@ const goAbout = () => {
 }
 .menu-item:last-child {
   border-bottom: none;
+}
+.danger-group {
+  margin-top: 16px;
+}
+.menu-item.danger {
+  color: #d93025;
+  font-weight: 500;
+}
+.cancel-tip {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 16px;
 }
 </style>

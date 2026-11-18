@@ -176,7 +176,7 @@
 </template>
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { load } from "@amap/amap-jsapi-loader"
 import { useRouter, useRoute } from "vue-router"
 import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI, toggleCommentLikeAPI, deleteCommentAPI } from '@/api/route'
