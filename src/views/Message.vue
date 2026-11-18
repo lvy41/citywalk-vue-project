@@ -78,7 +78,7 @@
               </div>
               <div class="msg-route">{{ item.routeName }}</div>
               <div v-if="item.content" class="msg-comment">{{ item.content }}</div>
-              <div v-if="item.type === 'comment'" class="msg-actions">
+              <div v-if="item.type === 'comment' || item.type === 'reply'" class="msg-actions">
                 <span class="msg-action-btn" @click.stop="replyComment(item)">回复</span>
                 <span class="msg-action-btn" :class="{ liked: item.liked }" @click.stop="toggleCommentLike(item)">
                   {{ item.liked ? '❤️' : '🤍' }} {{ item.likeCount || 0 }}
@@ -156,10 +156,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onActivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/store/user'
 import {
   getInteractionNotificationsAPI,
   getSystemNotificationsAPI
@@ -168,6 +169,7 @@ import { followUserAPI, unfollowUserAPI } from '@/api/follow'
 import { toggleCommentLikeAPI, addRouteCommentAPI } from '@/api/route'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const mainTab = ref('interaction')
 const subTab = ref('messages')
@@ -294,6 +296,24 @@ const submitReply = async () => {
       content
     })
     ElMessage.success('回复成功')
+    const me = userStore.userInfo || {}
+    const now = new Date()
+    const newReply = {
+      id: `local-reply-${now.getTime()}`,
+      userId: me.id || me.userId,
+      nickname: me.nickname || '我',
+      avatar: me.avatar,
+      routeId: replyTarget.value.routeId,
+      routeName: replyTarget.value.routeName,
+      content: content.replace(/^@[^\s]+\s?/, ''),
+      parentId: replyTarget.value.id,
+      replyToUserId: replyTarget.value.userId,
+      replyToNickname: replyTarget.value.nickname,
+      likeCount: 0,
+      liked: false,
+      createTime: now.toISOString()
+    }
+    repliesList.value.unshift(newReply)
     replyVisible.value = false
     replyTarget.value = null
     replyText.value = ''
@@ -310,6 +330,7 @@ const closeReply = () => {
 
 const updateCommentItem = (id, patch) => {
   commentsList.value = commentsList.value.map(c => c.id === id ? { ...c, ...patch } : c)
+  repliesList.value = repliesList.value.map(c => c.id === id ? { ...c, ...patch } : c)
 }
 
 const toggleCommentLike = async (item) => {
@@ -334,6 +355,10 @@ const goBack = () => {
 }
 
 onMounted(() => {
+  loadInteractions()
+  loadSystem()
+})
+onActivated(() => {
   loadInteractions()
   loadSystem()
 })

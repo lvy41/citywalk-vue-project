@@ -29,13 +29,15 @@
   </div>
 </template>
 <script setup>
+import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+
+const router = useRouter()
 const openProtocol = () => {
-  ElMessage.info('用户协议页面（后续补充）')
+  router.push({ path: '/privacy', query: { type: 'agreement' } })
 }
 const openPrivacy = () => {
-  ElMessage.info('隐私政策页面（后续补充）')
+  router.push({ path: '/privacy', query: { type: 'privacy' } })
 }
 </script>
 <style scoped>

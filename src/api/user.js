@@ -16,16 +16,50 @@ export function loginAPI(data) {
 }
 
 /**
+ * 发送邮箱验证码（公开接口，无需 Token）
+ * @param {Object} data
+ * @param {string} data.email
+ * @param {string} data.purpose register | forgot
+ * @param {string} [data.username]
+ * @returns {Promise}
+ */
+export function sendEmailCodeAPI(data) {
+  return request({
+    url: '/user/email-code',
+    method: 'post',
+    data
+  })
+}
+
+/**
  * 用户注册接口
  * @param {Object} data
  * @param {string} data.username
  * @param {string} data.password
- * @param {string} data.phone
+ * @param {string} data.email
+ * @param {string} data.emailCode
  * @returns {Promise}
  */
 export function registerAPI(data) {
   return request({
     url: '/user/register',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 忘记密码：邮箱验证码校验后重置密码（公开接口，无需 Token）
+ * @param {Object} data
+ * @param {string} data.username
+ * @param {string} data.email
+ * @param {string} data.emailCode
+ * @param {string} data.newPassword
+ * @returns {Promise}
+ */
+export function forgotPasswordAPI(data) {
+  return request({
+    url: '/user/forgot-password',
     method: 'post',
     data
   })
@@ -68,6 +102,20 @@ export function changePasswordAPI(data) {
   return request({
     url: '/user/password',
     method: 'put',
+    data
+  })
+}
+
+/**
+ * 注销当前账号
+ * @param {Object} data
+ * @param {string} data.password
+ * @returns {Promise}
+ */
+export function cancelAccountAPI(data) {
+  return request({
+    url: '/user/cancel',
+    method: 'post',
     data
   })
 }

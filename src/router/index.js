@@ -13,6 +13,12 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/ForgotPwd.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),

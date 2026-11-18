@@ -53,6 +53,41 @@
         <div class="line"></div>
 
         <div class="form-row">
+          <span class="label">邮箱</span>
+          <el-input
+            v-model="formData.email"
+            type="email"
+            placeholder="绑定QQ邮箱，用于找回密码"
+            maxlength="50"
+            class="form-input"
+            @input="onEmailInput"
+          />
+        </div>
+
+        <div class="line"></div>
+
+        <div class="form-row code-row">
+          <span class="label">邮箱验证码</span>
+          <div class="code-input-wrap">
+            <el-input
+              v-model="formData.emailCode"
+              placeholder="修改邮箱时需验证"
+              maxlength="6"
+              class="form-input code-input"
+            />
+            <el-button
+              class="code-btn"
+              :disabled="codeCountdown > 0 || emailUnchanged"
+              @click="sendBindCode"
+            >
+              {{ codeCountdown > 0 ? `${codeCountdown}s` : '发送验证码' }}
+            </el-button>
+          </div>
+        </div>
+
+        <div class="line"></div>
+
+        <div class="form-row">
           <span class="label">个性签名</span>
           <el-input
             v-model="formData.signature"
@@ -83,53 +118,83 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { updateUserInfoAPI } from '@/api/user'
+import { updateUserInfoAPI, sendEmailCodeAPI } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
 const fileRef = ref(null)
 const bgFileRef = ref(null)
 const submitting = ref(false)
+const codeCountdown = ref(0)
+let codeTimer = null
+const originalEmail = ref('')
 
 const formData = ref({
   avatar: '',
   bgImage: '',
   nickname: '',
+  email: '',
+  emailCode: '',
   signature: '',
   userNo: ''
 })
+
+// 图片压缩：头像/封面先缩放到合理尺寸，避免大图 dataURL 直接入库
+const compressImageFile = (file, maxSize = 800, quality = 0.82) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const img = new Image()
+      img.onload = () => {
+        const ratio = Math.min(1, maxSize / Math.max(img.width, img.height))
+        const width = Math.round(img.width * ratio)
+        const height = Math.round(img.height * ratio)
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = ev.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 // 背景封面上传
 const triggerBgUpload = () => {
   bgFileRef.value.click()
 }
-const onBgFileChange = (e) => {
+const onBgFileChange = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    formData.value.bgImage = ev.target.result
+  try {
+    formData.value.bgImage = await compressImageFile(file, 1200, 0.8)
+  } catch (err) {
+    ElMessage.warning('图片读取失败，请换一张图片')
   }
-  reader.readAsDataURL(file)
 }
 
 // 头像上传
 const triggerUpload = () => {
   fileRef.value.click()
 }
-const onFileChange = (e) => {
+const onFileChange = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    formData.value.avatar = ev.target.result
+  try {
+    formData.value.avatar = await compressImageFile(file, 400, 0.85)
+  } catch (err) {
+    ElMessage.warning('图片读取失败，请换一张图片')
   }
-  reader.readAsDataURL(file)
 }
 
 // 加载：先读 pinia 缓存，没有再拉一次接口
@@ -138,14 +203,61 @@ const loadInfo = () => {
   formData.value.avatar = info.avatar || ''
   formData.value.bgImage = info.bgImage || ''
   formData.value.nickname = info.nickname || '匿名用户'
+  formData.value.email = info.email || ''
+  originalEmail.value = info.email || ''
   formData.value.signature = info.signature || ''
   formData.value.userNo = info.userNo || ''
 }
 
+const emailReg = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+const emailUnchanged = () => formData.value.email.trim().toLowerCase() === originalEmail.value.trim().toLowerCase()
+const onEmailInput = () => {
+  if (emailUnchanged()) formData.value.emailCode = ''
+}
+
+const startCountdown = () => {
+  codeCountdown.value = 60
+  codeTimer = setInterval(() => {
+    codeCountdown.value -= 1
+    if (codeCountdown.value <= 0 && codeTimer) {
+      clearInterval(codeTimer)
+      codeTimer = null
+    }
+  }, 1000)
+}
+
+const sendBindCode = async () => {
+  const email = formData.value.email.trim()
+  if (!email) {
+    ElMessage.warning('请先输入要绑定的邮箱')
+    return
+  }
+  if (!emailReg.test(email)) {
+    ElMessage.warning('请输入正确的邮箱地址')
+    return
+  }
+  try {
+    await sendEmailCodeAPI({ email, purpose: 'bind' })
+    startCountdown()
+    ElMessage.success('验证码已发送到邮箱')
+  } catch (e) {
+    console.warn('邮箱验证码发送失败', e)
+  }
+}
 // 保存：昵称 / 头像 / 签名 / 用户ID 全部提交到 PUT /api/user/update
 const submit = async () => {
   if (!formData.value.userNo) {
     ElMessage.warning('用户ID不能为空')
+    return
+  }
+  const email = formData.value.email.trim().toLowerCase()
+  if (email && !emailReg.test(email)) {
+    ElMessage.warning('请输入正确的QQ邮箱地址')
+    return
+  }
+  const emailChanged = email !== originalEmail.value.trim().toLowerCase()
+  if (emailChanged && !formData.value.emailCode.trim()) {
+    ElMessage.warning('修改邮箱需先获取并填写邮箱验证码')
     return
   }
   submitting.value = true
@@ -154,6 +266,8 @@ const submit = async () => {
       nickname: formData.value.nickname,
       avatar: formData.value.avatar,
       bgImage: formData.value.bgImage,
+      email,
+      emailCode: emailChanged ? formData.value.emailCode.trim() : '',
       signature: formData.value.signature,
       userNo: formData.value.userNo
     })
@@ -167,6 +281,7 @@ const submit = async () => {
       nickname: formData.value.nickname,
       avatar: formData.value.avatar,
       bgImage: formData.value.bgImage,
+      email,
       signature: formData.value.signature,
       userNo: formData.value.userNo
     })
@@ -186,6 +301,13 @@ onMounted(async () => {
     }
   }
   loadInfo()
+})
+
+onBeforeUnmount(() => {
+  if (codeTimer) {
+    clearInterval(codeTimer)
+    codeTimer = null
+  }
 })
 </script>
 
@@ -312,6 +434,23 @@ onMounted(async () => {
 
 .form-input {
   width: 52%;
+}
+
+.code-row .code-input-wrap {
+  width: 52%;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.code-row .code-input {
+  flex: 1;
+  width: auto;
+}
+.code-btn {
+  flex-shrink: 0;
+  border: none;
+  background: #fff0f3;
+  color: #e85d3a;
 }
 
 :deep(.form-input .el-input__wrapper) {
