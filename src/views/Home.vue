@@ -261,9 +261,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { pinyin } from 'pinyin-pro'
 import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
+import { getTagList } from '@/api/tag'
 import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
-import { getTagList } from '@/api/tag'
 import { load } from '@amap/amap-jsapi-loader'
 const router = useRouter()
 const route = useRoute()
@@ -884,7 +884,7 @@ watch(()=>route.query.fromSearch, (val)=>{
 .home-container {
   padding: 16px;
   padding-bottom: 70px;
-  background: linear-gradient(180deg, #ffdfd0, #fff7f0);
+  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
   min-height: 100vh;
   box-sizing: border-box;
 }

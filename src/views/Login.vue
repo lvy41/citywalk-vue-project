@@ -59,6 +59,9 @@
               {{ showPwd ? '🙈' : '👁️' }}
             </span>
           </div>
+          <div class="forgot-row">
+            <span class="forgot-link" @click="goForgotPassword">忘记密码？</span>
+          </div>
           <button type="submit" class="submit-btn" :disabled="loading">
             <span v-if="!loading" class="btn-text">登录</span>
             <span v-else class="btn-loading">
@@ -94,29 +97,35 @@
             </span>
           </div>
           <div class="input-group">
-            <span class="input-icon">📱</span>
+            <span class="input-icon">✉️</span>
             <input
-              v-model="registerForm.phone"
-              type="tel"
-              placeholder="手机号"
-              name="tel"
-              maxlength="11"
-              @input="registerForm.phone = registerForm.phone.replace(/\D/g, '')"
+              v-model="registerForm.email"
+              type="email"
+              placeholder="QQ邮箱"
+              name="email"
+              autocomplete="email"
+              maxlength="50"
               class="input"
             >
           </div>
-          <div class="input-group">
+          <div class="input-group code-group">
             <span class="input-icon">🛡️</span>
             <input
-              v-model="registerForm.captcha"
+              v-model="registerForm.emailCode"
               type="text"
-              placeholder="验证码"
-              maxlength="4"
-              class="input captcha-input"
+              placeholder="邮箱验证码"
+              maxlength="6"
+              class="input code-input"
+              @input="registerForm.emailCode = registerForm.emailCode.replace(/\D/g, '')"
             >
-            <div class="captcha-code" @click="refreshCaptcha" title="点击刷新">
-              <span v-for="(ch, i) in captchaChars" :key="i" :style="{ transform: `rotate(${captchaRots[i]}deg)` }">{{ ch }}</span>
-            </div>
+            <button
+              type="button"
+              class="code-btn"
+              :disabled="regCodeCountdown > 0 || loading"
+              @click="sendRegisterCode"
+            >
+              {{ regCodeCountdown > 0 ? regCodeCountdown + 's后重发' : '获取验证码' }}
+            </button>
           </div>
           <button type="submit" class="submit-btn" :disabled="loading">
             <span v-if="!loading" class="btn-text">注册</span>
@@ -160,7 +169,7 @@
           <h4>一、引言</h4>
           <p>欢迎使用 CityWalk 城市漫步打卡系统。我们深知个人信息对您的重要性，并会尽全力保护您的个人信息安全可靠。请您在使用本应用前，仔细阅读并充分理解本协议全部内容。您勾选同意即表示接受本协议全部条款。</p>
           <h4>二、我们收集的信息</h4>
-          <p><strong>您主动提供的：</strong>用户名、密码、手机号、昵称——用于注册登录和身份识别。</p>
+          <p><strong>您主动提供的：</strong>用户名、密码、邮箱、昵称——用于注册登录和身份识别。</p>
           <p><strong>自动收集的：</strong>地理位置信息——用于打卡校验（到达打卡点50米内）和附近路线推荐；设备信息——用于页面适配和安全保障。</p>
           <p><strong>您发布的内容：</strong>创建的路线信息、上传的图片、发表的评论、打卡记录和收藏记录。</p>
           <h4>三、信息的使用</h4>
@@ -182,10 +191,10 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
-import { loginAPI, registerAPI } from '@/api/user'
+import { loginAPI, registerAPI, sendEmailCodeAPI } from '@/api/user'
 import { ElMessage } from 'element-plus'
 const router = useRouter()
 const userStore = useUserStore()
@@ -209,24 +218,27 @@ const randomSlogan = () => {
   currentSlogan.value = slogans[Math.floor(Math.random() * slogans.length)]
 }
 const loginForm = reactive({ username: '', password: '' })
-const registerForm = reactive({ username: '', password: '', phone: '', captcha: '' })
-// ========== 图形验证码 ==========
-const captchaChars = ref([])
-const captchaRots = ref([])
-const generateCaptcha = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  captchaChars.value = []
-  captchaRots.value = []
-  for (let i = 0; i < 4; i++) {
-    captchaChars.value.push(chars[Math.floor(Math.random() * chars.length)])
-    captchaRots.value.push(Math.floor(Math.random() * 30) - 15)
-  }
-  registerForm.captcha = ''
+const registerForm = reactive({ username: '', password: '', email: '', emailCode: '' })
+const regCodeCountdown = ref(0)
+let regCodeTimer = null
+
+const startRegCountdown = () => {
+  regCodeCountdown.value = 60
+  regCodeTimer = window.setInterval(() => {
+    regCodeCountdown.value -= 1
+    if (regCodeCountdown.value <= 0 && regCodeTimer) {
+      window.clearInterval(regCodeTimer)
+      regCodeTimer = null
+    }
+  }, 1000)
 }
-const refreshCaptcha = () => generateCaptcha()
+
 onMounted(() => {
-  generateCaptcha()
   randomSlogan()
+})
+
+onUnmounted(() => {
+  if (regCodeTimer) window.clearInterval(regCodeTimer)
 })
 const switchTab = (tab) => {
   activeTab.value = tab
@@ -234,14 +246,19 @@ const switchTab = (tab) => {
   loginForm.password = ''
   registerForm.username = ''
   registerForm.password = ''
-  registerForm.phone = ''
-  registerForm.captcha = ''
+  registerForm.email = ''
+  registerForm.emailCode = ''
   showPwd.value = false
   showRegPwd.value = false
-  if (tab === 'register') generateCaptcha()
 }
 const showAgreement = () => {
   showPrivacy.value = true
+}
+const goForgotPassword = () => {
+  router.push({
+    path: '/forgot-password',
+    query: loginForm.username ? { username: loginForm.username } : {}
+  })
 }
 // ========== 登录 ==========
 const handleLogin = async () => {
@@ -278,9 +295,28 @@ const handleLogin = async () => {
   }
 }
 // ========== 注册 ==========
+const emailReg = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+const sendRegisterCode = async () => {
+  if (regCodeCountdown.value > 0 || loading.value) return
+  if (!emailReg.test(registerForm.email.trim())) {
+    ElMessage.warning('请输入正确的QQ邮箱地址')
+    return
+  }
+  try {
+    await sendEmailCodeAPI({
+      email: registerForm.email.trim(),
+      purpose: 'register'
+    })
+    ElMessage.success('验证码已发送，请查收邮箱')
+    startRegCountdown()
+  } catch (error) {
+    console.error('验证码发送失败:', error)
+  }
+}
+
 const handleRegister = async () => {
   if (loading.value) return
-  if (!registerForm.username || !registerForm.password || !registerForm.phone) {
+  if (!registerForm.username || !registerForm.password || !registerForm.email || !registerForm.emailCode) {
     ElMessage.warning('请填写完整的注册信息')
     return
   }
@@ -288,17 +324,8 @@ const handleRegister = async () => {
     ElMessage.warning('密码长度至少6位')
     return
   }
-  if (!/^1[3-9]\d{9}$/.test(registerForm.phone)) {
-    ElMessage.warning('请输入正确的手机号')
-    return
-  }
-  if (!registerForm.captcha) {
-    ElMessage.warning('请输入图形验证码')
-    return
-  }
-  if (registerForm.captcha.toLowerCase() !== captchaChars.value.join('').toLowerCase()) {
-    ElMessage.warning('验证码错误，请重新输入')
-    refreshCaptcha()
+  if (!emailReg.test(registerForm.email.trim())) {
+    ElMessage.warning('请输入正确的QQ邮箱地址')
     return
   }
   if (!agree.value) {
@@ -310,7 +337,8 @@ const handleRegister = async () => {
     const res = await registerAPI({
       username: registerForm.username,
       password: registerForm.password,
-      phone: registerForm.phone
+      email: registerForm.email.trim(),
+      emailCode: registerForm.emailCode
     })
     const resData = res.data
     const { token, userInfo } = resData
@@ -487,7 +515,7 @@ const handleRegister = async () => {
 .form {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 14px;
 }
 .input-group {
   position: relative;
@@ -505,11 +533,11 @@ const handleRegister = async () => {
 }
 .input {
   width: 100%;
-  height: 48px;
+  height: 50px;
   border: 1.5px solid #ececec;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 0 16px 0 46px;
-  font-size: 14px;
+  font-size: 15px;
   outline: none;
   transition: all 0.25s;
   box-sizing: border-box;
@@ -533,33 +561,48 @@ const handleRegister = async () => {
   user-select: none;
 }
 .eye-icon:active { opacity: 0.8; }
-/* 验证码 */
-.captcha-input { padding-right: 100px; }
-.captcha-code {
+/* 邮箱验证码 */
+.code-group {
+  gap: 10px;
+}
+.code-input {
+  padding-right: 112px;
+}
+.code-btn {
   position: absolute;
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
   height: 36px;
-  min-width: 88px;
+  min-width: 96px;
+  border: none;
   border-radius: 10px;
   background: linear-gradient(135deg, #fff0eb, #ffe5d9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  cursor: pointer;
-  user-select: none;
-  padding: 0 8px;
-}
-.captcha-code span {
-  font-size: 16px;
-  font-weight: 700;
-  font-style: italic;
   color: var(--primary);
-  font-family: 'Courier New', monospace;
-  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 10px;
 }
+.code-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.code-btn:active { opacity: 0.85; }
+/* 忘记密码入口 */
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 2px 2px 12px;
+}
+.forgot-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+}
+.forgot-link:active { opacity: 0.75; }
+
 /* ========== 按钮 ========== */
 .submit-btn {
   width: 100%;

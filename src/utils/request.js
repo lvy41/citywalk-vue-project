@@ -48,6 +48,8 @@ request.interceptors.request.use(
     const skipUrls = [
       '/user/login',
       '/user/register',
+      '/user/forgot-password',
+      '/user/email-code',
       '/admin/login',
       '/route/list',
       '/route/detail',

@@ -25,17 +25,40 @@
   </div>
 </template>
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
-const cacheSize = ref('2.36 MB')
-const handleClear = () => {
-  // 前端模拟清除缓存（实际前端只能清localStorage，图片缓存由浏览器控制）
-  localStorage.removeItem('tempImgCache')
-  ElMessage.success('缓存清除成功')
-  cacheSize.value = '0.00 MB'
+const cacheSize = ref('0.00 KB')
+const PROTECTED_KEYS = ['token', 'adminToken', 'userInfo', 'citywalk_current_city']
+const CACHE_KEYS = ['tempImgCache', 'citywalk_trophies', 'citywalk_checkin_list', 'citywalk_published_list']
+
+const formatSize = (bytes) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
+
+const measureCache = () => {
+  let bytes = 0
+  CACHE_KEYS.forEach((key) => {
+    const value = localStorage.getItem(key)
+    if (value) bytes += new Blob([value]).size
+  })
+  return bytes
+}
+
+const refreshSize = () => {
+  cacheSize.value = formatSize(measureCache())
+}
+
+const handleClear = () => {
+  CACHE_KEYS.forEach((key) => localStorage.removeItem(key))
+  refreshSize()
+  ElMessage.success('缓存清除成功，账号登录状态已保留')
+}
+
+onMounted(refreshSize)
 </script>
 <style scoped>
 .page-clear-cache {

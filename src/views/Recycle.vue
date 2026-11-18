@@ -143,7 +143,7 @@ onMounted(loadRecycleList)
 
 <style scoped>
 .page-recycle {
-  background-color: #f8f8f8;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffe4c7 45%, #ffd2a8 100%);
   min-height: 100vh;
   padding-bottom: 24px;
   box-sizing: border-box;

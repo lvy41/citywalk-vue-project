@@ -66,8 +66,10 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { changePasswordAPI } from '@/api/user'
+import { useUserStore } from '@/store/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const formData = ref({
   oldPwd: '',
@@ -106,8 +108,9 @@ const submit = async () => {
       oldPassword: formData.value.oldPwd,
       newPassword: formData.value.newPwd
     })
-    ElMessage.success('密码修改成功')
-    router.back()
+    ElMessage.success('密码修改成功，请使用新密码重新登录')
+    userStore.clearUser()
+    router.replace('/login')
   } catch (e) {
     // 后端抛出的错误文案（如"原密码不正确"）已由 request 拦截器提示
     console.warn('修改密码失败', e)

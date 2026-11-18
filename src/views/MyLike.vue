@@ -20,7 +20,7 @@
           </div>
           <div class="route-info">
             <div class="route-name" @click="goDetail(item.id)">{{ item.routeName }}</div>
-            <div class="route-desc">{{ item.city }} · {{ item.duration }} · {{ item.distance }}</div>
+            <div class="route-desc">{{ metaText(item) }}</div>
             <div class="route-time">{{ item.description }}</div>
           </div>
           <div class="route-action" @click.stop="cancelLike(item)">
@@ -33,7 +33,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -55,6 +55,8 @@ const goDetail = (id) => {
   if (!id) return
   router.push(`/detail/${id}`)
 }
+
+const metaText = (item) => [item.city, item.duration, item.distance].filter(Boolean).join(' · ') || '城市漫步路线'
 
 const getList = async () => {
   try {
@@ -78,6 +80,7 @@ const cancelLike = async (item) => {
 onMounted(() => {
   getList()
 })
+onActivated(getList)
 </script>
 
 <style scoped>
