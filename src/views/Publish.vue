@@ -65,7 +65,16 @@
             <el-input v-model="publishForm.routeName" placeholder="例如：杭州·西湖漫步"></el-input>
           </el-form-item>
           <el-form-item label="所属城市">
-            <el-input v-model="publishForm.city" placeholder="例如：杭州"></el-input>
+            <el-cascader
+              v-model="cityPath"
+              :options="cityOptions"
+              :props="cityCascaderProps"
+              placeholder="请选择所在城市"
+              clearable
+              filterable
+              style="width: 100%"
+              @change="onCityChange"
+            />
           </el-form-item>
           <el-form-item label="路线封面图">
             <div class="img-upload" :class="{ 'is-preview': publishForm.coverImage }">
@@ -232,7 +241,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Picture } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
@@ -240,6 +249,7 @@ import AchievementDialog from '@/components/AchievementDialog.vue'
 import TrophyDialog from '@/components/TrophyDialog.vue'
 import { load } from '@amap/amap-jsapi-loader'
 import request from '@/utils/request'
+import { getAreaTreeAPI } from '@/api/map'
 import { useUserStore } from '@/store/user'
 
 const router = useRouter()
@@ -304,7 +314,7 @@ const publishForm = ref({
   tagIds: [],
   isPublic: true,
   points: [
-    { name: '', time: '09:00', transport: '', transportMode: '', transportMin: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' }
+    { name: '', time: '09:00', transport: '', transportMode: '', transportMin: null, tip: '', description: '', image: '', address: '', longitude: '', latitude: '' }
   ]
 })
 
@@ -554,6 +564,7 @@ const applyTempPick = (lng, lat) => {
 }
 
 const initMapPicker = async () => {
+  destroyMapPicker()
   const AMap = await ensureAMap()
   const point = pickIndex.value >= 0 ? publishForm.value.points[pickIndex.value] : null
   const startLng = point && hasCoord(point) ? parseFloat(point.longitude) : 113.2644
@@ -571,6 +582,15 @@ const initMapPicker = async () => {
     applyTempPick(e.lnglat.getLng(), e.lnglat.getLat())
     setTempMarker(e.lnglat.getLng(), e.lnglat.getLat())
   })
+  // WebGL 上下文丢失（显存不足等）时提示并释放实例，避免后续一串 canvas null 报错
+  const container = mapPickInstance.getContainer?.()
+  if (container) {
+    container.addEventListener('webglcontextlost', () => {
+      ElMessage.warning('地图渲染上下文已丢失，请关闭弹窗后重新打开，或刷新页面')
+      destroyMapPicker()
+      mapDialogVisible.value = false
+    }, true)
+  }
 }
 
 const openMapPicker = async (index) => {
@@ -616,14 +636,67 @@ const confirmMapPick = () => {
   ElMessage.success('位置已选好')
 }
 
-const onMapDialogClosed = () => {
+const destroyMapPicker = () => {
   if (mapPickInstance) {
-    mapPickInstance.destroy()
+    try { mapPickInstance.destroy() } catch (e) { /* ignore */ }
     mapPickInstance = null
   }
   mapPickMarker = null
+}
+
+const onMapDialogClosed = () => {
+  destroyMapPicker()
   mapSearchKeyword.value = ''
   tempPick.value = { lng: '', lat: '', address: '', hasCoord: false }
+}
+
+// 组件卸载时兜底释放地图实例，避免弹窗未关就离开页面导致 WebGL 上下文残留
+onUnmounted(() => { destroyMapPicker() })
+
+// 所属城市：省市级联（与首页定位选城市同源，数据来自 /area/tree）
+const cityPath = ref([])
+const cityOptions = ref([])
+const cityCascaderProps = { value: 'id', label: 'label', children: 'children', emitPath: true }
+
+const loadCityOptions = async () => {
+  try {
+    const res = await getAreaTreeAPI()
+    if (res && res.code === 200 && Array.isArray(res.data)) {
+      cityOptions.value = res.data.map(prov => ({
+        id: prov.id,
+        label: prov.provinceName,
+        children: (prov.children || []).map(city => ({
+          id: city.id,
+          label: city.cityName,
+          children: []
+        }))
+      }))
+    }
+  } catch (e) {
+    cityOptions.value = []
+  }
+}
+
+// 按城市名反查级联路径（草稿 / 复制路线回填用）
+const syncCityPathByName = (name) => {
+  const cityName = String(name || '').trim()
+  if (!cityName) { cityPath.value = []; return }
+  for (const prov of cityOptions.value) {
+    const hit = (prov.children || []).find(c => c.label === cityName)
+    if (hit) { cityPath.value = [prov.id, hit.id]; return }
+  }
+  // 标准表里找不到时保留原城市名，级联不回显，提交仍带该名称
+  cityPath.value = []
+}
+
+const onCityChange = (path) => {
+  if (Array.isArray(path) && path.length === 2) {
+    const prov = cityOptions.value.find(p => p.id === path[0])
+    const city = (prov?.children || []).find(c => c.id === path[1])
+    publishForm.value.city = city ? city.label : ''
+  } else {
+    publishForm.value.city = ''
+  }
 }
 
 // 可选标签（来自后端 /tag/list，后台标签管理改了这里会同步）
@@ -658,9 +731,11 @@ const loadHomeRoutes = async () => {
 }
 
 onMounted(async () => {
+  await loadCityOptions()
   await loadTagOptions()
   await loadHomeRoutes()
   restoreDraft()
+  syncCityPathByName(publishForm.value.city)
 })
 
 // 通勤方式可选项；耗时（分钟）单独填写，提交时组合成展示用 transport 字符串
@@ -676,11 +751,11 @@ const composeTransport = (mode, min) => {
 // 把旧的「打车 15min / 步行」等文本拆回方式与耗时，兼容自由文本
 const splitTransport = (raw) => {
   const s = String(raw || '').trim()
-  if (!s) return { transportMode: '', transportMin: '' }
+  if (!s) return { transportMode: '', transportMin: null }
   const hit = TRANSPORT_MODES.find(m => s.startsWith(m))
-  if (!hit) return { transportMode: '', transportMin: '' }
+  if (!hit) return { transportMode: '', transportMin: null }
   const num = s.match(/(\d+)\s*(?:min|分钟)?/)
-  return { transportMode: hit, transportMin: num ? num[1] : '' }
+  return { transportMode: hit, transportMin: num ? Number(num[1]) : null }
 }
 
 // 把点位列表写进表单（统一字段结构）
@@ -763,6 +838,7 @@ const importFromHomeRoute = async () => {
     const r = vo.route
     publishForm.value.routeName = r.routeName || route.routeName
     publishForm.value.city = r.city || route.city || ''
+    syncCityPathByName(publishForm.value.city)
     publishForm.value.coverImage = /^(http|data:image)/.test(String(r.coverImage || '')) ? r.coverImage : ''
     publishForm.value.description = r.description || ''
     applyPointsToForm((vo.points || []).map(parseRoutePoint))
@@ -805,7 +881,7 @@ const fillMissingCoord = async () => {
 
 // 添加打卡点
 const addPoint = () => {
-  publishForm.value.points.push({ name: '', time: '12:00', transport: '', transportMode: '', transportMin: '', tip: '', description: '', image: '', address: '', longitude: '', latitude: '' })
+  publishForm.value.points.push({ name: '', time: '12:00', transport: '', transportMode: '', transportMin: null, tip: '', description: '', image: '', address: '', longitude: '', latitude: '' })
 }
 
 // 删除打卡点

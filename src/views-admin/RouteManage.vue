@@ -20,6 +20,9 @@
 
     <!-- 搜索栏 -->
     <div class="search-bar">
+      <el-select v-model="cityFilter" placeholder="全部城市" clearable filterable style="width: 200px;">
+        <el-option v-for="c in cityOptions" :key="c.id" :label="c.cityName" :value="c.cityName" />
+      </el-select>
       <el-input v-model="searchKey" placeholder="搜索路线名称或城市..." clearable style="width: 300px;" />
       <el-button type="primary" class="dopa-btn" @click="loadData">查询</el-button>
     </div>
@@ -86,10 +89,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import request from '@/utils/request'
+import { getCityListAPI } from '@/api/map'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const searchKey = ref('')
+const cityFilter = ref('')
+const cityOptions = ref([])
 const tableData = ref([])
 const detailVisible = ref(false)
 const curRow = ref({})
@@ -120,11 +126,24 @@ const loadData = async () => {
   }
 }
 
+// 标准城市列表（与发布页城市选择同源）
+const loadCityOptions = async () => {
+  try {
+    const res = await getCityListAPI()
+    cityOptions.value = res && Array.isArray(res.data) ? res.data : []
+  } catch (error) {
+    cityOptions.value = []
+  }
+}
+
 // 前端本地过滤：先按状态分类，再按关键词；"全部"里待审核排最前
 const filteredData = computed(() => {
   let list = tableData.value
   if (activeStatus.value !== 'all') {
     list = list.filter(item => String(item.auditStatus) === activeStatus.value)
+  }
+  if (cityFilter.value) {
+    list = list.filter(item => item.city === cityFilter.value)
   }
   if (searchKey.value) {
     const k = searchKey.value
@@ -174,6 +193,7 @@ onMounted(() => {
   const qs = route.query.status
   if (qs !== undefined && qs !== null && qs !== '') activeStatus.value = String(qs)
   loadData()
+  loadCityOptions()
 })
 </script>
 

@@ -9,6 +9,15 @@ export function getAreaTreeAPI() {
   })
 }
 /**
+ * @description 标准城市列表（发布页/后台路线管理城市选择共用）
+ */
+export function getCityListAPI() {
+  return request({
+    url: "/city/list",
+    method: "get"
+  })
+}
+/**
  * @description 获取地图打卡点位，支持cityId城市筛选
  */
 export function getMapPoints(params) {
