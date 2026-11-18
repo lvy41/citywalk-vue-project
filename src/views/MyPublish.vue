@@ -11,15 +11,19 @@
 
     <div class="content-wrap">
       <!-- 有路线列表 -->
-      <div v-if="list.length > 0" class="route-list">
-        <div class="route-item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
-          <div class="route-img">
-            <img :src="item.cover || defaultImg" alt="">
-          </div>
-          <div class="route-info">
-            <div class="route-name">{{ item.title }}</div>
-            <div class="route-desc">{{ item.content }}</div>
-            <div class="route-time">{{ item.createTime }}</div>
+      <div v-if="list.length > 0" class="card-list">
+        <div v-for="item in list" :key="item.id" class="record-card" @click="goDetail(item.id)">
+          <img :src="item.coverImage || '/pictures/Myback.jpg'" class="card-cover" alt="封面" @error="onImgError($event)">
+          <div class="card-info">
+            <div class="title-row">
+              <h3 class="card-title link-title">
+                {{ item.routeName }} <span class="arrow">></span>
+              </h3>
+            </div>
+            <p class="card-desc">
+              <span class="pub-flag" :class="{ 'pub-yes': item.auditStatus === 1 }">{{ pubText(item) }}</span>
+            </p>
+            <p class="card-time">创建时间：{{ fmtTime(item.createTime) }}</p>
           </div>
         </div>
       </div>
@@ -39,7 +43,6 @@ import { getUserPublishRouteAPI } from '@/api/route' // 查询用户发布路线
 const router = useRouter()
 
 const list = ref([])
-const defaultImg = ref('https://picsum.photos/id/1039/300/200')
 
 // 跳转到路线详情
 const goDetail = (id) => {
@@ -47,16 +50,31 @@ const goDetail = (id) => {
   router.push(`/detail/${id}`)
 }
 
+const onImgError = (e) => {
+  e.target.style.display = 'none'
+}
+
+const pubText = (item) => {
+  if (item.auditStatus === 2) return '已下架'
+  if (item.auditStatus === 0) return '待审核'
+  return item.isPublic ? '公开路线' : '未公开路线'
+}
+
+// 兼容后端 ISO / 时间戳，格式化为 YYYY-MM-DD HH:mm
+const fmtTime = (t) => {
+  if (!t) return '未知时间'
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return String(t)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // 获取我的发布列表：优先后端，接口不可用时退回本地暂存
 const getList = async () => {
   try {
     const res = await getUserPublishRouteAPI()
     const data = res && res.data
-    if (Array.isArray(data)) {
-      list.value = data
-      return
-    }
-    list.value = []
+    list.value = Array.isArray(data) ? data : []
   } catch (e) {
     console.warn('我的发布接口不可用，改用本地暂存', e)
     try {
@@ -82,98 +100,144 @@ onMounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(140deg, #e65b38, #ff9048);
-  color: #fff;
-  padding: 18px 20px;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #fff;
+  padding: 18px 20px;
+  background: linear-gradient(140deg, #e65b38, #ff9048);
 }
-.back {
+
+.page-header .back {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 15px;
-  color: #FF7A45;
   font-weight: bold;
   cursor: pointer;
   background: #FFF0F3;
+  color: #FF7A45;
   padding: 6px 12px;
   border-radius: 20px;
 }
+
 .page-header h2 {
+  margin: 0;
   font-size: 20px;
   font-weight: 600;
-  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
 }
+
 .placeholder {
-  width: 70px;
+  width: 64px;
 }
 
 .content-wrap {
   padding: 20px 16px 40px;
 }
 
-.empty-wrap {
-  text-align: center;
-  margin-top: 120px;
-}
-.empty-text {
-  font-size: 22px;
-  color: #999;
-}
-
-.route-list {
+.card-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.route-item {
-  background: #fff;
-  border-radius: 20px;
-  padding: 14px;
+
+.record-card {
   display: flex;
-  gap:12px;
-  box-shadow: 0 4px 16px rgba(255,130,50,0.1);
+  background: #ffffff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease;
   cursor: pointer;
 }
-.route-img {
-  width: 100px;
-  height: 80px;
-  border-radius:12px;
-  overflow: hidden;
+
+.record-card:active {
+  transform: scale(0.98);
+}
+
+.card-cover {
+  width: 110px;
+  height: 110px;
+  object-fit: cover;
   flex-shrink: 0;
 }
-.route-img img {
-  width:100%;
-  height:100%;
-  object-fit: contain;
-  background:#f4f5f7;
+
+.card-info {
+  flex: 1;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
-.route-info {
-  flex:1;
-  display:flex;
-  flex-direction:column;
+
+.title-row {
+  display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
 }
-.route-name {
-  font-size:16px;
-  font-weight:500;
-  color:#222;
+
+.title-row .card-title {
+  margin: 0;
+  flex: 1;
 }
-.route-desc {
-  font-size:13px;
-  color:#666;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+
+.link-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #303133;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: color 0.2s;
 }
-.route-time {
-  font-size:12px;
-  color:#999;
+
+.link-title:active {
+  color: #FF7A45;
+}
+
+.link-title .arrow {
+  font-size: 14px;
+  color: #C0C4CC;
+}
+
+.card-desc,
+.card-time {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #606266;
+}
+
+.card-time {
+  color: #909399;
+}
+
+.pub-flag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #F2F3F5;
+  color: #909399;
+}
+
+.pub-flag.pub-yes {
+  background: #F0F9EB;
+  color: #67C23A;
+}
+
+.empty-wrap {
+  text-align: center;
+  padding: 120px 0;
+}
+
+.empty-text {
+  font-size: 22px;
+  color: #999;
 }
 </style>

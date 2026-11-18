@@ -14,8 +14,8 @@ export const deleteMyCheckinRouteAPI = (routeId) => request.delete('/checkin/rou
 export const createMyCheckinRouteAPI = (sourceRouteId) => request.post('/checkin/route/create', { sourceRouteId })
 // 我的打卡路线列表
 export const getMyCheckinRoutesAPI = () => request.get('/checkin/route/my')
-// 打卡副本中某个点位（index 从 0 开始），image 为可选的打卡照片 data URL
-export const checkinRoutePointAPI = (id, index, image) => request.post(`/checkin/route/${id}/point`, { index, image: image || null })
+// 打卡副本中某个点位（index 从 0 开始），image 为可选的打卡照片 data URL，lng/lat 为当前定位坐标，demo 为演示打卡（免定位）
+export const checkinRoutePointAPI = (id, index, image, lng, lat, demo) => request.post(`/checkin/route/${id}/point`, { index, image: image || null, lng: lng ?? null, lat: lat ?? null, demo: !!demo })
 // 回收站列表（软删除）
 export const getTrashRoutesAPI = () => request.get('/checkin/route/trash')
 // 从回收站恢复

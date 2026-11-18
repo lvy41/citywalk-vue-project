@@ -109,7 +109,7 @@
                   {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
                 </span>
                 <span class="c-action" @click="startReply(r)">回复</span>
-                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r)">删除</span>
+                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r, c)">删除</span>
               </div>
             </div>
           </div>
@@ -446,16 +446,6 @@ const toggleCommentLike = async (comment) => {
   }
 }
 
-const removeComment = async (comment) => {
-  try {
-    await deleteCommentAPI(comment.id)
-    ElMessage.success('评论已删除')
-    loadComments()
-  } catch (e) {
-    ElMessage.warning('删除失败，仅路线发布者或本人可删除')
-  }
-}
-
 //提交评论/回复
 const submitComment = async () => {
   const content = replyingTo.value ? replyText.value.trim() : commentText.value.trim()
@@ -487,23 +477,6 @@ const submitComment = async () => {
   }
 }
 
-// 点赞 / 取消点赞评论
-const toggleLike = async (comment, root) => {
-  if (!localStorage.getItem('token')) {
-    ElMessage.warning('请先登录后再点赞')
-    return
-  }
-  try {
-    const res = await toggleCommentLikeAPI(comment.id)
-    if (res.code === 200 && res.data) {
-      comment.liked = !!res.data.liked
-      comment.likeCount = res.data.likeCount ?? 0
-    }
-  } catch (e) {
-    ElMessage.warning('点赞失败，请确认已登录')
-  }
-}
-
 // 删除评论（仅路线发布者或本人，后端二次校验）
 const removeComment = async (comment, root) => {
   try {
@@ -512,7 +485,7 @@ const removeComment = async (comment, root) => {
     return
   }
   try {
-    const res = await deleteRouteCommentAPI(comment.id)
+    const res = await deleteCommentAPI(comment.id)
     if (res.code !== 200) throw new Error(res.msg || '删除失败')
     ElMessage.success('评论已删除')
     if (root) {
