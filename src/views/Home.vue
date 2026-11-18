@@ -22,13 +22,16 @@
           <el-icon class="back-chevron"><ArrowLeft /></el-icon>
         </el-button>
         <div class="search-input-wrap">
-          <input
-            ref="searchInputRef"
-            v-model="searchText"
-            type="text"
-            placeholder="输入路线/地点/城市/用户ID"
-            @keyup.enter="onSearch"
-          />
+          <div class="input-box">
+            <input
+              ref="searchInputRef"
+              v-model="searchText"
+              type="text"
+              placeholder="输入路线/地点/城市/用户ID"
+              @keyup.enter="onSearch"
+            />
+            <span v-if="searchText" class="clear-input" @click="clearSearchInput" aria-label="清空输入">×</span>
+          </div>
           <el-button type="primary" @click="onSearch" class="search-submit-btn">搜索</el-button>
         </div>
         <span class="cancel-text" @click="closeSearchPanel">取消</span>
@@ -260,6 +263,7 @@ import { pinyin } from 'pinyin-pro'
 import { getRouteListAPI, likeRouteAPI, unlikeRouteAPI, favoriteRouteAPI, unfavoriteRouteAPI } from '@/api/route'
 import { searchUserAPI } from '@/api/user'
 import { getAreaTreeAPI } from '@/api/map'
+import { getTagList } from '@/api/tag'
 import { load } from '@amap/amap-jsapi-loader'
 const router = useRouter()
 const route = useRoute()
@@ -458,9 +462,19 @@ const clearAllHistory = ()=>{
   saveHistoryStorage()
 }
 
-// 点击历史项
-const selectHistory = (cityName)=>{
-  goJumpCity(cityName)
+// 点击历史项：回填关键词并走完整搜索（用户 / 城市 / 路线），不再直接跳城市页
+const selectHistory = (kw)=>{
+  searchText.value = kw
+  onSearch()
+}
+
+// 一键清空搜索框，并回到历史记录视图
+const clearSearchInput = ()=>{
+  searchText.value = ''
+  userResults.value = []
+  routeKeyword.value = ''
+  hasSearched.value = false
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 // 搜索面板有两种用途：search=按关键词找路线；pick=给首页选城市（不跳页，只筛选首页列表）
@@ -571,6 +585,7 @@ const goRouteResult = () => {
 const onSearch = async ()=>{
   const kw = searchText.value.trim()
   if(!kw) return
+  addHistoryItem(kw)
   await loadAreaTree()
   await loadUserResults(kw)
   hasSearched.value = true
@@ -584,9 +599,10 @@ const onSearch = async ()=>{
     resetCityScroll()
     return
   }
-  routeKeyword.value = matched && matched.type === 'city' ? matched.name : kw
-  // 命中用户时先留在面板展示用户结果，路线结果通过按钮再跳转
-  if (!userResults.value.length) goRouteResult()
+  const matchedCity = matched && matched.type === 'city' ? matched.name : ''
+  routeKeyword.value = matchedCity || kw
+  // 只有命中真实城市时才跳到城市路线页；搜用户/ID 等未命中地区时留在面板展示结果，避免误跳空城市页
+  if (!userResults.value.length && matchedCity) goRouteResult()
 }
 
 // ✅ 使用命名路由，params参数名 cityName 和router/index.js保持一致
@@ -984,12 +1000,35 @@ watch(()=>route.query.fromSearch, (val)=>{
   gap:6px;
   align-items:center;
 }
+.input-box{
+  flex:1;
+  position:relative;
+  display:flex;
+  align-items:center;
+}
 .search-input-wrap input{
   flex:1;
   border:1px solid #ddd;
   border-radius:8px;
-  padding:9px 12px;
+  padding:9px 34px 9px 12px;
   font-size:15px;
+}
+.clear-input{
+  position:absolute;
+  right:10px;
+  width:20px;
+  height:20px;
+  line-height:18px;
+  text-align:center;
+  border-radius:50%;
+  background:#e5e7eb;
+  color:#fff;
+  font-size:14px;
+  cursor:pointer;
+  user-select:none;
+}
+.clear-input:active{
+  background:#d1d5db;
 }
 .search-submit-btn{
   background-color:#ff6b35;
