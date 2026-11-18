@@ -486,6 +486,44 @@ const submitComment = async () => {
     ElMessage.warning('评论失败，请确认已登录')
   }
 }
+
+// 点赞 / 取消点赞评论
+const toggleLike = async (comment, root) => {
+  if (!localStorage.getItem('token')) {
+    ElMessage.warning('请先登录后再点赞')
+    return
+  }
+  try {
+    const res = await toggleCommentLikeAPI(comment.id)
+    if (res.code === 200 && res.data) {
+      comment.liked = !!res.data.liked
+      comment.likeCount = res.data.likeCount ?? 0
+    }
+  } catch (e) {
+    ElMessage.warning('点赞失败，请确认已登录')
+  }
+}
+
+// 删除评论（仅路线发布者或本人，后端二次校验）
+const removeComment = async (comment, root) => {
+  try {
+    await ElMessageBox.confirm('确定删除这条评论吗？', '提示', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch {
+    return
+  }
+  try {
+    const res = await deleteRouteCommentAPI(comment.id)
+    if (res.code !== 200) throw new Error(res.msg || '删除失败')
+    ElMessage.success('评论已删除')
+    if (root) {
+      root.children = (root.children || []).filter(r => r.id !== comment.id)
+    } else {
+      commentList.value = commentList.value.filter(c => c.id !== comment.id)
+    }
+  } catch (e) {
+    ElMessage.warning(e.response?.data?.msg || '删除失败，仅路线发布者可删除该评论')
+  }
+}
 onMounted(()=>{
   if(!routeId.value){
     ElMessage.warning("路线id不存在，返回首页")
@@ -750,8 +788,100 @@ onUnmounted(()=>{
   border-radius:10px;
   padding:14px;
 }
+.c-count{
+  font-size:13px;
+  color:#999;
+  font-weight:normal;
+}
+.reply-hint{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:8px 0;
+  padding:6px 10px;
+  background:#fff3ec;
+  border-radius:8px;
+  font-size:13px;
+  color:#ff6b35;
+}
+.reply-to-name{
+  font-weight:600;
+}
+.reply-cancel{
+  margin-left:auto;
+  color:#999;
+  cursor:pointer;
+}
+.c-input-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.c-input-box{
+  flex:1;
+  position:relative;
+}
+.c-input-box :deep(.el-input__inner){
+  padding-right:32px;
+}
+.clear-input{
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:20px;
+  height:20px;
+  line-height:18px;
+  text-align:center;
+  border-radius:50%;
+  background:#e5e7eb;
+  color:#fff;
+  font-size:14px;
+  cursor:pointer;
+  user-select:none;
+}
+.clear-input:active{
+  background:#d1d5db;
+}
+.emoji-btn{
+  font-size:22px;
+  cursor:pointer;
+  user-select:none;
+  line-height:1;
+  padding:4px;
+  border-radius:8px;
+}
+.emoji-btn.on{
+  background:#fff3ec;
+}
+.emoji-panel{
+  margin-top:8px;
+  padding:10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  gap:6px;
+  max-height:180px;
+  overflow-y:auto;
+}
+.emoji-item{
+  font-size:20px;
+  text-align:center;
+  cursor:pointer;
+  padding:4px 0;
+  border-radius:6px;
+}
+.emoji-item:active{
+  background:#e5e7eb;
+}
+.c-submit{
+  margin:8px 0;
+  background-color:#ff6b35;
+  border-color:#ff6b35;
+}
 .comment-item{
-  padding:8px 0;
+  padding:10px 0;
   border-bottom:1px solid #eee;
 }
 .c-head{
@@ -774,6 +904,58 @@ onUnmounted(()=>{
 .c-content{
   font-size:14px;
   margin-top:2px;
+  word-break:break-word;
+}
+.c-actions{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin-top:6px;
+}
+.c-action{
+  font-size:12px;
+  color:#999;
+  cursor:pointer;
+}
+.c-action.active{
+  color:#ff6b35;
+}
+.c-action.danger{
+  color:#f56c6c;
+}
+.reply-list{
+  margin:8px 0 0 36px;
+  padding:8px 10px;
+  background:#f7f8fa;
+  border-radius:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.reply-item{
+  display:flex;
+  gap:8px;
+}
+.r-avatar{
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#f4f5f7;
+  flex:none;
+}
+.r-body{
+  flex:1;
+  min-width:0;
+}
+.r-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.r-to{
+  font-size:12px;
+  color:#999;
 }
 .c-time{
   font-size:12px;
