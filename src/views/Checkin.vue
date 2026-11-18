@@ -47,12 +47,15 @@
               :loading="checkingId === p.id"
               @click="onCheckin(p)"
             >{{ checkedIds.includes(p.id) ? '已打卡' : '到此打卡' }}</el-button>
+            <el-button
+              v-if="p.demo"
+              size="small"
+              type="warning"
+              :disabled="checkedIds.includes(p.id)"
+              :loading="checkingId === p.id"
+              @click="onCheckin(p, true)"
+            >✨ 演示打卡</el-button>
             <span v-if="distanceTip[p.id]" class="ck-distance">{{ distanceTip[p.id] }}</span>
-            <span
-              v-if="!checkedIds.includes(p.id)"
-              class="ck-demo"
-              @click="demoCheckin(p)"
-            >演示打卡</span>
           </div>
           <div class="ck-photo" v-if="!checkedIds.includes(p.id)">
             <template v-if="pointPhotos[p.id]">
@@ -102,7 +105,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { getRouteDetailFullAPI } from '@/api/route'
 import { createMyCheckinRouteAPI, checkinRoutePointAPI, getTrophyAPI } from '@/api/checkin'
 import TrophyDialog from '@/components/TrophyDialog.vue'
@@ -169,7 +172,10 @@ const loadDetail = async () => {
     if (res.code === 200 && res.data) {
       routeName.value = res.data.route.routeName
       routeCity.value = res.data.route.city
-      points.value = res.data.points || []
+      points.value = (res.data.points || []).map(pt => ({
+        ...pt,
+        demo: !!pt.demo || /演示/.test(`${pt.pointName || ''} ${pt.description || ''} ${pt.location || ''}`)
+      }))
     }
   } catch (e) {
     ElMessage.error('路线加载失败')
@@ -240,8 +246,8 @@ const ensureMyRoute = async () => {
   return false
 }
 
-// 用副本里的点位序号（index 从 0 开始）提交打卡，image 为可选打卡照片
-const submitPoint = async (p, image) => {
+// 用副本里的点位序号（index 从 0 开始）提交打卡，image 为可选打卡照片，lng/lat 为当前定位
+const submitPoint = async (p, image, lng, lat, demo) => {
   if (!(await ensureMyRoute())) {
     ElMessage.error('打卡路线副本创建失败，请稍后重试')
     return null
@@ -251,7 +257,7 @@ const submitPoint = async (p, image) => {
     ElMessage.error('该点位不在打卡路线中')
     return null
   }
-  return checkinRoutePointAPI(myRouteId.value, index, image)
+  return checkinRoutePointAPI(myRouteId.value, index, image, lng, lat, demo)
 }
 
 // 压缩本地照片为 data URL，限制最长边 1000、JPEG 0.82，避免快照过大
@@ -310,37 +316,37 @@ const clearPhoto = (p) => {
   pointPhotos.value = next
 }
 
-const onCheckin = async (p) => {
+const onCheckin = async (p, isDemo = false) => {
   if (checkedIds.value.includes(p.id)) return
-  if (p.longitude == null || p.latitude == null) {
-    ElMessage.warning('该点位缺少坐标，无法打卡')
-    return
-  }
   checkingId.value = p.id
   try {
-    const pos = await getPosition()
-    let lng = p.longitude
-    let lat = p.latitude
-
-    if (pos) {
+    let lng = null
+    let lat = null
+    if (!isDemo) {
+      if (p.longitude == null || p.latitude == null) {
+        ElMessage.warning('该点位缺少坐标，无法打卡')
+        checkingId.value = null
+        return
+      }
+      const pos = await getPosition()
+      if (!pos) {
+        ElMessage.warning('无法获取当前定位，请开启定位权限后再打卡')
+        checkingId.value = null
+        return
+      }
       const dist = haversine(pos.lat, pos.lng, Number(p.latitude), Number(p.longitude))
       if (dist > 200) {
         distanceTip.value[p.id] = `距该点位约 ${Math.round(dist)} 米`
         ElMessage.warning(`距「${p.pointName}」约 ${Math.round(dist)} 米，请到达点位附近再打卡`)
+        checkingId.value = null
         return
       }
       distanceTip.value[p.id] = `距该点位约 ${Math.round(dist)} 米`
       lng = pos.lng
       lat = pos.lat
-    } else {
-      await ElMessageBox.confirm(
-        '无法获取当前定位。是否使用演示模式打卡（不校验位置）？',
-        '定位不可用',
-        { confirmButtonText: '演示打卡', cancelButtonText: '取消', type: 'warning' }
-      )
     }
 
-    const res = await submitPoint(p, pointPhotos.value[p.id])
+    const res = await submitPoint(p, pointPhotos.value[p.id], lng, lat, isDemo)
     if (res && res.code === 200 && res.data) {
       myPoints.value = res.data.points || myPoints.value
       checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
@@ -355,29 +361,6 @@ const onCheckin = async (p) => {
     if (e && e !== 'cancel' && e !== 'close') {
       // 业务错误信息已由请求拦截器提示
     }
-  } finally {
-    checkingId.value = null
-  }
-}
-
-// 演示打卡：不校验定位，直接提交副本点位
-const demoCheckin = async (p) => {
-  if (checkedIds.value.includes(p.id)) return
-  checkingId.value = p.id
-  try {
-    const res = await submitPoint(p, pointPhotos.value[p.id])
-    if (res && res.code === 200 && res.data) {
-      myPoints.value = res.data.points || myPoints.value
-      checkedIds.value = myPoints.value.filter(pt => pt.checked).map(pt => pt.pointId)
-      clearPhoto(p)
-      ElMessage.success(`「${p.pointName}」演示打卡成功`)
-      if (res.data.status === 1 || res.data.checkedPoints >= res.data.totalPoints) {
-        finished.value = true
-      }
-      applyTrophyResult(res.data)
-    }
-  } catch (e) {
-    /* 错误提示由请求拦截器处理 */
   } finally {
     checkingId.value = null
   }
@@ -528,13 +511,6 @@ onMounted(async () => {
   gap: 8px;
 }
 .ck-distance { font-size: 11px; color: #999; }
-.ck-demo {
-  font-size: 11px;
-  color: #b0b0b0;
-  text-decoration: underline;
-  padding: 2px 4px;
-}
-.ck-demo:active { color: #ff6b35; }
 
 .ck-hidden-input { display: none; }
 .ck-photo { margin-top: 8px; display: flex; align-items: center; gap: 8px; }

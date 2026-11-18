@@ -205,54 +205,83 @@
     />
 
     <!-- ================= 自由闯关打卡页 ================= -->
-    <div v-else-if="currentView === 'checkin-play'" class="fade-in">
-      <div class="detail-header">
-        <div class="back-btn" @click="currentView = 'list'">
-          <el-icon><ArrowLeft /></el-icon> 返回
+    <div v-else-if="currentView === 'checkin-play'" class="fade-in play-page">
+      <div class="play-header">
+        <button class="play-back" @click="currentView = 'list'" aria-label="返回">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <div class="play-head-main">
+          <div class="play-title">{{ currentPlayRoute.routeName }}</div>
+          <div class="play-sub">{{ currentPlayRoute.city || '本地' }} · 共 {{ currentPlayRoute.points.length }} 个点位</div>
         </div>
-        <h2 class="detail-title">{{ currentPlayRoute.routeName }}</h2>
-        <div class="header-placeholder"></div>
       </div>
 
-      <div class="game-map" style="padding-top: 10px;">
-        <p class="progress-text" style="text-align: left; margin-bottom: 15px;">
-          已打卡：<span style="color: #FF7A45; font-weight: bold; font-size: 18px;">{{ checkedCount }}</span> / {{ currentPlayRoute.points.length }} 个点位
-        </p>
+      <div class="play-progress">
+        <div class="play-progress-text">
+          <span>已打卡 <b>{{ checkedCount }}</b> / {{ currentPlayRoute.points.length }}</span>
+          <span class="play-percent">{{ progressPercent }}%</span>
+        </div>
+        <div class="play-progress-bar">
+          <div class="play-progress-inner" :style="{ width: progressPercent + '%' }"></div>
+        </div>
+        <div class="play-tip">到达点位附近（200 米内）才能打卡，全部完成后获得奖杯</div>
+      </div>
 
-        <div class="levels-container">
-          <div 
-            v-for="(point, index) in currentPlayRoute.points" 
-            :key="index"
-            class="level-node is-active"
-            @click="handlePointClick(point, index)"
-          >
-            <div class="level-icon" :style="{ background: point.isChecked ? '#67C23A' : '#FF9A44' }">
-              <span v-if="point.isChecked">✔</span>
-              <span v-else>📍</span>
+      <div class="play-list">
+        <div
+          v-for="(point, index) in currentPlayRoute.points"
+          :key="point.id"
+          class="play-item"
+          :class="{ done: point.isChecked }"
+        >
+          <div class="play-index" :class="{ done: point.isChecked }">
+            {{ point.isChecked ? '✓' : index + 1 }}
+          </div>
+          <div class="play-main">
+            <div class="play-name">{{ point.name }}</div>
+            <div class="play-desc">{{ point.location || point.description || '暂无简介' }}</div>
+            <div class="play-actions">
+              <el-button size="small" @click="goPlayMap(point, index)">前往地图</el-button>
+              <el-button
+                size="small"
+                type="success"
+                :disabled="point.isChecked"
+                :loading="checkingId === point.id"
+                @click="doCheckin(point)"
+              >{{ point.isChecked ? '已打卡' : '到此打卡' }}</el-button>
+              <el-button
+                v-if="point.demo"
+                size="small"
+                type="warning"
+                :disabled="point.isChecked"
+                :loading="checkingId === point.id"
+                @click="doCheckin(point, true)"
+              >✨ 演示打卡</el-button>
+              <span v-if="distanceTip[point.id]" class="play-distance">{{ distanceTip[point.id] }}</span>
             </div>
-            <div class="level-info" style="flex: 1;">
-              <h4>{{ point.name }}</h4>
-              <p v-if="point.location">{{ point.location }}</p>
-              <div class="play-photo" v-if="!point.isChecked">
-                <template v-if="playPhotos[point.id]">
-                  <img :src="playPhotos[point.id]" class="play-photo-thumb" alt="打卡照片">
-                  <span class="play-photo-op" @click.stop="clearPlayPhoto(point)">移除</span>
-                </template>
-                <span v-else class="play-photo-add" @click.stop="triggerPlayPhoto(point)">📷 打卡照片（可选）</span>
-              </div>
-            </div>
-            <div class="level-status">
-              <el-button v-if="!point.isChecked" type="primary" size="small" round @click.stop="doCheckin(point)">打卡</el-button>
-              <el-tag v-else type="success" round effect="dark">已完成</el-tag>
+            <div class="play-photo" v-if="!point.isChecked">
+              <template v-if="playPhotos[point.id]">
+                <img :src="playPhotos[point.id]" class="play-photo-thumb" alt="打卡照片">
+                <span class="play-photo-op" @click.stop="clearPlayPhoto(point)">移除</span>
+              </template>
+              <span v-else class="play-photo-add" @click.stop="triggerPlayPhoto(point)">📷 上传打卡照片（可选）</span>
             </div>
           </div>
         </div>
-
-        <div class="action-footer" v-if="checkedCount === currentPlayRoute.points.length && currentPlayRoute.points.length > 0">
-          <el-button type="success" class="checkin-btn" @click="finishGame">🎉 恭喜通关！查看通关凭证</el-button>
-        </div>
-        <input ref="playPhotoInput" type="file" accept="image/*" class="play-hidden-input" @change="onPlayPhotoChange">
       </div>
+
+      <div class="play-footer">
+        <el-button
+          type="primary"
+          round
+          class="play-finish"
+          :disabled="checkedCount < currentPlayRoute.points.length"
+          @click="finishGame"
+        >
+          {{ checkedCount < currentPlayRoute.points.length ? `还差 ${currentPlayRoute.points.length - checkedCount} 个点位` : '🎉 恭喜通关！查看通关凭证' }}
+        </el-button>
+      </div>
+      <input ref="playPhotoInput" type="file" accept="image/*" class="play-hidden-input" @change="onPlayPhotoChange">
     </div>
 
     <!-- ================= 所有打卡点位汇总页 ================= -->
@@ -393,6 +422,43 @@ const fmtTime = (v) => {
   return String(v).replace('T', ' ').slice(0, 16)
 }
 
+// 允许打卡的距离阈值（米），与后端保持一致
+const MAX_CHECKIN_DISTANCE = 200
+
+// 浏览器定位（10 秒超时），失败返回 null
+const getPosition = () => new Promise((resolve) => {
+  if (!navigator.geolocation) return resolve(null)
+  let done = false
+  const timer = setTimeout(() => {
+    if (!done) { done = true; resolve(null) }
+  }, 10000)
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve({ lng: pos.coords.longitude, lat: pos.coords.latitude })
+    },
+    () => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve(null)
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  )
+})
+
+// 哈弗辛公式，两点距离（米）
+const haversine = (lat1, lng1, lat2, lng2) => {
+  const R = 6371000
+  const rad = (d) => (d * Math.PI) / 180
+  const dLat = rad(lat1 - lat2)
+  const dLng = rad(lng1 - lng2)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * Math.asin(Math.sqrt(a)) * R
+}
+
 const pickImage = (url) => (/^(http|data:image|\/)/.test(String(url || '')) ? url : defaultCover)
 
 // 点位地址兼容两种来源：自建记录直接存地址；从首页路线复制的存的是「地址：xxx；建议到达…」
@@ -431,6 +497,7 @@ const mapRoute = (r) => ({
       planTime: p.planTime || '',
       longitude: p.longitude,
       latitude: p.latitude,
+      demo: !!p.demo || /演示/.test(`${p.name || ''} ${p.description || ''} ${rawLoc || ''}`),
       checked: !!p.checked,
       isChecked: !!p.checked,
       transport: p.transport || '步行',
@@ -476,6 +543,14 @@ const currentTitle = ref('初出茅庐')
 
 const currentPlayRoute = ref({})
 const checkedCount = ref(0)
+const checkingId = ref(null)
+const distanceTip = ref({})
+
+const progressPercent = computed(() => {
+  const total = currentPlayRoute.value.points?.length || 0
+  if (!total) return 0
+  return Math.round((checkedCount.value / total) * 100)
+})
 
 // 续打页可选打卡照片：pointId -> data URL
 const playPhotos = ref({})
@@ -554,7 +629,24 @@ const startCheckin = (item) => {
   playData.points = playData.points.map(pt => ({ ...pt, isChecked: !!pt.checked }))
   currentPlayRoute.value = playData
   checkedCount.value = playData.points.filter(pt => pt.isChecked).length
+  distanceTip.value = {}
+  checkingId.value = null
   currentView.value = 'checkin-play'
+}
+
+// 跳转到地图：定位到当前点位并展示整条路线
+const goPlayMap = (point, index) => {
+  router.push({
+    path: '/map',
+    query: {
+      targetLng: point.longitude,
+      targetLat: point.latitude,
+      from: 'detail',
+      detailId: currentPlayRoute.value.sourceRouteId || '',
+      pointIndex: index,
+      routeName: currentPlayRoute.value.routeName || ''
+    }
+  })
 }
 
 // 压缩本地照片为 data URL，限制最长边 1000、JPEG 0.82
@@ -613,20 +705,36 @@ const clearPlayPhoto = (point) => {
   playPhotos.value = next
 }
 
-const handlePointClick = (point, index) => {
-  if (point.isChecked) {
-    ElMessage.info(`你已经在这个地方打过卡啦！`)
-  }
-}
-
-const doCheckin = (point) => {
-  ElMessageBox.confirm(`确认你已经到达「${point.name}」了吗？`, '打卡确认', {
+const doCheckin = (point, isDemo = false) => {
+  ElMessageBox.confirm(isDemo ? `演示打卡「${point.name}」？将不校验位置` : `确认你已经到达「${point.name}」了吗？`, '打卡确认', {
     confirmButtonText: '确认打卡', cancelButtonText: '还没到', type: 'success'
   }).then(async () => {
     const index = currentPlayRoute.value.points.findIndex(pt => pt.id === point.id)
-    if (index < -1) return
+    if (index < 0) return
+    const hasTarget = point.longitude != null && point.latitude != null
+      && !Number.isNaN(Number(point.longitude)) && !Number.isNaN(Number(point.latitude))
+    let lng = null
+    let lat = null
+    checkingId.value = point.id
+    if (!isDemo && hasTarget) {
+      const pos = await getPosition()
+      if (!pos) {
+        checkingId.value = null
+        ElMessage.warning('无法获取当前定位，请开启定位权限后再打卡')
+        return
+      }
+      const dist = haversine(pos.lat, pos.lng, Number(point.latitude), Number(point.longitude))
+      distanceTip.value[point.id] = `距该点位约 ${Math.round(dist)} 米`
+      if (dist > MAX_CHECKIN_DISTANCE) {
+        checkingId.value = null
+        ElMessage.warning(`距「${point.name}」约 ${Math.round(dist)} 米，请到达点位附近再打卡`)
+        return
+      }
+      lng = pos.lng
+      lat = pos.lat
+    }
     try {
-      const res = await request.post(`/checkin/route/${currentPlayRoute.value.id}/point`, { index, image: playPhotos.value[point.id] || null })
+      const res = await request.post(`/checkin/route/${currentPlayRoute.value.id}/point`, { index, image: playPhotos.value[point.id] || null, lng, lat, demo: isDemo })
       if (res && res.code === 200) {
         const data = res.data || {}
         point.isChecked = true
@@ -639,8 +747,10 @@ const doCheckin = (point) => {
       }
     } catch (err) {
       console.error(err)
+    } finally {
+      checkingId.value = null
     }
-  }).catch(() => {})
+  }).catch(() => { checkingId.value = null })
 }
 
 const finishGame = () => {
@@ -975,25 +1085,42 @@ onMounted(async () => {
 .delete-icon { font-size: 16px; color: #C0C4CC; cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s; }
 .delete-icon:hover { color: #F56C6C; background: #FEF0F0; }
 
-/* 闯关地图 */
-.game-map { padding: 10px 0; position: relative; }
-.progress-text { font-size: 13px; color: #909399; text-align: right; margin-bottom: 30px; }
-.levels-container { display: flex; flex-direction: column; gap: 20px; position: relative; padding-left: 20px; }
-.level-node { display: flex; align-items: center; gap: 15px; padding: 15px; background: #F5F7FA; border-radius: 16px; border: 2px dashed transparent; opacity: 0.6; transition: all 0.3s; cursor: not-allowed; }
-.level-node.is-active { opacity: 1; background: #fff; border-color: #FF9A44; box-shadow: 0 4px 16px rgba(255, 154, 68, 0.2); transform: scale(1.02); cursor: pointer; }
-.level-node.is-completed { opacity: 1; background: #F0F9EB; border-color: #67C23A; cursor: pointer; }
-.level-icon { width: 44px; height: 44px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; background: #DCDFE6; color: #fff; flex-shrink: 0; }
-.is-active .level-icon { background: #FF9A44; }
-.is-completed .level-icon { background: #67C23A; }
-.level-info h4 { margin: 0 0 5px 0; font-size: 16px; color: #303133; }
-.level-info p { margin: 0; font-size: 13px; color: #909399; }
+/* 闯关打卡页（对齐详情页打卡样式） */
+.play-page { padding-bottom: 88px; }
+.play-header { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; background: #fff; }
+.play-back { width: 32px; height: 32px; border-radius: 50%; border: none; background: #fff1e6; color: #ff6b35; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.play-back:active { transform: scale(.94); }
+.play-head-main { flex: 1; min-width: 0; }
+.play-title { font-size: 17px; font-weight: 600; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.play-sub { margin-top: 2px; font-size: 12px; color: #999; }
+
+.play-progress { margin: 10px 14px; padding: 12px 14px; background: #fff; border-radius: 14px; }
+.play-progress-text { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: #666; }
+.play-progress-text b { font-size: 18px; color: #ff6b35; }
+.play-percent { color: #ff6b35; font-weight: 600; }
+.play-progress-bar { margin-top: 8px; height: 8px; border-radius: 4px; background: #f0f1f3; overflow: hidden; }
+.play-progress-inner { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ffab6b, #ff6b35); transition: width .25s ease; }
+.play-tip { margin-top: 8px; font-size: 12px; color: #aaa; }
+
+.play-list { padding: 0 14px; }
+.play-item { display: flex; gap: 10px; padding: 14px; margin-bottom: 10px; background: #fff; border-radius: 14px; }
+.play-item.done { opacity: .92; }
+.play-index { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #1677ff; color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.play-index.done { background: #12a150; }
+.play-main { flex: 1; min-width: 0; }
+.play-name { font-size: 15px; font-weight: 600; color: #222; }
+.play-desc { margin-top: 3px; font-size: 12px; color: #888; }
+.play-actions { margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.play-distance { font-size: 11px; color: #999; }
+
 .play-hidden-input { display: none; }
-.play-photo { margin-top: 6px; display: flex; align-items: center; gap: 8px; }
-.play-photo-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
-.play-photo-add { font-size: 12px; color: #FF7A45; background: #FFF0F3; padding: 5px 10px; border-radius: 10px; cursor: pointer; }
+.play-photo { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.play-photo-thumb { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; }
+.play-photo-add { font-size: 12px; color: #FF7A45; background: #FFF0F3; padding: 6px 10px; border-radius: 10px; cursor: pointer; }
 .play-photo-op { font-size: 12px; color: #909399; cursor: pointer; text-decoration: underline; }
-.action-footer { margin-top: 30px; padding: 0 10px; }
-.checkin-btn { width: 100%; border-radius: 20px; font-size: 16px; font-weight: bold; padding: 12px 0; background: linear-gradient(to right, #FF9A44, #FC6076); border: none; }
+
+.play-footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(255, 255, 255, .96); box-shadow: 0 -2px 10px rgba(0, 0, 0, .06); z-index: 20; }
+.play-finish { width: 100%; height: 44px; font-size: 16px; font-weight: 600; background: linear-gradient(135deg, #ff8a4c, #ff6b35); border: none; }
 
 /* 从首页路线创建打卡路线的弹窗 */
 .pick-search { display: flex; gap: 10px; margin-bottom: 15px; }

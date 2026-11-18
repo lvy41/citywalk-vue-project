@@ -109,7 +109,7 @@
                   {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
                 </span>
                 <span class="c-action" @click="startReply(r)">回复</span>
-                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r)">删除</span>
+                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r, c)">删除</span>
               </div>
             </div>
           </div>
@@ -474,23 +474,6 @@ const submitComment = async () => {
     loadComments()
   } catch (e) {
     ElMessage.warning('评论失败，请确认已登录')
-  }
-}
-
-// 点赞 / 取消点赞评论
-const toggleLike = async (comment, root) => {
-  if (!localStorage.getItem('token')) {
-    ElMessage.warning('请先登录后再点赞')
-    return
-  }
-  try {
-    const res = await toggleCommentLikeAPI(comment.id)
-    if (res.code === 200 && res.data) {
-      comment.liked = !!res.data.liked
-      comment.likeCount = res.data.likeCount ?? 0
-    }
-  } catch (e) {
-    ElMessage.warning('点赞失败，请确认已登录')
   }
 }
 

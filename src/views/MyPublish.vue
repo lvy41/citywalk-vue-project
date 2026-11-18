@@ -106,36 +106,38 @@ onActivated(getList)
 }
 
 .page-header {
-  background: linear-gradient(140deg, #e65b38, #ff9048);
-  color: #fff;
-  padding: 18px 20px;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #fff;
+  padding: 18px 20px;
+  background: linear-gradient(140deg, #e65b38, #ff9048);
 }
-.back {
+
+.page-header .back {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 15px;
-  color: #FF7A45;
   font-weight: bold;
   cursor: pointer;
   background: #FFF0F3;
+  color: #FF7A45;
   padding: 6px 12px;
   border-radius: 20px;
 }
+
 .page-header h2 {
+  margin: 0;
   font-size: 20px;
   font-weight: 600;
-  margin: 0;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
 }
+
 .placeholder {
-  width: 70px;
+  width: 64px;
 }
 
 .content-wrap {
@@ -172,10 +174,8 @@ onActivated(getList)
   flex-direction: column;
   gap: 16px;
 }
-.route-item {
-  background: #fff;
-  border-radius: 20px;
-  padding: 14px;
+
+.record-card {
   display: flex;
   gap: 12px;
   box-shadow: 0 4px 16px rgba(255, 130, 50, 0.1);

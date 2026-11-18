@@ -69,8 +69,14 @@ const delComment = async (id) => {
   }
 }
 
-// 格式化时间
-const formatTime = (timeStr) => timeStr ? timeStr.replace('T', ' ').substring(0, 19) : ''
+// 格式化时间：后端返回带 Z 的 UTC 串，需按本地时区（UTC+8）解析后再格式化
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const d = new Date(typeof timeStr === 'string' ? timeStr.replace(' ', 'T') : timeStr)
+  if (Number.isNaN(d.getTime())) return String(timeStr)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 onMounted(() => {
   loadData()
