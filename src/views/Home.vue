@@ -158,21 +158,21 @@
         </div>
       </div>
     </div>
-    <!-- 轮播Banner -->
-    <div class="banner-wrap">
+    <!-- 轮播Banner：数据来自真实路线，封面/标题与详情页一致 -->
+    <div class="banner-wrap" v-if="bannerList.length">
       <div
         class="banner-item"
         v-for="(banner,idx) in bannerList"
-        :key="idx"
+        :key="banner.routeId"
         v-show="currentBannerIndex === idx"
         @click="goDetail(banner.routeId)"
       >
-        <img :src="banner.img" alt="">
+        <img :src="banner.img" alt="" @error="onCoverError($event)" />
         <div class="banner-text">{{banner.title}}</div>
         <div class="banner-enter">查看路线 ›</div>
       </div>
       <div class="banner-dots">
-        <span v-for="(item,idx) in bannerList" :key="idx" :class="{active:currentBannerIndex===idx}" @click="currentBannerIndex=idx"></span>
+        <span v-for="(item,idx) in bannerList" :key="item.routeId" :class="{active:currentBannerIndex===idx}" @click="currentBannerIndex=idx"></span>
       </div>
     </div>
     <!-- 热门排行榜：固定热度前5 -->
@@ -648,16 +648,13 @@ const onIndexTouchEnd = () => {
   lastLetterIdx = -1
 }
 
-// 轮播
-const bannerList = ref([
-  { img:'/pictures/11.jpg', title:'老城区一日漫步', routeId: 1 },
-  { img:'/pictures/22.jpg', title:'江边夜景路线', routeId: 10 },
-  { img:'/pictures/33.jpg', title:'文艺街巷打卡之旅', routeId: 7 }
-])
+// 轮播：数据来自首页真实路线（前 3 条），封面/标题与详情页一致
 const currentBannerIndex = ref(0)
 let bannerTimer = null
 const autoBanner = ()=>{
   bannerTimer = setInterval(()=>{
+    if (!bannerList.value.length) return
+    if (currentBannerIndex.value >= bannerList.value.length) currentBannerIndex.value = 0
     currentBannerIndex.value = (currentBannerIndex.value +1) % bannerList.value.length
   },3000)
 }
@@ -768,6 +765,11 @@ const rankList = computed(() =>
     .sort((a, b) => b.likeNum - a.likeNum)
     .slice(0, 5)
     .map(i => ({ id: i.id, name: i.name, city: i.city, hot: i.likeNum }))
+)
+
+// ✅轮播 Banner：取首页路线前 3 条，封面与标题均为库里真实数据，与详情页一致
+const bannerList = computed(() =>
+  routeRows.value.slice(0, 3).map(r => ({ img: r.cover, title: r.name, routeId: r.id }))
 )
 
 // ✅分类标签：标签由后端筛选，关键词在前端兜底过滤

@@ -93,3 +93,11 @@ export function deleteCommentAPI(commentId) {
     method: 'delete'
   })
 }
+
+// 删除本人发布的路线（后端校验归属并级联清理点赞/收藏/评论/点位/打卡等关联数据）
+export function deleteMyRouteAPI(routeId) {
+  return request({
+    url: `/route/${routeId}`,
+    method: 'delete'
+  })
+}
