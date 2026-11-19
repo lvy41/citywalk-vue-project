@@ -151,6 +151,10 @@
             <span>开启定位权限，为你推荐附近路线并支持打卡</span>
           </div>
         </div>
+        <!-- 管理员登录入口 -->
+        <div class="admin-entry">
+          <span class="admin-link" @click="goAdminLogin">后台管理入口 ›</span>
+        </div>
       </div>
       <!-- 底部 -->
       <div class="footer">
@@ -259,6 +263,9 @@ const goForgotPassword = () => {
     path: '/forgot-password',
     query: loginForm.username ? { username: loginForm.username } : {}
   })
+}
+const goAdminLogin = () => {
+  router.push('/adminlogin')
 }
 // ========== 登录 ==========
 const handleLogin = async () => {
@@ -693,6 +700,17 @@ const handleRegister = async () => {
   line-height: 1.5;
 }
 .tip-icon { font-size: 14px; flex-shrink: 0; }
+.admin-entry {
+  margin-top: 14px;
+  text-align: center;
+}
+.admin-link {
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+}
+.admin-link:hover { color: var(--primary); }
+.admin-link:active { opacity: 0.75; }
 /* ========== 底部 ========== */
 .footer {
   text-align: center;

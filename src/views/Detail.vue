@@ -74,11 +74,26 @@
       <!-- 评论区 -->
       <div class="comment-block">
         <div class="sub-title">用户评论</div>
-        <el-input
-          v-model="commentText"
-          :placeholder="'写下你的游玩感受...'"
-        />
-        <el-button style="margin:8px 0" type="primary" @click="submitComment">发表评论</el-button>
+        <div class="c-input-row">
+          <div class="c-input-box">
+            <el-input
+              v-model="commentText"
+              :placeholder="'写下你的游玩感受...'"
+              @keydown.enter.prevent="submitComment"
+            />
+            <span v-if="commentText" class="clear-input" @click="commentText = ''" aria-label="清空输入">×</span>
+          </div>
+          <span class="emoji-btn" :class="{ on: showEmojiPanel && !replyingTo }" @click="toggleEmojiPanel" title="表情">😀</span>
+          <el-button type="primary" @click="submitComment">发表评论</el-button>
+        </div>
+        <div v-if="showEmojiPanel && !replyingTo" class="emoji-panel">
+          <span
+            v-for="emoji in emojiList"
+            :key="emoji"
+            class="emoji-item"
+            @click="insertEmoji(emoji)"
+          >{{ emoji }}</span>
+        </div>
 
         <div class="comment-item" v-for="c in topComments" :key="c.id" :id="`comment-${c.id}`">
           <div class="c-head" @click="goUserProfile(c.userId)">
@@ -92,24 +107,26 @@
               {{ c.liked ? '❤️' : '🤍' }} {{ c.likeCount || 0 }}
             </span>
             <span class="c-action" @click="startReply(c)">回复</span>
-            <span v-if="c.canDelete" class="c-action delete" @click="removeComment(c)">删除</span>
+            <span v-if="canDeleteOf(c)" class="c-action delete" @click="removeComment(c)">删除</span>
           </div>
 
           <div class="reply-list">
             <div class="comment-item reply-item" v-for="r in repliesOf(c.id)" :key="r.id" :id="`comment-${r.id}`">
-              <div class="c-head" @click="goUserProfile(r.userId)">
-                <img class="c-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
-                <span class="c-user">{{ r.nickname || '匿名用户' }}</span>
-                <span v-if="r.replyToNickname" class="reply-to">回复 {{ r.replyToNickname }}</span>
-              </div>
-              <div class="c-content">{{ r.content }}</div>
-              <div class="c-time">{{ formatCommentTime(r.createTime) }}</div>
-              <div class="c-actions">
-                <span class="c-action" :class="{ liked: r.liked }" @click="toggleCommentLike(r)">
-                  {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
-                </span>
-                <span class="c-action" @click="startReply(r)">回复</span>
-                <span v-if="r.canDelete" class="c-action delete" @click="removeComment(r, c)">删除</span>
+              <img class="r-avatar" :src="r.avatar || '/pictures/Myback.jpg'" alt="" @error="onCoverError($event)" />
+              <div class="r-body">
+                <div class="r-head" @click="goUserProfile(r.userId)">
+                  <span class="c-user">{{ r.nickname || '匿名用户' }}</span>
+                  <span v-if="r.replyToNickname" class="r-to">回复 {{ r.replyToNickname }}</span>
+                </div>
+                <div class="c-content">{{ r.content }}</div>
+                <div class="c-time">{{ formatCommentTime(r.createTime) }}</div>
+                <div class="c-actions">
+                  <span class="c-action" :class="{ liked: r.liked }" @click="toggleCommentLike(r)">
+                    {{ r.liked ? '❤️' : '🤍' }} {{ r.likeCount || 0 }}
+                  </span>
+                  <span class="c-action" @click="startReply(r)">回复</span>
+                  <span v-if="canDeleteOf(r)" class="c-action delete" @click="removeComment(r, c)">删除</span>
+                </div>
               </div>
             </div>
           </div>
@@ -126,16 +143,28 @@
           <span class="reply-close" @click="cancelReply">取消</span>
         </div>
         <div class="reply-input-row">
-          <el-input
-            ref="replyInputRef"
-            v-model="replyText"
-            type="textarea"
-            :rows="2"
-            autosize
-            :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '回复内容...'"
-            @keydown.enter.prevent="submitComment"
-          />
+          <div class="reply-input-box">
+            <el-input
+              ref="replyInputRef"
+              v-model="replyText"
+              type="textarea"
+              :rows="2"
+              autosize
+              :placeholder="replyingTo ? `回复 @${replyingTo.nickname}...` : '回复内容...'"
+              @keydown.enter.prevent="submitComment"
+            />
+            <span v-if="replyText" class="clear-input" @click="replyText = ''" aria-label="清空输入">×</span>
+          </div>
+          <span class="emoji-btn" :class="{ on: showEmojiPanel && replyingTo }" @click="toggleEmojiPanel" title="表情">😀</span>
           <el-button class="reply-send" type="primary" round @click="submitComment">发送</el-button>
+        </div>
+        <div v-if="showEmojiPanel && replyingTo" class="emoji-panel">
+          <span
+            v-for="emoji in emojiList"
+            :key="emoji"
+            class="emoji-item"
+            @click="insertEmoji(emoji)"
+          >{{ emoji }}</span>
         </div>
       </div>
     </div>
@@ -183,8 +212,11 @@ import { getRouteDetailFullAPI, getRouteCommentsAPI, addRouteCommentAPI, likeRou
 import { getCheckinStatusAPI } from '@/api/checkin'
 import { getRoutePath } from '@/api/map'
 import AchievementDialog from '@/components/AchievementDialog.vue'
+import { useUserStore } from '@/store/user'
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userInfo?.id ?? null)
 //【重点：从params拿id，适配 /detail/:id】
 const routeId = ref(Number(route.params.id))
 // 返回：有上一页历史就回退，没有则回首页，避免直接打开详情页时按钮点了没反应
@@ -206,6 +238,19 @@ const replyingTo = ref(null)
 const replyVisible = ref(false)
 const replyText = ref("")
 const replyInputRef = ref(null)
+const showEmojiPanel = ref(false)
+const emojiList = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+  '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+  '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+  '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯',
+  '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+  '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '👍',
+  '👎', '👏', '🙏', '❤️', '💔', '🔥', '✨', '🌟', '🎉', '💯'
+]
 const likeCount = ref(0)
 const liked = ref(false)
 // 点赞 / 评论后的成就弹窗（只在累计到 10/20/50 时出现）
@@ -433,6 +478,27 @@ const cancelReply = () => {
   replyingTo.value = null
   replyText.value = ""
   replyVisible.value = false
+  showEmojiPanel.value = false
+}
+
+const toggleEmojiPanel = () => {
+  showEmojiPanel.value = !showEmojiPanel.value
+}
+
+const insertEmoji = (emoji) => {
+  if (replyingTo.value) {
+    replyText.value += emoji
+    nextTick(() => replyInputRef.value?.focus?.())
+  } else {
+    commentText.value += emoji
+  }
+}
+
+// 删除权限：以后端 canDelete 为准，本人评论做前端兜底（防止状态缺失导致按钮不显示）
+const canDeleteOf = (comment) => {
+  if (!comment) return false
+  if (comment.canDelete) return true
+  return currentUserId.value != null && Number(comment.userId) === Number(currentUserId.value)
 }
 
 const toggleCommentLike = async (comment) => {
@@ -470,6 +536,7 @@ const submitComment = async () => {
       cancelReply()
     } else {
       commentText.value = ''
+      showEmojiPanel.value = false
     }
     loadComments()
   } catch (e) {
@@ -790,6 +857,9 @@ onUnmounted(()=>{
   align-items:center;
   gap:8px;
 }
+.c-input-row .el-input{
+  flex:1;
+}
 .c-input-box{
   flex:1;
   position:relative;
@@ -862,6 +932,7 @@ onUnmounted(()=>{
   align-items:center;
   gap:8px;
   cursor:pointer;
+  min-width:0;
 }
 .c-avatar{
   width:28px;
@@ -878,6 +949,8 @@ onUnmounted(()=>{
   font-size:14px;
   margin-top:2px;
   word-break:break-word;
+  line-height:1.5;
+  min-width:0;
 }
 .c-actions{
   display:flex;
@@ -897,8 +970,8 @@ onUnmounted(()=>{
   color:#f56c6c;
 }
 .reply-list{
-  margin:8px 0 0 36px;
-  padding:8px 10px;
+  margin:8px 0 0 28px;
+  padding:10px;
   background:#f7f8fa;
   border-radius:10px;
   display:flex;
@@ -920,15 +993,20 @@ onUnmounted(()=>{
 .r-body{
   flex:1;
   min-width:0;
+  display:flex;
+  flex-direction:column;
 }
 .r-head{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:6px;
+  min-width:0;
+  flex-wrap:wrap;
 }
 .r-to{
   font-size:12px;
   color:#999;
+  white-space:nowrap;
 }
 .c-time{
   font-size:12px;
@@ -988,16 +1066,28 @@ onUnmounted(()=>{
   align-items:flex-end;
   gap:10px;
 }
-.reply-input-row .el-textarea{
+.reply-input-box{
   flex:1;
+  position:relative;
+}
+.reply-input-box .el-textarea{
+  width:100%;
+}
+.reply-input-box :deep(.el-textarea__inner){
+  padding-right:32px;
 }
 .reply-send{
   flex-shrink:0;
 }
+.reply-input-row .emoji-btn{
+  flex-shrink:0;
+  margin-bottom:6px;
+}
 .c-actions{
   display:flex;
   align-items:center;
-  gap:14px;
+  flex-wrap:wrap;
+  gap:12px;
   margin-top:6px;
   font-size:12px;
   color:#888;
@@ -1014,13 +1104,9 @@ onUnmounted(()=>{
 .c-action.delete:active{
   color:#e65b38;
 }
-.reply-list{
-  margin-left:34px;
-  border-left:1px solid #f0f0f0;
-  padding-left:10px;
-}
 .reply-item{
   border-bottom:none;
+  padding:0;
 }
 .reply-to{
   font-size:12px;
