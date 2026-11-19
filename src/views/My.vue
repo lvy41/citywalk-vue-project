@@ -29,7 +29,7 @@
           <div class="label">发布路线</div>
         </div>
         <div class="divider"></div>
-        <div class="stat-item clickable" @click="goMyLike">
+        <div class="stat-item">
           <div class="num">{{ stat.likeTotal }}</div>
           <div class="label">总获赞</div>
         </div>

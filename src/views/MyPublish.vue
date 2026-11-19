@@ -20,13 +20,27 @@
               <div class="route-name">{{ item.routeName || '未命名路线' }}</div>
               <span class="status-tag" :class="statusClass(item.auditStatus)">{{ statusText(item.auditStatus) }}</span>
             </div>
-            <div class="route-desc">{{ item.description || '暂无路线介绍' }}</div>
             <div class="route-meta">
               <span v-if="item.city">{{ item.city }}</span>
               <span v-if="item.duration">{{ item.duration }}</span>
               <span v-if="item.distance">{{ item.distance }}</span>
             </div>
-            <div class="route-time">{{ formatTime(item.createTime) }}</div>
+            <div class="route-desc">{{ item.description || '暂无路线介绍' }}</div>
+            <div class="route-foot">
+              <div class="route-stats">
+                <span class="stat">❤️ {{ item.likeCount || 0 }}</span>
+                <span class="stat">💬 {{ item.commentCount || 0 }}</span>
+                <span class="route-time">{{ formatTime(item.createTime) }}</span>
+              </div>
+              <el-button
+                type="danger"
+                size="small"
+                plain
+                round
+                class="del-btn"
+                @click.stop="confirmDelete(item)"
+              >删除</el-button>
+            </div>
           </div>
         </div>
       </div>
@@ -45,7 +59,8 @@
 import { ref, onMounted, onActivated } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getUserPublishRouteAPI } from '@/api/route'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getUserPublishRouteAPI, deleteMyRouteAPI } from '@/api/route'
 
 const router = useRouter()
 const list = ref([])
@@ -95,6 +110,31 @@ const getList = async () => {
   }
 }
 
+const confirmDelete = async (item) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除路线「${item.routeName || '未命名路线'}」吗？删除后该路线及其点赞、收藏、评论、打卡点位等关联数据将在全平台一并清除，且无法恢复。`,
+      '删除路线',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch (e) {
+    // 用户取消
+    return
+  }
+  try {
+    await deleteMyRouteAPI(item.id)
+    list.value = list.value.filter(r => r.id !== item.id)
+    ElMessage.success('路线已删除')
+  } catch (e) {
+    ElMessage.warning(e?.response?.data?.msg || '删除失败，请稍后重试')
+  }
+}
+
 onMounted(getList)
 onActivated(getList)
 </script>
@@ -112,6 +152,7 @@ onActivated(getList)
   color: #fff;
   padding: 18px 20px;
   background: linear-gradient(140deg, #e65b38, #ff9048);
+  position: relative;
 }
 
 .page-header .back {
@@ -175,15 +216,19 @@ onActivated(getList)
   gap: 16px;
 }
 
-.record-card {
+.route-item {
   display: flex;
   gap: 12px;
-  box-shadow: 0 4px 16px rgba(255, 130, 50, 0.1);
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(255, 130, 50, 0.12);
   cursor: pointer;
 }
+
 .route-img {
-  width: 100px;
-  height: 80px;
+  width: 88px;
+  height: 88px;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
@@ -193,15 +238,17 @@ onActivated(getList)
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
+
 .route-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 4px;
+  gap: 5px;
 }
+
 .route-name-row {
   display: flex;
   align-items: center;
@@ -209,8 +256,8 @@ onActivated(getList)
 }
 .route-name {
   font-size: 16px;
-  font-weight: 500;
-  color: #222;
+  font-weight: 600;
+  color: #303133;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -233,13 +280,7 @@ onActivated(getList)
   background: #fef0f0;
   color: #f56c6c;
 }
-.route-desc {
-  font-size: 13px;
-  color: #666;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 .route-meta {
   display: flex;
   flex-wrap: wrap;
@@ -247,8 +288,41 @@ onActivated(getList)
   font-size: 12px;
   color: #999;
 }
+.route-desc {
+  font-size: 13px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.route-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #909399;
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .route-time {
   font-size: 12px;
-  color: #999;
+  color: #b0b3b8;
+}
+.del-btn {
+  border: none;
+  background: #fff0f3;
+  color: #fc6076;
+  font-weight: 600;
+  padding: 5px 14px;
 }
 </style>

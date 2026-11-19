@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getUserInfoAPI } from '@/api/user'
+import { isTokenExpired } from '@/utils/jwt'
 
 export const useUserStore = defineStore('user', () => {
 // ========== 状态 ==========
@@ -70,8 +71,17 @@ throw error
 
 // 初始化：从localStorage读取缓存，刷新页面恢复登录状态【补充读取adminToken】
 const init = () => {
-token.value = localStorage.getItem('token') || ''
-adminToken.value = localStorage.getItem('adminToken') || '' //新增读取管理员token
+let savedToken = localStorage.getItem('token') || ''
+let savedAdmin = localStorage.getItem('adminToken') || ''
+// 本地先识别已过期的 token：过期就清掉，避免被后端公开接口按“匿名”处理，
+// 导致点赞/收藏/关注等状态回退成空心（后端白名单接口过期不会返回 401）。
+if (savedToken && isTokenExpired(savedToken)) savedToken = ''
+if (savedAdmin && isTokenExpired(savedAdmin)) savedAdmin = ''
+token.value = savedToken
+adminToken.value = savedAdmin
+if (!savedToken) localStorage.removeItem('token')
+if (!savedAdmin) localStorage.removeItem('adminToken')
+if (!savedToken) localStorage.removeItem('userInfo')
 const savedInfo = localStorage.getItem('userInfo')
 if (savedInfo) {
 userInfo.value = JSON.parse(savedInfo)

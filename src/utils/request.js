@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
+import { isTokenExpired } from '@/utils/jwt'
 
 // 后台接口判定（/admin/* + 标签/城市的增删改）
 const isAdminRequest = (url = '') =>
@@ -40,9 +41,23 @@ request.interceptors.request.use(
     const isAdminApi = url.startsWith('/admin/')
       || url.startsWith('/tag/add') || url.startsWith('/tag/update') || url.startsWith('/tag/delete')
       || url.startsWith('/city/add') || url.startsWith('/city/update') || url.startsWith('/city/delete')
-    const token = isAdminApi
+    let token = isAdminApi
       ? (localStorage.getItem('adminToken') || userStore.token)
       : userStore.token
+
+    // 本地先识别过期 token：公开白名单接口过期不会返回 401，会被后端按匿名处理，
+    // 导致点赞/收藏/关注状态回退成空心。这里过期即清掉，不再把过期 token 带给后端。
+    if (token && isTokenExpired(token)) {
+      if (isAdminApi) {
+        localStorage.removeItem('adminToken')
+        userStore.adminToken = ''
+      } else {
+        localStorage.removeItem('token')
+        localStorage.removeItem('userInfo')
+        userStore.token = ''
+      }
+      token = ''
+    }
 
     // 登录注册接口 + 公开浏览接口不需要 Token（后端 JwtInterceptor 白名单同步）
     const skipUrls = [
