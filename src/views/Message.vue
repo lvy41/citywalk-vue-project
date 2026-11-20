@@ -226,6 +226,9 @@ const loadInteractions = async () => {
       repliesList.value = res.data.replies || []
       favoritesList.value = res.data.favorites || []
       followsList.value = res.data.follows || []
+      // 进入消息页视为已读：记录当前互动总数，My 页角标据此算未读增量
+      const total = likesList.value.length + commentsList.value.length + repliesList.value.length + favoritesList.value.length + followsList.value.length
+      localStorage.setItem('citywalk_msg_read_total', String(total))
     }
   } catch (e) {
     console.warn('互动通知加载失败', e)
@@ -237,6 +240,9 @@ const loadSystem = async () => {
     const res = await getSystemNotificationsAPI()
     if (res && res.code === 200 && Array.isArray(res.data)) {
       systemList.value = res.data
+      // 进入消息页视为已读：记录所有非版本更新的系统通知 id，My 页角标据此算新增
+      const sysIds = systemList.value.filter(i => i.type !== 'version').map(i => i.id)
+      localStorage.setItem('citywalk_sys_read_ids', JSON.stringify(sysIds))
     }
   } catch (e) {
     console.warn('系统通知加载失败', e)
