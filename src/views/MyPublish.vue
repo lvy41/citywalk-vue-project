@@ -90,13 +90,13 @@ const formatTime = (time) => {
 
 const statusText = (status) => {
   if (Number(status) === 1) return '已通过'
-  if (Number(status) === 2) return '已驳回'
+  if (Number(status) === 2) return '已下架'
   return '待审核'
 }
 
 const statusClass = (status) => {
   if (Number(status) === 1) return 'status-pass'
-  if (Number(status) === 2) return 'status-reject'
+  if (Number(status) === 2) return 'status-offline'
   return 'status-pending'
 }
 
@@ -276,9 +276,9 @@ onActivated(getList)
   background: #f0f9eb;
   color: #67c23a;
 }
-.status-reject {
-  background: #fef0f0;
-  color: #f56c6c;
+.status-offline {
+  background: #f4f4f5;
+  color: #909399;
 }
 
 .route-meta {
