@@ -17,6 +17,7 @@
         @click="mainTab = 'system'"
       >
         系统通知
+        <span v-if="unreadSystemCount > 0" class="tab-badge">{{ unreadSystemCount > 99 ? '99+' : unreadSystemCount }}</span>
       </div>
       <div
         class="main-tab"
@@ -24,6 +25,7 @@
         @click="mainTab = 'interaction'"
       >
         互动通知
+        <span v-if="unreadInteractionCount > 0" class="tab-badge">{{ unreadInteractionCount > 99 ? '99+' : unreadInteractionCount }}</span>
       </div>
     </div>
 
@@ -156,7 +158,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onActivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -173,6 +175,10 @@ const userStore = useUserStore()
 
 const mainTab = ref('interaction')
 const subTab = ref('messages')
+
+// 顶部 tab 未读气泡（进入页面时计算，切到对应 tab 后清零并写基线）
+const unreadSystemCount = ref(0)
+const unreadInteractionCount = ref(0)
 
 const systemList = ref([])
 const likesList = ref([])
@@ -226,9 +232,10 @@ const loadInteractions = async () => {
       repliesList.value = res.data.replies || []
       favoritesList.value = res.data.favorites || []
       followsList.value = res.data.follows || []
-      // 进入消息页视为已读：记录当前互动总数，My 页角标据此算未读增量
       const total = likesList.value.length + commentsList.value.length + repliesList.value.length + favoritesList.value.length + followsList.value.length
-      localStorage.setItem('citywalk_msg_read_total', String(total))
+      // 计算未读增量（不立即写基线，等用户切到互动 tab 才标记已读）
+      const readTotal = Number(localStorage.getItem('citywalk_msg_read_total') || 0)
+      unreadInteractionCount.value = Math.max(0, total - readTotal)
     }
   } catch (e) {
     console.warn('互动通知加载失败', e)
@@ -240,14 +247,28 @@ const loadSystem = async () => {
     const res = await getSystemNotificationsAPI()
     if (res && res.code === 200 && Array.isArray(res.data)) {
       systemList.value = res.data
-      // 进入消息页视为已读：记录所有非版本更新的系统通知 id，My 页角标据此算新增
-      const sysIds = systemList.value.filter(i => i.type !== 'version').map(i => i.id)
-      localStorage.setItem('citywalk_sys_read_ids', JSON.stringify(sysIds))
+      // 计算未读增量（不立即写基线，等用户切到系统 tab 才标记已读）
+      const readIds = JSON.parse(localStorage.getItem('citywalk_sys_read_ids') || '[]')
+      unreadSystemCount.value = systemList.value.filter(i => i.type !== 'version' && !readIds.includes(i.id)).length
     }
   } catch (e) {
     console.warn('系统通知加载失败', e)
   }
 }
+
+// 切到某个 tab 时，把该 tab 标记为已读（写基线 + 清气泡）
+watch(mainTab, (val) => {
+  if (val === 'system' && unreadSystemCount.value > 0) {
+    const sysIds = systemList.value.filter(i => i.type !== 'version').map(i => i.id)
+    localStorage.setItem('citywalk_sys_read_ids', JSON.stringify(sysIds))
+    unreadSystemCount.value = 0
+  }
+  if (val === 'interaction' && unreadInteractionCount.value > 0) {
+    const total = likesList.value.length + commentsList.value.length + repliesList.value.length + favoritesList.value.length + followsList.value.length
+    localStorage.setItem('citywalk_msg_read_total', String(total))
+    unreadInteractionCount.value = 0
+  }
+}, { immediate: false })
 
 const followBack = async (item) => {
   try {
@@ -448,6 +469,22 @@ onActivated(() => {
   height: 3px;
   border-radius: 2px;
   background: #e85d3a;
+}
+
+.tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .content-wrap {
