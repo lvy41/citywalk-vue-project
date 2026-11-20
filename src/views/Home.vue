@@ -648,14 +648,15 @@ const onIndexTouchEnd = () => {
   lastLetterIdx = -1
 }
 
-// 轮播：数据来自首页真实路线（前 3 条），封面/标题与详情页一致
+// 轮播：数据来自当前城市高赞路线，封面/标题与详情页一致
 const currentBannerIndex = ref(0)
 let bannerTimer = null
 const autoBanner = ()=>{
   bannerTimer = setInterval(()=>{
-    if (!bannerList.value.length) return
-    if (currentBannerIndex.value >= bannerList.value.length) currentBannerIndex.value = 0
-    currentBannerIndex.value = (currentBannerIndex.value +1) % bannerList.value.length
+    const len = bannerList.value.length
+    if (!len) return
+    if (currentBannerIndex.value >= len || currentBannerIndex.value < 0) currentBannerIndex.value = 0
+    currentBannerIndex.value = (currentBannerIndex.value +1) % len
   },3000)
 }
 onMounted(()=>autoBanner())
@@ -728,7 +729,8 @@ const loadRoutes = async (reset = false) => {
       page: page.value + 1,
       size: PAGE_SIZE,
       tag: activeTag.value === '全部' ? undefined : activeTag.value,
-      cityId: currentCity.value?.cityId || undefined
+      cityId: currentCity.value?.cityId || undefined,
+      city: currentCity.value?.label || undefined
     })
     const list = res.code === 200 && Array.isArray(res.data) ? res.data : []
     routeRows.value = routeRows.value.concat(list.map(mapRoute))
@@ -767,10 +769,15 @@ const rankList = computed(() =>
     .map(i => ({ id: i.id, name: i.name, city: i.city, hot: i.likeNum }))
 )
 
-// ✅轮播 Banner：取首页路线前 3 条，封面与标题均为库里真实数据，与详情页一致
+// ✅轮播 Banner：取当前城市路线里点赞最高的前 3 条，封面与标题均为库里真实数据，与详情页一致
 const bannerList = computed(() =>
-  routeRows.value.slice(0, 3).map(r => ({ img: r.cover, title: r.name, routeId: r.id }))
+  [...routeRows.value]
+    .sort((a, b) => b.likeNum - a.likeNum)
+    .slice(0, 3)
+    .map(r => ({ img: r.cover, title: r.name, routeId: r.id }))
 )
+// 城市/列表刷新后轮播回到第一条，避免索引停留在旧城市的位置
+watch(bannerList, ()=>{ currentBannerIndex.value = 0 })
 
 // ✅分类标签：标签由后端筛选，关键词在前端兜底过滤
 const filterList = computed(() => {
