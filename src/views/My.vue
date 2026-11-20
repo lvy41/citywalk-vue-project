@@ -84,6 +84,7 @@
       </div>
       <div class="menu-item" @click="goMessage">
         <span>消息通知</span>
+        <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
         <el-icon><ArrowRight /></el-icon>
       </div>
       <div class="menu-item" @click="goSetting">
@@ -131,6 +132,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { getUserInfoAPI } from '@/api/user'
 import { getMyAchievementAPI } from '@/api/achievement'
+import { getInteractionNotificationsAPI, getSystemNotificationsAPI } from '@/api/notification'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -152,6 +154,33 @@ const achSummary = ref({
   totalCount: 0,
   currentTitle: { titleName: '初入城市' }
 })
+
+// 消息通知未读数：互动增量（当前总数 - 已读基线）+ 新审核通过数
+const unreadCount = ref(0)
+const loadUnread = async () => {
+  try {
+    const [interRes, sysRes] = await Promise.all([
+      getInteractionNotificationsAPI().catch(() => null),
+      getSystemNotificationsAPI().catch(() => null)
+    ])
+    let total = 0
+    if (interRes && interRes.code === 200 && interRes.data) {
+      total = (interRes.data.likes?.length || 0) + (interRes.data.comments?.length || 0)
+        + (interRes.data.replies?.length || 0) + (interRes.data.favorites?.length || 0)
+        + (interRes.data.follows?.length || 0)
+    }
+    const readTotal = Number(localStorage.getItem('citywalk_msg_read_total') || 0)
+    const unreadInter = Math.max(0, total - readTotal)
+    let newAudit = 0
+    if (sysRes && sysRes.code === 200 && Array.isArray(sysRes.data)) {
+      const readIds = JSON.parse(localStorage.getItem('citywalk_sys_read_ids') || '[]')
+      newAudit = sysRes.data.filter(i => i.type !== 'version' && !readIds.includes(i.id)).length
+    }
+    unreadCount.value = unreadInter + newAudit
+  } catch (e) {
+    unreadCount.value = 0
+  }
+}
 
 // 获取用户信息与成就：统计口径以后端返回的云端数据为准
 const getStatInfo = async () => {
@@ -183,7 +212,8 @@ const getStatInfo = async () => {
 }
 
 // 进入页面即刷新；若外层加了 keep-alive，再次进入也会刷新
-onMounted(getStatInfo)
+onMounted(() => { getStatInfo(); loadUnread() })
+onActivated(() => { getStatInfo(); loadUnread() })
 onActivated(getStatInfo)
 
 const goEditUser = () => {
@@ -419,13 +449,27 @@ const handleLogout = async () => {
 }
 .menu-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
   font-size: 15px;
   color: #222;
   border-bottom: 1px solid #f2f2f2;
   cursor: pointer;
+}
+.menu-item > span:first-child {
+  flex: 1;
+}
+.unread-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  margin-right: 8px;
 }
 .menu-item:last-child {
   border-bottom: none;
