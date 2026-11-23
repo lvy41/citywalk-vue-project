@@ -1016,6 +1016,76 @@ const applyCurrentArea = async (pos) => {
 }
 
 /**
+ * 精确定位失败时的兜底：用高德 IP 定位拿到当前城市
+ * HBuilderX 内置浏览器等 WebView 不支持（或静默拒绝）浏览器地理定位，
+ * 只能走 IP 城市定位，保证“自动定位当前所在地”在这些环境也能用
+ */
+const lookupIpCity = () => new Promise((resolve) => {
+  let settled = false
+  const done = (val) => {
+    if (settled) return
+    settled = true
+    resolve(val)
+  }
+  try {
+    const citySearch = new AMap.CitySearch()
+    citySearch.getLocalCity((status, result) => {
+      if (status === 'complete' && result && result.city) return done(result.city)
+      done(null)
+    })
+    setTimeout(() => done(null), 3000)
+  } catch (e) {
+    console.warn('IP 城市定位失败', e)
+    done(null)
+  }
+})
+
+// 把地图挪到某城市中心（IP 定位时没有精确坐标，用城市中心代替）
+const centerOnCity = (cityName) => {
+  try {
+    if (!geocoder) geocoder = new AMap.Geocoder({ city: '全国' })
+    geocoder.getLocation(cityName, (status, result) => {
+      if (status === 'complete' && result && result.geocodes && result.geocodes.length) {
+        const loc = result.geocodes[0].location
+        map.setZoomAndCenter(11, [loc.getLng(), loc.getLat()])
+      }
+    })
+  } catch (e) {
+    console.warn('城市中心定位失败', e)
+  }
+}
+
+/** 退化成“当前城市”模式（IP 定位时使用），返回是否成功 */
+const applyCityMode = (cityName) => {
+  if (!cityName || !areaOptions.value.length) return false
+  const province = areaOptions.value.find(p =>
+    (p.children || []).some(c => sameAreaName(c.label, cityName))
+  )
+  if (!province) return false
+  const city = (province.children || []).find(c => sameAreaName(c.label, cityName))
+  if (!city) return false
+
+  selectedArea.value = [province.id, city.id]
+  currentAreaLabel.value = ''
+  cityFallback.value = false
+  located.value = false
+  currentLng.value = null
+  currentLat.value = null
+  selectedRouteId.value = null
+  centerOnCity(cityName)
+  fetchNearRoute()
+  return true
+}
+
+// 精确定位失败后：先用 IP 城市兜底，仍失败再按需提示
+const fallbackToIpCity = async (auto) => {
+  const ipCity = await lookupIpCity()
+  if (ipCity && applyCityMode(ipCity)) return true
+  if (!auto) ElMessage.warning('定位失败，请手动选择地区')
+  return false
+}
+
+/**
  * 定位
  * auto = true 表示进页面自动定位，失败时不弹提示，静默退回“全部路线”
  * 高德 Geolocation 会先试浏览器精确定位，失败再走 IP 城市定位
@@ -1038,8 +1108,7 @@ const locateUser = async (auto = false) => {
       geolocation.getCurrentPosition((s, r) => resolve({ status: s, result: r }))
     })
     if (status !== 'complete' || !result || !result.position) {
-      if (!auto) ElMessage.warning('定位失败，请手动选择地区')
-      return false
+      return await fallbackToIpCity(auto)
     }
     const pos = [result.position.getLng(), result.position.getLat()]
     currentLng.value = pos[0]
@@ -1060,9 +1129,8 @@ const locateUser = async (auto = false) => {
     applyCurrentArea(pos)
     return true
   } catch (e) {
-    console.error('定位失败', e)
-    if (!auto) ElMessage.warning('定位失败，请手动选择地区')
-    return false
+    console.error('精确定位失败，尝试 IP 城市定位', e)
+    return await fallbackToIpCity(auto)
   } finally {
     locating.value = false
   }
@@ -1093,7 +1161,7 @@ const initMap = async () => {
     AMap = await load({
       key: import.meta.env.VITE_AMAP_KEY,
       version: '2.0',
-      plugins: ['AMap.Geolocation', 'AMap.Geocoder']
+      plugins: ['AMap.Geolocation', 'AMap.Geocoder', 'AMap.CitySearch']
     })
     map = new AMap.Map('amap-container', {
       zoom: 12,
@@ -1131,8 +1199,10 @@ onMounted(async () => {
   // 地区树 / 标签与定位并行加载，避免静态数据把定位拖慢
   loadAreaTree()
   loadTagList()
-  // 进页面先自动定位；定位失败也只是退回全部路线，不打扰用户
-  const ok = await locateUser(true)
+  // ?locateMode=ip 可强制走 IP 城市定位（用于不支持地理定位的环境排查/兼容）
+  const ok = route.query.locateMode === 'ip'
+    ? await fallbackToIpCity(true)
+    : await locateUser(true)
   if (!ok) {
     await fetchNearRoute()
   }
