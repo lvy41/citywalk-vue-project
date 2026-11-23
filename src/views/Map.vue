@@ -151,7 +151,7 @@
       </div>
     </div>
     <div class="route-list-panel empty-panel" v-else-if="!detailMode">
-      <div class="empty-tip">{{ emptyTip }}</div>
+      <div class="empty-tip">{{ locating ? '正在定位…' : (loadingRoute ? '正在加载路线…' : emptyTip) }}</div>
     </div>
     <!-- 定位、刷新按钮 -->
     <div class="location-btn" :class="{ locating }" @click="getCurrentLocation" v-if="!detailMode">
@@ -243,6 +243,8 @@ const panelCollapsed = ref(false)
 const togglePanel = () => {
   panelCollapsed.value = !panelCollapsed.value
 }
+// 定位/路线加载中的状态，避免空白期间显示“暂无路线数据”
+const loadingRoute = ref(false)
 
 // 拼音排序：zh-Hans-CN 的排序规则即按拼音，多音字按常用读音
 const sortByPinyin = (list = []) =>
@@ -562,6 +564,7 @@ const loadTagList = async () => {
  * - 没选地区：按定位 + 半径，没定位就不带经纬度（返回全部路线）
  */
 const fetchNearRoute = async () => {
+  loadingRoute.value = true
   const params = {}
   if (selectedCityId.value) {
     params.cityId = selectedCityId.value
@@ -631,6 +634,7 @@ const fetchNearRoute = async () => {
   }
 
   await renderRoutesOnMap()
+  loadingRoute.value = false
 }
 
 // 清空地图上所有路线覆盖物（“我的位置”标记单独管理，不受影响）
@@ -994,6 +998,24 @@ const resolveCurrentArea = (pos) => new Promise((resolve) => {
 })
 
 /**
+ * 反解地名后回填（异步，不阻塞定位主流程）
+ * 更新地区按钮文案；若附近没有路线，再用所在城市兜底拉一次
+ */
+const applyCurrentArea = async (pos) => {
+  const area = await resolveCurrentArea(pos)
+  if (!area) {
+    currentAreaLabel.value = ''
+    nearbyAreaIds.value = null
+    return
+  }
+  currentAreaLabel.value = area.label || ''
+  nearbyAreaIds.value = area.ids
+  if (located.value && !selectedCityId.value && nearRouteList.value.length === 0) {
+    await fetchNearRoute()
+  }
+}
+
+/**
  * 定位
  * auto = true 表示进页面自动定位，失败时不弹提示，静默退回“全部路线”
  * 高德 Geolocation 会先试浏览器精确定位，失败再走 IP 城市定位
@@ -1004,7 +1026,7 @@ const locateUser = async (auto = false) => {
   try {
     const geolocation = new AMap.Geolocation({
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 6000,
       GeoLocationFirst: true,
       showButton: false,
       showMarker: false,
@@ -1027,15 +1049,7 @@ const locateUser = async (auto = false) => {
     selectedArea.value = null
     resetTempArea()
     selectedRouteId.value = null
-    // 反解当前所在地（用于地区按钮文案 + 附近无路线时回退到所在城市）
-    const area = await resolveCurrentArea(pos)
-    if (area) {
-      currentAreaLabel.value = area.label || ''
-      nearbyAreaIds.value = area.ids
-    } else {
-      currentAreaLabel.value = ''
-      nearbyAreaIds.value = null
-    }
+    // 先立刻画定位点和拉附近路线，反解地名放后台异步做，不拖慢主流程
     drawMyLocation(pos)
     try {
       map.setZoomAndCenter(14, pos)
@@ -1043,6 +1057,7 @@ const locateUser = async (auto = false) => {
       console.warn('地图视野调整失败（不影响定位结果）', err)
     }
     await fetchNearRoute()
+    applyCurrentArea(pos)
     return true
   } catch (e) {
     console.error('定位失败', e)
@@ -1113,8 +1128,9 @@ onMounted(async () => {
     await enterDetailRoute()
     return
   }
-  await loadAreaTree()
-  await loadTagList()
+  // 地区树 / 标签与定位并行加载，避免静态数据把定位拖慢
+  loadAreaTree()
+  loadTagList()
   // 进页面先自动定位；定位失败也只是退回全部路线，不打扰用户
   const ok = await locateUser(true)
   if (!ok) {
