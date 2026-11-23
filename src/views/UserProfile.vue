@@ -64,12 +64,12 @@
       <div v-else class="route-list">
         <div v-for="item in filteredRoutes" :key="item.id" class="route-item" @click="goDetail(item.id)">
           <div class="route-img">
-            <img :src="item.coverImage || defaultImg" alt="" />
+            <img :src="item.coverImage || defaultImg" alt="" @error="onCoverError" />
           </div>
           <div class="route-info">
             <div class="route-name">{{ item.routeName }}</div>
             <div class="route-desc">{{ item.description || '这个人很懒，没有写介绍' }}</div>
-            <div class="route-time">{{ item.createTime }}</div>
+            <div class="route-time">{{ formatTime(item.createTime) }}</div>
           </div>
         </div>
       </div>
@@ -150,6 +150,24 @@ const toggleFollow = async () => {
 
 const goDetail = (id) => router.push(`/detail/${id}`)
 const goBack = () => router.back()
+
+// 封面加载失败时退回本地默认图，避免出现破图
+const onCoverError = (e) => {
+  const img = e && e.target
+  if (!img || img.dataset.fallbackApplied) return
+  img.dataset.fallbackApplied = '1'
+  img.src = defaultImg
+}
+
+// 后端返回的时间可能是 ISO/UTC，统一格式化成 YYYY-MM-DD HH:mm（按本地时区）
+const formatTime = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value)) return value.slice(0, 16)
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return String(value)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 onMounted(() => {
   loadProfile()

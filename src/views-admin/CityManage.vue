@@ -16,7 +16,7 @@
       </el-table-column>
       <el-table-column prop="centerLng" label="中心点经度" />
       <el-table-column prop="centerLat" label="中心点纬度" />
-      <el-table-column prop="createTime" label="创建时间" />
+      <el-table-column prop="createTime" label="创建时间" :formatter="formatTime" />
       <el-table-column label="操作" width="180">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
@@ -58,6 +58,16 @@ import request from '@/utils/request'
 
 const loading = ref(false)
 const tableData = ref([])
+
+// 表格时间列格式化：后端返回 ISO/UTC 时统一显示为本地 YYYY-MM-DD HH:mm:ss
+const formatTime = (row, column, value) => {
+  if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value)) return value.slice(0, 19)
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return String(value)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增城市')
 const formRef = ref(null)

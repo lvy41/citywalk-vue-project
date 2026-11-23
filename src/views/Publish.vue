@@ -988,7 +988,7 @@ const submitPublish = async () => {
       checkinRecordId: recordId,
       routeName: publishForm.value.routeName,
       city: publishForm.value.city,
-      coverImage: publishForm.value.coverImage || 'https://images.unsplash.com/photo-1543781737-0d7c1e62c3df?auto=format&fit=crop&w=600&q=80',
+      coverImage: publishForm.value.coverImage || '/pictures/Myback.jpg',
       description: publishForm.value.description || '这个作者很懒，什么都没写~',
       tagIds: publishForm.value.tagIds || [],
       points: points.map(p => ({

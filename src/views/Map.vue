@@ -232,6 +232,8 @@ const selectedRouteId = ref(null)
 // 是否已经拿到真实定位
 const located = ref(false)
 const locating = ref(false)
+// 定位超时/被拒绝后置为 true，用于提示用户而不是一直显示“正在定位… ”
+const locateFailed = ref(false)
 // 区县没有专属路线时，是否回退成城市全部路线
 const districtFallback = ref(false)
 // 定位反解出的当前所在地：显示在地区按钮上，附近无路线时用于回退到所在城市
@@ -465,6 +467,7 @@ const emptyTip = computed(() => {
   if (selectedCityId.value) return `${selectedCityLabel.value}暂无路线数据，换个城市或叠加标签试试`
   if (located.value && cityFallback.value) return `${currentAreaLabel.value || '当前城市'}暂无路线数据，试试选择其他地区`
   if (located.value) return `附近 ${radius.value / 1000}km 内暂无路线，试试放大半径`
+  if (locateFailed.value) return '定位未成功，可点右下角重新定位或选择地区'
   return '暂无路线数据'
 })
 
@@ -1093,6 +1096,14 @@ const fallbackToIpCity = async (auto) => {
 const locateUser = async (auto = false) => {
   if (!map || !AMap) return false
   locating.value = true
+  locateFailed.value = false
+  // 兜底：浏览器拒绝授权/高德定位回调不来时，“正在定位…”不能一直挂着
+  const guard = setTimeout(() => {
+    if (locating.value) {
+      locating.value = false
+      if (!located.value) locateFailed.value = true
+    }
+  }, 12000)
   try {
     const geolocation = new AMap.Geolocation({
       enableHighAccuracy: true,
@@ -1132,6 +1143,7 @@ const locateUser = async (auto = false) => {
     console.error('精确定位失败，尝试 IP 城市定位', e)
     return await fallbackToIpCity(auto)
   } finally {
+    clearTimeout(guard)
     locating.value = false
   }
 }

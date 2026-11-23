@@ -8,7 +8,7 @@
     <el-table :data="tableData" border stripe>
       <el-table-column label="标签ID" prop="id" width="80"></el-table-column>
       <el-table-column label="标签名称" prop="tagName"></el-table-column>
-      <el-table-column label="创建时间" prop="createTime"></el-table-column>
+      <el-table-column label="创建时间" prop="createTime" :formatter="formatTime"></el-table-column>
       <el-table-column label="操作">
         <template #default="scope">
           <el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button>
@@ -41,6 +41,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const tableData = ref([])
 const dialogVisible = ref(false)
 const form = ref({id:null,tagName:""})
+
+// 表格时间列格式化：后端返回 ISO/UTC 时统一显示为本地 YYYY-MM-DD HH:mm:ss
+const formatTime = (row, column, value) => {
+  if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value)) return value.slice(0, 19)
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return String(value)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 
 async function loadData(){
   try {
