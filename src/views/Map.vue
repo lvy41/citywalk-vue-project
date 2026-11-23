@@ -6,7 +6,7 @@
     <div class="map-filter-panel" v-if="!detailMode">
       <!-- 地区选择按钮，点击唤起底部级联弹窗 -->
       <div class="area-btn" @click="openAreaDrawer">
-        {{ selectedAreaLabel || '选择地区' }}
+        {{ selectedAreaLabel || currentAreaLabel || '选择地区' }}
         <el-icon><ArrowDown /></el-icon>
       </div>
       <el-select
@@ -112,37 +112,46 @@
       <div class="drb-name">{{ detailRouteName || '路线点位' }}</div>
       <div class="drb-meta">共 {{ detailPoints.length }} 个点位 · 当前第 {{ detailPointIndex + 1 }} 个</div>
     </div>
-    <!-- 路线推荐浮层 -->
-    <div class="route-list-panel" v-if="!detailMode && nearRouteList.length > 0">
-      <div class="panel-title">
-        {{ panelTitle }}
-        <span class="panel-count">{{ nearRouteList.length }} 条</span>
+    <!-- 路线推荐浮层：可折叠，避免路线多时挡住地图 -->
+    <div
+      class="route-list-panel"
+      :class="{ collapsed: panelCollapsed }"
+      v-if="!detailMode && nearRouteList.length > 0"
+    >
+      <div class="panel-title" @click="togglePanel">
+        <span class="panel-title-text">{{ panelTitle }}</span>
+        <span class="panel-title-right">
+          <span class="panel-count">{{ nearRouteList.length }} 条</span>
+          <el-icon class="panel-toggle"><ArrowDown /></el-icon>
+        </span>
       </div>
-      <div class="panel-hint" v-if="panelHint">{{ panelHint }}</div>
-      <div class="panel-hint" v-if="listTruncated">
-        共 {{ nearRouteList.length }} 条，仅展示前 {{ visibleRoutes.length }} 条；选择地区可精确查看
-      </div>
-      <div
-        class="route-item"
-        :class="{ active: selectedRouteId === item.id }"
-        v-for="item in visibleRoutes"
-        :key="item.id"
-        @click="selectRoute(item)"
-      >
-        <div class="route-head">
-          <div class="route-name">{{ item.routeName }}</div>
-          <span class="route-link" @click.stop="goRouteDetail(item.id)">详情 ›</span>
+      <div class="panel-body" v-show="!panelCollapsed">
+        <div class="panel-hint" v-if="panelHint">{{ panelHint }}</div>
+        <div class="panel-hint" v-if="listTruncated">
+          共 {{ nearRouteList.length }} 条，仅展示前 {{ visibleRoutes.length }} 条；选择地区可精确查看
         </div>
-        <div class="route-meta">
-          {{ item.city }} · {{ item.duration }} · {{ item.distance }}
+        <div
+          class="route-item"
+          :class="{ active: selectedRouteId === item.id }"
+          v-for="item in visibleRoutes"
+          :key="item.id"
+          @click="selectRoute(item)"
+        >
+          <div class="route-head">
+            <div class="route-name">{{ item.routeName }}</div>
+            <span class="route-link" @click.stop="goRouteDetail(item.id)">详情 ›</span>
+          </div>
+          <div class="route-meta">
+            {{ item.city }} · {{ item.duration }} · {{ item.distance }}
+          </div>
         </div>
-      </div>
-      <div class="panel-foot" v-if="selectedRouteId">
-        已在地图展开该路线，点击地图上的数字地标可进入详情
+        <div class="panel-foot" v-if="selectedRouteId">
+          已在地图展开该路线，点击地图上的数字地标可进入详情
+        </div>
       </div>
     </div>
     <div class="route-list-panel empty-panel" v-else-if="!detailMode">
-      <div class="empty-tip">{{ emptyTip }}</div>
+      <div class="empty-tip">{{ locating ? '正在定位…' : (loadingRoute ? '正在加载路线…' : emptyTip) }}</div>
     </div>
     <!-- 定位、刷新按钮 -->
     <div class="location-btn" :class="{ locating }" @click="getCurrentLocation" v-if="!detailMode">
@@ -225,6 +234,17 @@ const located = ref(false)
 const locating = ref(false)
 // 区县没有专属路线时，是否回退成城市全部路线
 const districtFallback = ref(false)
+// 定位反解出的当前所在地：显示在地区按钮上，附近无路线时用于回退到所在城市
+const currentAreaLabel = ref('')
+const nearbyAreaIds = ref(null)
+const cityFallback = ref(false)
+// 路线推荐面板是否收起：路线多时默认收起，只留一行标题，避免挡住地图
+const panelCollapsed = ref(false)
+const togglePanel = () => {
+  panelCollapsed.value = !panelCollapsed.value
+}
+// 定位/路线加载中的状态，避免空白期间显示“暂无路线数据”
+const loadingRoute = ref(false)
 
 // 拼音排序：zh-Hans-CN 的排序规则即按拼音，多音字按常用读音
 const sortByPinyin = (list = []) =>
@@ -417,7 +437,10 @@ const listTruncated = computed(() => nearRouteList.value.length > LIST_LIMIT)
 const panelTitle = computed(() => {
   if (selectedDistrictId.value) return `${selectedDistrictLabel.value || '该区县'} · 路线推荐`
   if (selectedCityId.value) return `${selectedCityLabel.value || '该城市'} · 路线推荐`
-  if (located.value) return `我附近 ${radius.value / 1000}km 路线`
+  if (located.value) {
+    if (cityFallback.value) return `${currentAreaLabel.value || '当前所在地'} · 路线推荐`
+    return `我附近 ${radius.value / 1000}km 路线`
+  }
   return '全部路线'
 })
 
@@ -428,6 +451,9 @@ const panelHint = computed(() => {
   if (isCityMode.value) {
     return '点任意路线可在地图上展开轨迹与地标'
   }
+  if (cityFallback.value) {
+    return `附近 ${radius.value / 1000}km 内暂无路线，已展示你所在城市的路线`
+  }
   if (located.value) {
     return '已定位到你的位置，也可点“选择地区”切换城市'
   }
@@ -437,6 +463,7 @@ const panelHint = computed(() => {
 const emptyTip = computed(() => {
   if (selectedDistrictId.value) return `${selectedDistrictLabel.value}暂无路线数据`
   if (selectedCityId.value) return `${selectedCityLabel.value}暂无路线数据，换个城市或叠加标签试试`
+  if (located.value && cityFallback.value) return `${currentAreaLabel.value || '当前城市'}暂无路线数据，试试选择其他地区`
   if (located.value) return `附近 ${radius.value / 1000}km 内暂无路线，试试放大半径`
   return '暂无路线数据'
 })
@@ -537,6 +564,7 @@ const loadTagList = async () => {
  * - 没选地区：按定位 + 半径，没定位就不带经纬度（返回全部路线）
  */
 const fetchNearRoute = async () => {
+  loadingRoute.value = true
   const params = {}
   if (selectedCityId.value) {
     params.cityId = selectedCityId.value
@@ -562,6 +590,23 @@ const fetchNearRoute = async () => {
     list = []
   }
 
+  // 附近半径内没有路线时，用定位反解出的城市兜底，避免用户看到一片空白
+  cityFallback.value = false
+  if (!list.length && !selectedCityId.value && located.value
+      && nearbyAreaIds.value && nearbyAreaIds.value.length >= 2) {
+    try {
+      const fbParams = { cityId: nearbyAreaIds.value[1] }
+      if (selectedTag.value) fbParams.tag = selectedTag.value
+      const fbRes = await request.get('/map/nearRoute', { params: fbParams })
+      if (fbRes && fbRes.code === 200 && (fbRes.data || []).length) {
+        list = fbRes.data
+        cityFallback.value = true
+      }
+    } catch (err) {
+      console.warn('当前城市路线兜底失败', err)
+    }
+  }
+
   // 区县优先：该区县有专属路线就只显示它；没有就回退为该城市的全部路线
   if (selectedDistrictId.value) {
     const matched = list.filter(r => Number(r.districtId) === selectedDistrictId.value)
@@ -577,6 +622,9 @@ const fetchNearRoute = async () => {
     districtFallback.value = false
   }
 
+  // 路线较多时自动收起列表，只留标题栏，把地图空间让出来；少量路线保持展开
+  panelCollapsed.value = nearRouteList.value.length > 3
+
   // 选中态校正：列表只剩一条时自动展开
   if (!nearRouteList.value.some(r => r.id === selectedRouteId.value)) {
     selectedRouteId.value = null
@@ -586,6 +634,7 @@ const fetchNearRoute = async () => {
   }
 
   await renderRoutesOnMap()
+  loadingRoute.value = false
 }
 
 // 清空地图上所有路线覆盖物（“我的位置”标记单独管理，不受影响）
@@ -891,6 +940,151 @@ const drawMyLocation = (pos) => {
   }
 }
 
+// 地区名归一：去掉“省 / 市 / 区 / 县”等后缀再比对，兼容“广州市”与“广州”
+const stripAreaSuffix = (name) =>
+  String(name || '').replace(/(特别行政区|自治区|自治州|自治县|自治旗|省|市|区|县|旗)$/, '')
+
+const sameAreaName = (a, b) => !!stripAreaSuffix(a) && stripAreaSuffix(a) === stripAreaSuffix(b)
+
+/** 用反解出的省市县名在地区树里找对应的 [provinceId, cityId, districtId] */
+const matchAreaIds = (provinceName, cityName, districtName) => {
+  const list = areaOptions.value || []
+  if (!list.length) return null
+  const province = list.find(i => sameAreaName(i.label, provinceName))
+  if (!province) return null
+  const ids = [province.id]
+  // 直辖市：省与市同名，直接用省级节点的 children 当区县
+  let city = (province.children || []).find(i => sameAreaName(i.label, cityName))
+  if (!city && sameAreaName(province.label, cityName)) {
+    city = { id: province.id, label: province.label, children: province.children || [] }
+  }
+  if (!city) return ids
+  ids.push(city.id)
+  const district = (city.children || []).find(i => sameAreaName(i.label, districtName))
+  if (district) ids.push(district.id)
+  return ids
+}
+
+/**
+ * 经纬度反解当前所在地
+ * 返回 { label: "广州市 · 花都区", ids: [省, 市, 区] }，失败返回 null
+ */
+const resolveCurrentArea = (pos) => new Promise((resolve) => {
+  let settled = false
+  const done = (val) => {
+    if (settled) return
+    settled = true
+    resolve(val)
+  }
+  try {
+    if (!geocoder) geocoder = new AMap.Geocoder({ city: '全国', radius: 1000 })
+    geocoder.getAddress(pos, (status, result) => {
+      if (status !== 'complete' || !result || !result.regeocode) return done(null)
+      const comp = result.regeocode.addressComponent || {}
+      let cityName = comp.city
+      if (Array.isArray(cityName)) cityName = cityName[0] || ''
+      if (!cityName) cityName = comp.province || ''
+      const provinceName = comp.province || ''
+      const districtName = comp.district || ''
+      const label = [cityName, districtName].filter(Boolean).join(' · ') || provinceName
+      done({ label, ids: matchAreaIds(provinceName, cityName, districtName) })
+    })
+    // 反解偶发不回调，兜一个超时，别把定位流程卡住
+    setTimeout(() => done(null), 2000)
+  } catch (e) {
+    console.warn('地址反解失败', e)
+    done(null)
+  }
+})
+
+/**
+ * 反解地名后回填（异步，不阻塞定位主流程）
+ * 更新地区按钮文案；若附近没有路线，再用所在城市兜底拉一次
+ */
+const applyCurrentArea = async (pos) => {
+  const area = await resolveCurrentArea(pos)
+  if (!area) {
+    currentAreaLabel.value = ''
+    nearbyAreaIds.value = null
+    return
+  }
+  currentAreaLabel.value = area.label || ''
+  nearbyAreaIds.value = area.ids
+  if (located.value && !selectedCityId.value && nearRouteList.value.length === 0) {
+    await fetchNearRoute()
+  }
+}
+
+/**
+ * 精确定位失败时的兜底：用高德 IP 定位拿到当前城市
+ * HBuilderX 内置浏览器等 WebView 不支持（或静默拒绝）浏览器地理定位，
+ * 只能走 IP 城市定位，保证“自动定位当前所在地”在这些环境也能用
+ */
+const lookupIpCity = () => new Promise((resolve) => {
+  let settled = false
+  const done = (val) => {
+    if (settled) return
+    settled = true
+    resolve(val)
+  }
+  try {
+    const citySearch = new AMap.CitySearch()
+    citySearch.getLocalCity((status, result) => {
+      if (status === 'complete' && result && result.city) return done(result.city)
+      done(null)
+    })
+    setTimeout(() => done(null), 3000)
+  } catch (e) {
+    console.warn('IP 城市定位失败', e)
+    done(null)
+  }
+})
+
+// 把地图挪到某城市中心（IP 定位时没有精确坐标，用城市中心代替）
+const centerOnCity = (cityName) => {
+  try {
+    if (!geocoder) geocoder = new AMap.Geocoder({ city: '全国' })
+    geocoder.getLocation(cityName, (status, result) => {
+      if (status === 'complete' && result && result.geocodes && result.geocodes.length) {
+        const loc = result.geocodes[0].location
+        map.setZoomAndCenter(11, [loc.getLng(), loc.getLat()])
+      }
+    })
+  } catch (e) {
+    console.warn('城市中心定位失败', e)
+  }
+}
+
+/** 退化成“当前城市”模式（IP 定位时使用），返回是否成功 */
+const applyCityMode = (cityName) => {
+  if (!cityName || !areaOptions.value.length) return false
+  const province = areaOptions.value.find(p =>
+    (p.children || []).some(c => sameAreaName(c.label, cityName))
+  )
+  if (!province) return false
+  const city = (province.children || []).find(c => sameAreaName(c.label, cityName))
+  if (!city) return false
+
+  selectedArea.value = [province.id, city.id]
+  currentAreaLabel.value = ''
+  cityFallback.value = false
+  located.value = false
+  currentLng.value = null
+  currentLat.value = null
+  selectedRouteId.value = null
+  centerOnCity(cityName)
+  fetchNearRoute()
+  return true
+}
+
+// 精确定位失败后：先用 IP 城市兜底，仍失败再按需提示
+const fallbackToIpCity = async (auto) => {
+  const ipCity = await lookupIpCity()
+  if (ipCity && applyCityMode(ipCity)) return true
+  if (!auto) ElMessage.warning('定位失败，请手动选择地区')
+  return false
+}
+
 /**
  * 定位
  * auto = true 表示进页面自动定位，失败时不弹提示，静默退回“全部路线”
@@ -902,7 +1096,7 @@ const locateUser = async (auto = false) => {
   try {
     const geolocation = new AMap.Geolocation({
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 6000,
       GeoLocationFirst: true,
       showButton: false,
       showMarker: false,
@@ -914,8 +1108,7 @@ const locateUser = async (auto = false) => {
       geolocation.getCurrentPosition((s, r) => resolve({ status: s, result: r }))
     })
     if (status !== 'complete' || !result || !result.position) {
-      if (!auto) ElMessage.warning('定位失败，请手动选择地区')
-      return false
+      return await fallbackToIpCity(auto)
     }
     const pos = [result.position.getLng(), result.position.getLat()]
     currentLng.value = pos[0]
@@ -925,6 +1118,7 @@ const locateUser = async (auto = false) => {
     selectedArea.value = null
     resetTempArea()
     selectedRouteId.value = null
+    // 先立刻画定位点和拉附近路线，反解地名放后台异步做，不拖慢主流程
     drawMyLocation(pos)
     try {
       map.setZoomAndCenter(14, pos)
@@ -932,11 +1126,11 @@ const locateUser = async (auto = false) => {
       console.warn('地图视野调整失败（不影响定位结果）', err)
     }
     await fetchNearRoute()
+    applyCurrentArea(pos)
     return true
   } catch (e) {
-    console.error('定位失败', e)
-    if (!auto) ElMessage.warning('定位失败，请手动选择地区')
-    return false
+    console.error('精确定位失败，尝试 IP 城市定位', e)
+    return await fallbackToIpCity(auto)
   } finally {
     locating.value = false
   }
@@ -967,7 +1161,7 @@ const initMap = async () => {
     AMap = await load({
       key: import.meta.env.VITE_AMAP_KEY,
       version: '2.0',
-      plugins: ['AMap.Geolocation', 'AMap.Geocoder']
+      plugins: ['AMap.Geolocation', 'AMap.Geocoder', 'AMap.CitySearch']
     })
     map = new AMap.Map('amap-container', {
       zoom: 12,
@@ -1002,10 +1196,13 @@ onMounted(async () => {
     await enterDetailRoute()
     return
   }
-  await loadAreaTree()
-  await loadTagList()
-  // 进页面先自动定位；定位失败也只是退回全部路线，不打扰用户
-  const ok = await locateUser(true)
+  // 地区树 / 标签与定位并行加载，避免静态数据把定位拖慢
+  loadAreaTree()
+  loadTagList()
+  // ?locateMode=ip 可强制走 IP 城市定位（用于不支持地理定位的环境排查/兼容）
+  const ok = route.query.locateMode === 'ip'
+    ? await fallbackToIpCity(true)
+    : await locateUser(true)
   if (!ok) {
     await fetchNearRoute()
   }
@@ -1206,12 +1403,20 @@ onUnmounted(() => {
   top: 75px;
   left: 12px;
   right: 12px;
-  max-height: 38vh;
-  overflow-y: auto;
   background: #fff;
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
   z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .1);
+  transition: max-height .2s ease;
+}
+/* 收起态：只留标题一行 */
+.route-list-panel.collapsed {
+  padding-bottom: 10px;
+}
+.panel-body {
+  max-height: 30vh;
+  overflow-y: auto;
 }
 .empty-panel {
   max-height:120px;
@@ -1225,10 +1430,35 @@ onUnmounted(() => {
 }
 .panel-title {
   font-weight: bold;
-  margin-bottom: 6px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.panel-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-title-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.panel-toggle {
+  color: #909399;
+  font-size: 14px;
+  transition: transform .2s ease;
+}
+.route-list-panel.collapsed .panel-toggle {
+  transform: rotate(-90deg);
 }
 .panel-count {
   font-size: 12px;
