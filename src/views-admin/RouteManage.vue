@@ -113,7 +113,6 @@
           <div class="stat-box"><b>{{ curRow.likeCount || 0 }}</b><span>点赞</span></div>
           <div class="stat-box"><b>{{ curRow.collectCount || 0 }}</b><span>收藏</span></div>
           <div class="stat-box"><b>{{ pointList.length }}</b><span>打卡点</span></div>
-          <div class="stat-box"><b>{{ curRow.isPublic === 1 ? '公开' : '仅记录' }}</b><span>可见范围</span></div>
         </div>
 
         <!-- 简介 -->
@@ -144,6 +143,37 @@
                 <div v-if="p.parsed.desc" class="point-line desc">{{ p.parsed.desc }}</div>
                 <div v-if="p.longitude != null && p.latitude != null" class="point-coord">
                   {{ Number(p.longitude).toFixed(4) }}, {{ Number(p.latitude).toFixed(4) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评论区 -->
+        <div class="detail-section">
+          <h4 class="section-head">评论区（{{ detailComments.length }}）</h4>
+          <div v-if="!detailComments.length" class="empty-points">这条路线还没有评论</div>
+          <div v-else class="comment-list">
+            <div v-for="c in commentTree" :key="c.id" class="comment-item">
+              <div class="comment-head">
+                <img v-if="imgOk(c.avatar)" :src="c.avatar" class="comment-avatar" @error="onImgError" />
+                <span v-else class="comment-avatar avatar-empty">🙂</span>
+                <span class="comment-user">{{ c.userName || ('用户#' + c.userId) }}</span>
+                <span class="comment-time">{{ formatTime(c.createTime) }}</span>
+                <span class="comment-like">👍 {{ c.likeCount || 0 }}</span>
+              </div>
+              <div class="comment-content">{{ c.content }}</div>
+              <div v-if="c.replies && c.replies.length" class="reply-list">
+                <div v-for="r in c.replies" :key="r.id" class="reply-item">
+                  <div class="comment-head">
+                    <img v-if="imgOk(r.avatar)" :src="r.avatar" class="comment-avatar sm" @error="onImgError" />
+                    <span v-else class="comment-avatar sm avatar-empty">🙂</span>
+                    <span class="comment-user">{{ r.userName || ('用户#' + r.userId) }}</span>
+                    <span v-if="r.replyToUserName" class="reply-to">回复 {{ r.replyToUserName }}</span>
+                    <span class="comment-time">{{ formatTime(r.createTime) }}</span>
+                    <span class="comment-like">👍 {{ r.likeCount || 0 }}</span>
+                  </div>
+                  <div class="comment-content">{{ r.content }}</div>
                 </div>
               </div>
             </div>
@@ -180,6 +210,7 @@ const curRow = ref({})
 const detailLoading = ref(false)
 const detailPoints = ref([])
 const detailTags = ref([])
+const detailComments = ref([])
 // all / 0 待审核 / 1 已上线 / 2 已下架
 const activeStatus = ref('all')
 
@@ -307,9 +338,20 @@ const pointList = computed(() =>
   detailPoints.value.map(p => ({ ...p, parsed: parsePointDesc(p.description) }))
 )
 
+// 评论区：parentId 为 0 的是一级评论，其余按父评论挂到 replies 上（只做一层楼中楼）
+const commentTree = computed(() => {
+  const all = detailComments.value
+  const roots = all.filter(c => !c.parentId)
+  return roots.map(c => ({
+    ...c,
+    replies: all.filter(r => r.parentId && r.parentId === c.id)
+  }))
+})
+
 const openDetail = async (row) => {
   curRow.value = row
   detailPoints.value = []
+  detailComments.value = []
   detailTags.value = Array.isArray(row.tags)
     ? row.tags.map(t => (typeof t === 'string' ? t : t.tagName)).filter(Boolean)
     : []
@@ -326,10 +368,21 @@ const openDetail = async (row) => {
       detailPoints.value = Array.isArray(vo.points) ? vo.points : []
       detailTags.value = Array.isArray(vo.tags) ? vo.tags : []
     }
+    // 评论区单独拉一次，失败不影响详情主体
+    await loadComments(row.id)
   } catch (error) {
     ElMessage.warning('详情加载失败，仅展示列表里的基础信息')
   } finally {
     detailLoading.value = false
+  }
+}
+
+const loadComments = async (routeId) => {
+  try {
+    const res = await request.get(`/admin/route/comments/${routeId}`)
+    detailComments.value = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch (error) {
+    detailComments.value = []
   }
 }
 
@@ -453,7 +506,7 @@ onMounted(() => {
 .tag-chip { font-size: 12px; padding: 3px 9px; border-radius: 8px; background: #FFF9F0; color: #E6A23C; }
 .hero-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: #909399; }
 
-.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
 .stat-box {
   background: #FFF9F0;
   border: 1px solid #FFEFDC;
@@ -532,4 +585,19 @@ onMounted(() => {
 .point-coord { font-size: 11.5px; color: #C0C4CC; margin-top: 4px; }
 
 .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 评论区 */
+.comment-list { display: flex; flex-direction: column; gap: 10px; }
+.comment-item { background: #FAFAFB; border: 1px solid #EFEFF2; border-radius: 10px; padding: 10px 12px; }
+.comment-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comment-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: none; }
+.comment-avatar.sm { width: 20px; height: 20px; }
+.avatar-empty { display: inline-flex; align-items: center; justify-content: center; background: #FFF1E6; font-size: 12px; }
+.comment-user { font-size: 13px; font-weight: 600; color: #303133; }
+.comment-time { font-size: 11.5px; color: #A8ABB2; }
+.comment-like { margin-left: auto; font-size: 11.5px; color: #F08C4C; }
+.comment-content { margin: 6px 0 0 32px; font-size: 13px; color: #494949; line-height: 1.65; word-break: break-word; }
+.reply-list { margin: 8px 0 0 32px; padding-left: 10px; border-left: 2px solid #FFE6D5; display: flex; flex-direction: column; gap: 8px; }
+.reply-item { background: #fff; border-radius: 8px; padding: 8px 10px; }
+.reply-to { font-size: 11.5px; color: #909399; }
 </style>
