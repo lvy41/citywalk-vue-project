@@ -35,10 +35,13 @@
         <p>暂无系统通知</p>
       </div>
       <div v-else class="msg-list">
-        <div class="msg-item" v-for="item in systemList" :key="item.id" @click="goRoute(item.routeId)">
-          <div class="msg-title">{{ item.title }}</div>
+        <div class="msg-item sys-item" v-for="item in systemList" :key="item.id" @click="openSystem(item)">
+          <div class="sys-head">
+            <div class="msg-title">{{ item.title }}</div>
+            <span v-if="systemTag(item.type)" class="sys-tag" :class="`sys-tag-${item.type}`">{{ systemTag(item.type) }}</span>
+            <div class="msg-time">{{ formatTime(item.createTime) }}</div>
+          </div>
           <div class="msg-content">{{ item.content }}</div>
-          <div class="msg-time">{{ formatTime(item.createTime) }}</div>
         </div>
       </div>
     </div>
@@ -296,6 +299,23 @@ const unfollow = async (item) => {
 
 const goRoute = (routeId) => {
   if (routeId) router.push(`/detail/${routeId}`)
+}
+
+// 系统通知的状态标记（审核通过 / 重新上线 / 下架 / 删除）
+const systemTag = (type) => {
+  if (type === 'audit_pass' || type === 'audit_relist') return '已上线'
+  if (type === 'audit_offline') return '已下架'
+  if (type === 'route_delete') return '已删除'
+  return ''
+}
+
+// 已下架 / 已删除的路线点进去会 404，这里只提示不跳转
+const openSystem = (item) => {
+  if (item.type === 'audit_offline' || item.type === 'route_delete') {
+    ElMessage.info('该路线已下架，暂时无法查看')
+    return
+  }
+  goRoute(item.routeId)
 }
 
 const replyComment = (item) => {
@@ -604,6 +624,28 @@ onActivated(() => {
   font-weight: 600;
   color: #222;
 }
+
+/* 系统通知：标题 + 当前状态标记 */
+/* 系统通知：标题 + 状态标记 + 时间一行，内容另起一行 */
+.sys-item { flex-direction: column; gap: 6px; }
+.sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sys-head .msg-title { white-space: nowrap; }
+.sys-head .msg-time { margin-left: auto; flex: none; }
+.sys-item .msg-content { margin-top: 0; }
+.sys-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 1.5;
+  white-space: nowrap;
+  flex: none;
+}
+.sys-tag-audit_pass,
+.sys-tag-audit_relist { color: #2f9e5f; background: #e8f8ee; }
+.sys-tag-audit_offline { color: #d9534f; background: #fdecea; }
+.sys-tag-route_delete { color: #8a8a8a; background: #f0f0f0; }
+.sys-item { cursor: pointer; }
 
 .msg-content {
   font-size: 14px;
