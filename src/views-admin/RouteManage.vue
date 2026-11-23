@@ -79,8 +79,115 @@
     </div>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="路线详情数据" width="60%">
-      <pre style="background:#F5F7FA; padding:15px; border-radius:8px; color:#333;">{{ JSON.stringify(curRow, null, 2) }}</pre>
+    <el-dialog
+      v-model="detailVisible"
+      title="路线详情"
+      width="760px"
+      class="route-detail-dialog"
+      destroy-on-close
+    >
+      <div v-loading="detailLoading" class="detail-body">
+        <!-- 封面 + 基本信息 -->
+        <div class="detail-hero">
+          <div class="hero-cover">
+            <img v-if="imgOk(detailCover)" :src="detailCover" alt="路线封面" @error="onImgError" />
+            <div v-else class="cover-empty">🚶</div>
+            <el-tag class="hero-status" :type="statusMeta.type" round effect="dark">{{ statusMeta.text }}</el-tag>
+          </div>
+          <div class="hero-main">
+            <h3 class="detail-name">{{ curRow.routeName || '未命名路线' }}</h3>
+            <div class="hero-chips">
+              <span class="city-chip">📍 {{ curRow.city || '未设置城市' }}</span>
+              <span v-for="t in detailTags" :key="t" class="tag-chip"># {{ t }}</span>
+            </div>
+            <div class="hero-meta">
+              <span>发布者：{{ curRow.publisherName || ('用户#' + curRow.userId) }}</span>
+              <span>路线 ID：{{ curRow.id }}</span>
+              <span>发布时间：{{ formatTime(curRow.createTime) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据概览 -->
+        <div class="stat-row">
+          <div class="stat-box"><b>{{ curRow.likeCount || 0 }}</b><span>点赞</span></div>
+          <div class="stat-box"><b>{{ curRow.collectCount || 0 }}</b><span>收藏</span></div>
+          <div class="stat-box"><b>{{ pointList.length }}</b><span>打卡点</span></div>
+        </div>
+
+        <!-- 简介 -->
+        <div class="detail-section">
+          <h4 class="section-head">路线简介</h4>
+          <p class="detail-desc">{{ curRow.description || '作者没有填写简介' }}</p>
+        </div>
+
+        <!-- 打卡点 -->
+        <div class="detail-section">
+          <h4 class="section-head">途径打卡点（{{ pointList.length }}）</h4>
+          <div v-if="!pointList.length" class="empty-points">这条路线还没有打卡点数据</div>
+          <div v-else class="point-list">
+            <div v-for="(p, i) in pointList" :key="p.id || i" class="point-card">
+              <div class="point-index">{{ i + 1 }}</div>
+              <div class="point-cover">
+                <img v-if="imgOk(pointImg(p))" :src="pointImg(p)" alt="点位照片" @error="onImgError" />
+                <span v-else>📷</span>
+              </div>
+              <div class="point-main">
+                <div class="point-name-row">
+                  <span class="point-name">{{ p.pointName || '未命名点位' }}</span>
+                  <span v-if="p.parsed.time" class="mini-chip">⏰ {{ p.parsed.time }}</span>
+                  <span v-if="p.parsed.transport" class="mini-chip">🚶 {{ p.parsed.transport }}</span>
+                </div>
+                <div v-if="p.parsed.address" class="point-line">地址：{{ p.parsed.address }}</div>
+                <div v-if="p.parsed.tip" class="point-line">看点：{{ p.parsed.tip }}</div>
+                <div v-if="p.parsed.desc" class="point-line desc">{{ p.parsed.desc }}</div>
+                <div v-if="p.longitude != null && p.latitude != null" class="point-coord">
+                  {{ Number(p.longitude).toFixed(4) }}, {{ Number(p.latitude).toFixed(4) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评论区 -->
+        <div class="detail-section">
+          <h4 class="section-head">评论区（{{ detailComments.length }}）</h4>
+          <div v-if="!detailComments.length" class="empty-points">这条路线还没有评论</div>
+          <div v-else class="comment-list">
+            <div v-for="c in commentTree" :key="c.id" class="comment-item">
+              <div class="comment-head">
+                <img v-if="imgOk(c.avatar)" :src="c.avatar" class="comment-avatar" @error="onImgError" />
+                <span v-else class="comment-avatar avatar-empty">🙂</span>
+                <span class="comment-user">{{ c.userName || ('用户#' + c.userId) }}</span>
+                <span class="comment-time">{{ formatTime(c.createTime) }}</span>
+                <span class="comment-like">👍 {{ c.likeCount || 0 }}</span>
+              </div>
+              <div class="comment-content">{{ c.content }}</div>
+              <div v-if="c.replies && c.replies.length" class="reply-list">
+                <div v-for="r in c.replies" :key="r.id" class="reply-item">
+                  <div class="comment-head">
+                    <img v-if="imgOk(r.avatar)" :src="r.avatar" class="comment-avatar sm" @error="onImgError" />
+                    <span v-else class="comment-avatar sm avatar-empty">🙂</span>
+                    <span class="comment-user">{{ r.userName || ('用户#' + r.userId) }}</span>
+                    <span v-if="r.replyToUserName" class="reply-to">回复 {{ r.replyToUserName }}</span>
+                    <span class="comment-time">{{ formatTime(r.createTime) }}</span>
+                    <span class="comment-like">👍 {{ r.likeCount || 0 }}</span>
+                  </div>
+                  <div class="comment-content">{{ r.content }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="detailVisible = false">关闭</el-button>
+          <el-button v-if="curRow.auditStatus !== 1" type="success" @click="auditFromDialog(1)">通过并上线</el-button>
+          <el-button v-if="curRow.auditStatus === 1" type="warning" @click="auditFromDialog(2)">下架</el-button>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -99,6 +206,11 @@ const cityOptions = ref([])
 const tableData = ref([])
 const detailVisible = ref(false)
 const curRow = ref({})
+// 详情接口拿到的点位与标签
+const detailLoading = ref(false)
+const detailPoints = ref([])
+const detailTags = ref([])
+const detailComments = ref([])
 // all / 0 待审核 / 1 已上线 / 2 已下架
 const activeStatus = ref('all')
 
@@ -162,9 +274,122 @@ const filteredData = computed(() => {
   })
 })
 
-const openDetail = (row) => {
+// ==================== 路线详情 ====================
+const statusMeta = computed(() => {
+  const s = curRow.value.auditStatus
+  if (s === 0) return { text: '待审核', type: 'info' }
+  if (s === 1) return { text: '已上线', type: 'success' }
+  if (s === 2) return { text: '已下架', type: 'danger' }
+  return { text: '状态未知', type: 'info' }
+})
+
+// 封面 / 点位图只认 http 或 base64 data URL，避免脏数据裂图
+const isImage = (v) => /^(http|data:image)/.test(String(v || ''))
+// 图片地址可能已失效（外链过期、本地文件被删），加载失败时记下来降级成占位图标
+const brokenImgs = ref({})
+const onImgError = (e) => {
+  const src = e && e.target && e.target.getAttribute && e.target.getAttribute('src')
+  if (src) brokenImgs.value[src] = true
+}
+const imgOk = (url) => !!url && !brokenImgs.value[url]
+const detailCover = computed(() => (isImage(curRow.value.coverImage) ? curRow.value.coverImage : ''))
+const pointImg = (p) => (isImage(p.imageUrl) ? p.imageUrl : '')
+
+// 列表里的时间形如 2026-11-18T08:28:48.000Z，按本地时区展示
+const formatTime = (val) => {
+  if (!val) return '-'
+  const d = new Date(val)
+  if (Number.isNaN(d.getTime())) return String(val)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// 点位 description 是「地址：xx；建议到达 09:00；通勤：步行；看点：xx；介绍：xx」拼装文本，这里拆开展示
+const parsePointDesc = (raw) => {
+  const text = String(raw || '').trim()
+  const out = { address: '', time: '', transport: '', tip: '', desc: '' }
+  if (!text) return out
+  if (!text.startsWith('地址：')) {
+    out.desc = text
+    return out
+  }
+  text.split('；').forEach((seg) => {
+    const s = seg.trim()
+    if (!s) return
+    if (s.startsWith('地址：')) out.address = s.substring(3).trim()
+    else if (s.startsWith('建议到达')) {
+      const t = s.replace('建议到达', '').trim()
+      const idx = t.indexOf('，通勤：')
+      if (idx > 0) {
+        out.time = t.substring(0, idx).trim()
+        out.transport = t.substring(idx + 4).trim()
+      } else out.time = t
+    } else if (s.startsWith('通勤：')) out.transport = s.substring(3).trim()
+    else if (s.startsWith('看点：')) out.tip = s.substring(3).trim()
+    else if (s.startsWith('介绍：')) {
+      const d = s.substring(3).trim()
+      out.desc = out.desc ? `${out.desc}；${d}` : d
+    } else out.desc = out.desc ? `${out.desc}；${s}` : s
+  })
+  return out
+}
+
+const pointList = computed(() =>
+  detailPoints.value.map(p => ({ ...p, parsed: parsePointDesc(p.description) }))
+)
+
+// 评论区：parentId 为 0 的是一级评论，其余按父评论挂到 replies 上（只做一层楼中楼）
+const commentTree = computed(() => {
+  const all = detailComments.value
+  const roots = all.filter(c => !c.parentId)
+  return roots.map(c => ({
+    ...c,
+    replies: all.filter(r => r.parentId && r.parentId === c.id)
+  }))
+})
+
+const openDetail = async (row) => {
   curRow.value = row
+  detailPoints.value = []
+  detailComments.value = []
+  detailTags.value = Array.isArray(row.tags)
+    ? row.tags.map(t => (typeof t === 'string' ? t : t.tagName)).filter(Boolean)
+    : []
   detailVisible.value = true
+  detailLoading.value = true
+  try {
+    // 后台专用详情接口：不过滤审核状态，待审核/已下架路线也能看到完整内容
+    const res = await request.get(`/admin/route/detail/${row.id}`)
+    const vo = res && res.data
+    if (res && res.code === 200 && vo) {
+      if (vo.route) {
+        curRow.value = { ...row, ...vo.route, publisherName: vo.authorName || row.publisherName }
+      }
+      detailPoints.value = Array.isArray(vo.points) ? vo.points : []
+      detailTags.value = Array.isArray(vo.tags) ? vo.tags : []
+    }
+    // 评论区单独拉一次，失败不影响详情主体
+    await loadComments(row.id)
+  } catch (error) {
+    ElMessage.warning('详情加载失败，仅展示列表里的基础信息')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+const loadComments = async (routeId) => {
+  try {
+    const res = await request.get(`/admin/route/comments/${routeId}`)
+    detailComments.value = res && res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch (error) {
+    detailComments.value = []
+  }
+}
+
+// 弹窗内直接审核：复用列表的审核逻辑，成功后关闭弹窗并刷新列表
+const auditFromDialog = async (status) => {
+  await auditRoute(curRow.value.id, status)
+  detailVisible.value = false
 }
 
 // 审核：1=通过上线，2=下架
@@ -258,4 +483,121 @@ onMounted(() => {
 }
 :deep(.el-table) { border-radius: 12px; overflow: hidden; }
 .route-name { font-weight: bold; color: #303133; }
+
+/* ==================== 路线详情弹窗 ==================== */
+.detail-body { min-height: 120px; }
+.detail-hero { display: flex; gap: 18px; }
+.hero-cover {
+  position: relative;
+  flex: 0 0 200px;
+  width: 200px;
+  height: 132px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #FFE4D6, #FFF0F3);
+}
+.hero-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cover-empty { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 34px; }
+.hero-status { position: absolute; top: 8px; left: 8px; }
+.hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.detail-name { margin: 0 0 8px; font-size: 18px; font-weight: 800; color: #303133; word-break: break-all; }
+.hero-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.city-chip { font-size: 12px; padding: 3px 9px; border-radius: 8px; background: #FFF0F3; color: #FC6076; font-weight: 600; }
+.tag-chip { font-size: 12px; padding: 3px 9px; border-radius: 8px; background: #FFF9F0; color: #E6A23C; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: #909399; }
+
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+.stat-box {
+  background: #FFF9F0;
+  border: 1px solid #FFEFDC;
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.stat-box b { display: block; font-size: 18px; color: #FF7A45; font-weight: 800; line-height: 1.3; }
+.stat-box span { font-size: 12px; color: #909399; }
+
+.detail-section { margin-bottom: 18px; }
+.section-head {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #303133;
+  padding-left: 9px;
+  border-left: 3px solid #FF9A44;
+  line-height: 1.2;
+}
+.detail-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.7;
+  background: #F9FAFB;
+  border-radius: 10px;
+  padding: 10px 12px;
+  word-break: break-word;
+}
+.empty-points { font-size: 13px; color: #A8ABB2; padding: 14px 0; }
+
+.point-list { display: flex; flex-direction: column; gap: 10px; }
+.point-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #F0F2F5;
+  border-radius: 12px;
+  background: #fff;
+}
+.point-index {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #FF9A44, #FC6076);
+}
+.point-cover {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #F5F7FA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #C0C4CC;
+}
+.point-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.point-main { flex: 1; min-width: 0; }
+.point-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.point-name { font-size: 14px; font-weight: 700; color: #303133; word-break: break-all; }
+.mini-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 7px; background: #F2F6FF; color: #409EFF; }
+.point-line { font-size: 12.5px; color: #606266; line-height: 1.6; word-break: break-word; }
+.point-line.desc { color: #909399; margin-top: 2px; }
+.point-coord { font-size: 11.5px; color: #C0C4CC; margin-top: 4px; }
+
+.dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 评论区 */
+.comment-list { display: flex; flex-direction: column; gap: 10px; }
+.comment-item { background: #FAFAFB; border: 1px solid #EFEFF2; border-radius: 10px; padding: 10px 12px; }
+.comment-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comment-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: none; }
+.comment-avatar.sm { width: 20px; height: 20px; }
+.avatar-empty { display: inline-flex; align-items: center; justify-content: center; background: #FFF1E6; font-size: 12px; }
+.comment-user { font-size: 13px; font-weight: 600; color: #303133; }
+.comment-time { font-size: 11.5px; color: #A8ABB2; }
+.comment-like { margin-left: auto; font-size: 11.5px; color: #F08C4C; }
+.comment-content { margin: 6px 0 0 32px; font-size: 13px; color: #494949; line-height: 1.65; word-break: break-word; }
+.reply-list { margin: 8px 0 0 32px; padding-left: 10px; border-left: 2px solid #FFE6D5; display: flex; flex-direction: column; gap: 8px; }
+.reply-item { background: #fff; border-radius: 8px; padding: 8px 10px; }
+.reply-to { font-size: 11.5px; color: #909399; }
 </style>
